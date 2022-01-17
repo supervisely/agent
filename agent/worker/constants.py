@@ -42,6 +42,7 @@ _PULL_POLICY = 'PULL_POLICY'
 _GIT_LOGIN = 'GIT_LOGIN'
 _GIT_PASSWORD = 'GIT_PASSWORD'
 _GITHUB_TOKEN = 'GITHUB_TOKEN'
+_AGENT_ROOT_DIR = 'AGENT_ROOT_DIR'
 
 _REQUIRED_SETTINGS = [
     _AGENT_HOST_DIR,
@@ -84,6 +85,7 @@ _OPTIONAL_DEFAULTS = {
     _REQUESTS_CA_BUNDLE: None,
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
+    _AGENT_ROOT_DIR: '/sly_agent'
 }
 
 
@@ -104,6 +106,7 @@ def HOST_DIR():
 
 
 def AGENT_ROOT_DIR():
+    return read_optional_setting(_AGENT_ROOT_DIR)
     return '/sly_agent'
 
 
