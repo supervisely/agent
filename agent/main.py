@@ -3,13 +3,8 @@
 import os
 import sys
 from dotenv import load_dotenv
+
 from pathlib import Path
-import supervisely_lib as sly
-
-from worker import constants
-from worker.agent import Agent
-
-
 
 # only for convenient debug, has no effect in production
 root_source_dir = str(Path(sys.argv[0]).parents[1])
@@ -20,6 +15,11 @@ debug_env_path = os.path.join(root_source_dir, "debug.env")
 secret_env_path = os.path.join(root_source_dir, "secret.env")
 load_dotenv(debug_env_path)
 load_dotenv(secret_env_path, override=True)
+
+import supervisely_lib as sly
+
+from worker import constants
+from worker.agent import Agent
 
 
 

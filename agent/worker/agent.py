@@ -101,10 +101,16 @@ class Agent:
         docker_img_info = subprocess.Popen([docker_inspect_cmd], 
                                             shell=True, executable="/bin/bash", 
                                             stdout=subprocess.PIPE).communicate()[0]
+        
+        config = json.loads(docker_img_info).get("Config")
+        if config is None:
+            config = {}
+            self.logger.warn('Agent is running in debug VENV')
+
         self.agent_info = {
             'hardware_info': hw_info,
-            'agent_image': json.loads(docker_img_info)["Config"]["Image"],
-            'agent_version': json.loads(docker_img_info)["Config"]["Labels"]["VERSION"],
+            'agent_image': config.get("Image", ""),
+            'agent_version': config.get("Labels", {}).get("VERSION", ""),
             'agent_image_digest': get_self_docker_image_digest()
         }
 
@@ -290,8 +296,18 @@ class Agent:
         self.thread_list.append(self.thread_pool.submit(sly.function_wrapper_external_logger, self.get_new_task, self.logger))
         self.thread_list.append(self.thread_pool.submit(sly.function_wrapper_external_logger, self.get_stop_task, self.logger))
         self.thread_list.append(self.thread_pool.submit(sly.function_wrapper_external_logger, self.send_connect_info, self.logger))
-        self.thread_list.append(
-            self.thread_pool.submit(sly.function_wrapper_external_logger, self.follow_daemon, self.logger, TelemetryReporter, 'TELEMETRY_REPORTER'))
+        if constants.DISABLE_TELEMETRY() is None:
+            self.thread_list.append(
+                self.thread_pool.submit(
+                    sly.function_wrapper_external_logger,
+                    self.follow_daemon, 
+                    self.logger, 
+                    TelemetryReporter, 
+                    'TELEMETRY_REPORTER'
+                    )
+                )
+        else:
+            self.logger.warn('Telemetry is disabled in ENV')
         # self.thread_list.append(
         #     self.thread_pool.submit(sly.function_wrapper_external_logger, self.follow_daemon,  self.logger, AppFileStreamer, 'APP_FILE_STREAMER'))
 

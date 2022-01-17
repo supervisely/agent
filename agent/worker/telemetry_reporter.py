@@ -62,7 +62,7 @@ class TelemetryReporter(TaskLogged):
                                               shell=True, executable="/bin/bash",
                                               stdout=subprocess.PIPE).communicate()[0]
 
-        docker_image = json.loads(docker_inspect_out)["Config"]["Image"]
+        docker_image = json.loads(docker_inspect_out).get("Config", {}).get("Image", "Unavailable, may be in debug mode")
 
         img_sizeb = get_directory_size_bytes(self.data_mgr.storage.images.storage_root_path)
         nn_sizeb = get_directory_size_bytes(self.data_mgr.storage.nns.storage_root_path)

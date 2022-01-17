@@ -9,3 +9,13 @@ install requirements:
 pip install -r requirements.txt
 deactivate
 ```
+
+Symlink supervisely SDK sources:
+for example
+
+```sh
+# ln -s ~/work/sly_public/supervisely ./supervisely
+# ln -s ~/work/sly_public/supervisely_lib ./agent/supervisely_lib
+ln -s ~/work/sly_public/supervisely_lib ./supervisely_lib
+
+```
