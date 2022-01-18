@@ -141,6 +141,12 @@ class TaskDockerized(TaskSly):
 
         self._container_lock.acquire()
         volumes = self._get_task_volumes()
+
+        if constants.DOCKER_NET() is not None:
+            if add_envs is None:
+                add_envs = {}
+            add_envs['VIRTUAL_HOST'] = f'task-{self.info["task_id"]}.supervisely.local'
+
         try:
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
@@ -172,7 +178,8 @@ class TaskDockerized(TaskSly):
                 cpu_period=constants.CPU_PERIOD(),
                 cpu_quota=constants.CPU_QUOTA(),
                 mem_limit=constants.MEM_LIMIT(),
-                memswap_limit=constants.MEM_LIMIT()
+                memswap_limit=constants.MEM_LIMIT(),
+                network=constants.DOCKER_NET()
             )
             self._container.reload()
             self.logger.debug('After spawning. Container status: {}'.format(str(self._container.status)))

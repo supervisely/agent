@@ -42,9 +42,6 @@ _PULL_POLICY = 'PULL_POLICY'
 _GIT_LOGIN = 'GIT_LOGIN'
 _GIT_PASSWORD = 'GIT_PASSWORD'
 _GITHUB_TOKEN = 'GITHUB_TOKEN'
-_AGENT_ROOT_DIR = 'AGENT_ROOT_DIR'
-_DISABLE_TELEMETRY = 'DISABLE_TELEMETRY'
-
 
 _REQUIRED_SETTINGS = [
     _AGENT_HOST_DIR,
@@ -62,6 +59,8 @@ _PULL_POLICY_DICT = {
     str(PullPolicy.IF_NOT_PRESENT): PullPolicy.IF_NOT_PRESENT,
     str(PullPolicy.NEVER): PullPolicy.NEVER
 }
+
+_DOCKER_NET = 'DOCKER_NET'
 
 _OPTIONAL_DEFAULTS = {
     _WITH_LOCAL_STORAGE: 'true',
@@ -87,8 +86,7 @@ _OPTIONAL_DEFAULTS = {
     _REQUESTS_CA_BUNDLE: None,
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
-    _AGENT_ROOT_DIR: '/sly_agent',
-    _DISABLE_TELEMETRY: None
+    _DOCKER_NET: None,  # or string value 'supervisely-vpn'
 }
 
 
@@ -109,7 +107,6 @@ def HOST_DIR():
 
 
 def AGENT_ROOT_DIR():
-    return read_optional_setting(_AGENT_ROOT_DIR)
     return '/sly_agent'
 
 
@@ -289,7 +286,7 @@ def MEM_LIMIT():
 def PULL_POLICY():
     val = read_optional_setting(_PULL_POLICY).lower()
     if val not in _PULL_POLICY_DICT:
-        raise RuntimeError("Unknown pull policy {!r}. Supported values: {}".format(val, list(_PULL_POLICY_DICT.keys())))
+        raise RuntimeError("Unknown pull policy {!r}. Supported values: {}".format(val, list[_PULL_POLICY_DICT.keys()]))
     else:
         return _PULL_POLICY_DICT[val]
 
@@ -350,8 +347,8 @@ def SHM_SIZE():
     return read_optional_setting(_SHM_SIZE)
 
 
-def DISABLE_TELEMETRY():
-    return read_optional_setting(_DISABLE_TELEMETRY)
+def DOCKER_NET():
+    return read_optional_setting(_DOCKER_NET)
 
 
 def init_constants():
