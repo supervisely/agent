@@ -50,10 +50,10 @@ RUN pip install docker --upgrade
 RUN pip install version-parser==1.0.1
 
 ############### copy code ###############
-COPY . /workdir
-
 #COPY supervisely_lib /workdir/supervisely_lib
 RUN pip install supervisely==6.4.3
+
+COPY . /workdir
 
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
 WORKDIR /workdir/agent
