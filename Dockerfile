@@ -48,14 +48,14 @@ RUN apt-get update \
 
 RUN pip install docker --upgrade
 RUN pip install version-parser==1.0.1
-RUN pip install supervisely==6.4.3
 
 ############### copy code ###############
-ARG MODULE_PATH
-COPY $MODULE_PATH /workdir
+COPY . /workdir
+
 #COPY supervisely_lib /workdir/supervisely_lib
+RUN pip install supervisely==6.4.3
 
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
-WORKDIR /workdir/src
+WORKDIR /workdir/agent
 
-ENTRYPOINT ["sh", "-c", "python -u /workdir/src/main.py"]
+ENTRYPOINT ["sh", "-c", "python -u /workdir/agent/main.py"]
