@@ -5,6 +5,9 @@ import os.path as osp
 import threading
 import time
 import multiprocessing
+import platform
+if platform.system() == 'Darwin':
+    multiprocessing.set_start_method("fork")
 import concurrent.futures
 import sys
 import json

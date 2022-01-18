@@ -43,7 +43,7 @@ jobs:
           push: true
           tags: |
             supervisely/agent:dev
-            ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/agent:dev
+            ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/rc2/agent:dev
           build-args: |
             LABEL_VERSION=agent:dev
             LABEL_INFO=${{ env.LABEL_INFO }}

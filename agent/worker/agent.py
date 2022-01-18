@@ -105,12 +105,12 @@ class Agent:
         config = json.loads(docker_img_info).get("Config")
         if config is None:
             config = {}
-            self.logger.warn('Agent is running in debug VENV')
+            self.logger.warn('Docker container info unavailable, agent is running in debug VENV')
 
         self.agent_info = {
             'hardware_info': hw_info,
-            'agent_image': config.get("Image", ""),
-            'agent_version': config.get("Labels", {}).get("VERSION", ""),
+            'agent_image': config.get("Image", "docker.enterprise.supervise.ly/agent:6.3.0"), # for debug
+            'agent_version': config.get("Labels", {}).get("VERSION", "agent:6.3.0"),  # for debug
             'agent_image_digest': get_self_docker_image_digest()
         }
 
