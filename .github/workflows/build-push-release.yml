@@ -1,4 +1,4 @@
-name: release-build-push-dev
+name: build-push-release
 
 on:
   release:
