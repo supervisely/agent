@@ -53,7 +53,7 @@ jobs:
             LABEL_MODES=${{ env.LABEL_MODES }}
             LABEL_README=${{ env.LABEL_README }}
             LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }}
-          # cache-from: type=registry,ref=supervisely/agent:cache
-          # cache-to: type=registry,ref=supervisely/agent:cache,mode=max
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=supervisely/agent:cache
+          cache-to: type=registry,ref=supervisely/agent:cache,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
