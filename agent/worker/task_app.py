@@ -230,7 +230,8 @@ class TaskApp(TaskDockerized):
             self.logger.info("pip second install for old agents is finished")
 
     def get_spawn_entrypoint(self):
-        return ["sh", "-c", "while true; do sleep 30; done;"]
+        inf_command = "tree {} && while true; do sleep 30; done;".format(self.dir_task_container)
+        return ["sh", "-c", inf_command]
 
     def _exec_command(self, command, add_envs=None, container_id=None):
         add_envs = sly.take_with_default(add_envs, {})
