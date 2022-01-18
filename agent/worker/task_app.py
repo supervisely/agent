@@ -108,6 +108,8 @@ class TaskApp(TaskDockerized):
         else:
             self.logger.info("Git repo already exists")
             shutil.copytree(path_cache, self.dir_task_src)
+
+        self.logger.info("Repo directory on host", extra={"dir": self.dir_task_src})
         sly.fs.log_tree(self.dir_task_src, self.logger)
 
     def init_docker_image(self):
@@ -231,6 +233,7 @@ class TaskApp(TaskDockerized):
 
     def get_spawn_entrypoint(self):
         inf_command = "tree {} && while true; do sleep 30; done;".format(self.dir_task_container)
+        self.logger.info("Container directory and command", extra={"command": inf_command})
         return ["sh", "-c", inf_command]
 
     def _exec_command(self, command, add_envs=None, container_id=None):
