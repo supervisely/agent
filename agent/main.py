@@ -3,7 +3,6 @@
 import os
 import sys
 from dotenv import load_dotenv
-
 from pathlib import Path
 
 # only for convenient debug, has no effect in production
