@@ -44,10 +44,10 @@ jobs:
             supervisely/agent:dev
             ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/agent:dev
           build-args: |
-            LABEL_VERSION=${{ env.LABEL_VERSION }}
+            LABEL_VERSION=dev
             LABEL_INFO=${{ env.LABEL_INFO }}
             LABEL_MODES=${{ env.LABEL_MODES }}
             LABEL_README=${{ env.LABEL_README }}
             LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }}
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME_COMMUNITY }}/agent:cache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME_COMMUNITY }}/agent:cache,mode=max
+          cache-from: type=registry,ref=supervisely/agent:cache
+          cache-to: type=registry,ref=supervisely/agent:cache,mode=max

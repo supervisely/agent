@@ -5,9 +5,10 @@ import datetime
 env_file = os.getenv('GITHUB_ENV')
 
 ## VERSION
-version_dir = "my_app"
-with open(os.path.join(version_dir, 'VERSION')) as f:
-    label_version = f.read()
+# version_dir = "my_app"
+# with open(os.path.join(version_dir, 'VERSION')) as f:
+#     label_version = f.read()
+label_version = "dev"
 
 ## PLUGIN INFO
 info_path = "./plugin_info.json"
