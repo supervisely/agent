@@ -232,8 +232,8 @@ class TaskApp(TaskDockerized):
             self.logger.info("pip second install for old agents is finished")
 
     def get_spawn_entrypoint(self):
-        inf_command = "tree {} && while true; do sleep 30; done;".format(self.dir_task_container)
-        self.logger.info("Container directory and command", extra={"command": inf_command})
+        inf_command = "while true; do sleep 30; done;"
+        self.logger.info("Infinit command", extra={"command": inf_command})
         return ["sh", "-c", inf_command]
 
     def _exec_command(self, command, add_envs=None, container_id=None):
