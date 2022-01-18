@@ -8,7 +8,7 @@ env_file = os.getenv('GITHUB_ENV')
 # version_dir = "my_app"
 # with open(os.path.join(version_dir, 'VERSION')) as f:
 #     label_version = f.read()
-label_version = "dev"
+#label_version = "dev"
 
 ## PLUGIN INFO
 info_path = "./plugin_info.json"
@@ -32,7 +32,7 @@ label_built_at = str(datetime.datetime.now())
 
 ## Create ENV variables
 with open(env_file, "a") as workflow:
-    workflow.write(f"LABEL_VERSION={label_version}\n")
+    #workflow.write(f"LABEL_VERSION={label_version}\n")
     workflow.write(f"LABEL_INFO={label_info}\n")
     workflow.write(f"LABEL_MODES={label_modes}\n")
     workflow.write(f"LABEL_README={label_readme}\n")
