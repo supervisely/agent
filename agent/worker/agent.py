@@ -85,7 +85,7 @@ class Agent:
         dc = docker.from_env()
         agent_same_token = []
         for cont in dc.containers.list():
-            if constants.TOKEN() in cont.name:
+            if 'supervisely-agent-{}'.format(constants.TOKEN()) in cont.name:
                 agent_same_token.append(cont)
         if len(agent_same_token) > 1:
             raise RuntimeError("Agent with the same token already exists.")
