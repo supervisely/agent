@@ -45,7 +45,7 @@ jobs:
             supervisely/agent:dev
             ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/agent:dev
           build-args: |
-            LABEL_VERSION=dev
+            LABEL_VERSION=agent:dev
             LABEL_INFO=${{ env.LABEL_INFO }}
             LABEL_MODES=${{ env.LABEL_MODES }}
             LABEL_README=${{ env.LABEL_README }}
