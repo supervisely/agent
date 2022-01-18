@@ -12,8 +12,18 @@ sys.path.append(root_source_dir)
 
 debug_env_path = os.path.join(root_source_dir, "debug.env")
 secret_env_path = os.path.join(root_source_dir, "secret.env")
-load_dotenv(debug_env_path)
-load_dotenv(secret_env_path, override=True)
+
+gettrace = getattr(sys, 'gettrace', None)
+if gettrace is None:
+    print('No sys.gettrace')
+elif gettrace():
+    print('Hmm, Debugg is in progress')
+    load_dotenv(debug_env_path)
+    load_dotenv(secret_env_path, override=True)
+else:
+    print("Debugger is disabled")
+
+
 
 import supervisely_lib as sly
 
