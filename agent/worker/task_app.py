@@ -108,6 +108,7 @@ class TaskApp(TaskDockerized):
         else:
             self.logger.info("Git repo already exists")
             shutil.copytree(path_cache, self.dir_task_src)
+        sly.fs.log_tree(self.dir_task_src, self.logger)
 
     def init_docker_image(self):
         self.download_or_get_repo()
