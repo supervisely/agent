@@ -1,5 +1,18 @@
 FROM supervisely/base-py:6.1.7
 
+ARG LABEL_VERSION
+ARG LABEL_INFO
+ARG LABEL_MODES
+ARG LABEL_README
+ARG LABEL_BUILT_AT
+
+LABEL VERSION=$LABEL_VERSION
+LABEL INFO=$LABEL_INFO
+LABEL MODES=$LABEL_MODES
+LABEL README=$LABEL_README
+LABEL BUILT_AT=$LABEL_BUILT_AT
+LABEL CONFIGS=""
+
 ##############################################################################
 # Additional project libraries
 ##############################################################################
