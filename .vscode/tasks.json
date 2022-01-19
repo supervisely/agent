@@ -1,0 +1,33 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "create-network",
+        "type": "shell",
+        "command": "bash",
+        "args": [
+            "-c",
+            "docker network create supervisely-net 2> /dev/null"
+        ],
+        "presentation": {
+          "reveal": "always",
+        //   "panel": "new"
+        }
+      },
+      {
+        "label": "remove-network",
+        "type": "shell",
+        "command": "bash",
+        "args": [
+            "-c",
+            "docker network rm supervisely-net"
+        ],
+        "presentation": {
+          "reveal": "always",
+        //   "panel": "new"
+        }
+      }
+    ]
+  }

@@ -9,7 +9,9 @@
             "type": "python",
             "request": "launch",
             "program": "agent/main.py",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "preLaunchTask": "create-network",
+            "postDebugTask": "remove-network"
         }
     ]
 }
