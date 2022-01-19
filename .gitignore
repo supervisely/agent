@@ -5,3 +5,4 @@ __pycache__
 venv
 secret.env
 supervisely_lib
+start.sh
