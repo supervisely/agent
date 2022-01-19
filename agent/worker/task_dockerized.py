@@ -146,6 +146,7 @@ class TaskDockerized(TaskSly):
             if add_envs is None:
                 add_envs = {}
             add_envs['VIRTUAL_HOST'] = f'task-{self.info["task_id"]}.supervisely.local'
+            add_envs['VIRTUAL_PORT'] = self.app_config.get("port", 8000)
 
         try:
             self._container = self._docker_api.containers.run(

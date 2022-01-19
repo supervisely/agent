@@ -233,7 +233,7 @@ class TaskApp(TaskDockerized):
 
     def get_spawn_entrypoint(self):
         inf_command = "while true; do sleep 30; done;"
-        self.logger.info("Infinit command", extra={"command": inf_command})
+        self.logger.info("Infinite command", extra={"command": inf_command})
         return ["sh", "-c", inf_command]
 
     def _exec_command(self, command, add_envs=None, container_id=None):
@@ -259,17 +259,17 @@ class TaskApp(TaskDockerized):
     def exec_command(self, add_envs=None, command=None):
         add_envs = sly.take_with_default(add_envs, {})
         main_script_path = os.path.join(self.dir_task_src_container, self.app_config.get('main_script', 'src/main.py'))
-
         if command is None:
             command = "python {}".format(main_script_path)
+        
+        if "entrypoint" in self.app_config:
+            command = f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
         self.logger.info("command to run", extra={"command": command})
-
         self._exec_command(command, add_envs)
 
         #change pulling progress to app progress
         progress_dummy = sly.Progress('Application is started ...', 1, ext_logger=self.logger)
         progress_dummy.iter_done_report()
-
         self.logger.info("command is running", extra={"command": command})
 
     def install_pip_requirements(self, container_id=None):
@@ -323,6 +323,8 @@ class TaskApp(TaskDockerized):
 
         if constants.DOCKER_NET() is not None:
             envs['VIRTUAL_HOST'] = f'task-{self.info["task_id"]}.supervisely.local'
+            envs['VIRTUAL_PORT'] = self.app_config.get("port", 8000)
+
         return envs
 
     def process_logs(self):
