@@ -12,8 +12,8 @@
             "docker network create supervisely-net 2> /dev/null"
         ],
         "presentation": {
-          "reveal": "always",
-        //   "panel": "new"
+          "reveal": "silent",
+          "clear": true
         }
       },
       {
@@ -25,8 +25,8 @@
             "docker network rm supervisely-net"
         ],
         "presentation": {
-          "reveal": "always",
-        //   "panel": "new"
+          "reveal": "silent",
+          "clear": true
         }
       }
     ]
