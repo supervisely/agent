@@ -261,7 +261,9 @@ class TaskApp(TaskDockerized):
         main_script_path = os.path.join(self.dir_task_src_container, self.app_config.get('main_script', 'src/main.py'))
         if command is None:
             command = "python {}".format(main_script_path)
-        command = self.app_config.get("entrypoint", command)
+        
+        if "entrypoint" in self.app_config:
+            command = f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
         self.logger.info("command to run", extra={"command": command})
         self._exec_command(command, add_envs)
 
