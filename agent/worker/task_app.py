@@ -97,9 +97,14 @@ class TaskApp(TaskDockerized):
                 raise RuntimeError("Repo is downloaded and extracted, but resulting directory not found")
             extracted_path = os.path.join(self.dir_task_src, subdirs[0])
 
+            temp_dir = os.path.join(self.dir_task_src, sly.rand_str(5))
             for filename in os.listdir(extracted_path):
-                shutil.move(os.path.join(extracted_path, filename), os.path.join(self.dir_task_src, filename))
+                shutil.move(os.path.join(extracted_path, filename), os.path.join(temp_dir, filename))
             remove_dir(extracted_path)
+
+            for filename in os.listdir(temp_dir):
+                shutil.move(os.path.join(temp_dir, filename), os.path.join(self.dir_task_src, filename))
+            remove_dir(temp_dir)
             silent_remove(tar_path)
 
             #git.download(git_url, self.dir_task_src, github_token, version)
