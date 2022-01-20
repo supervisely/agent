@@ -91,6 +91,7 @@ class TaskApp(TaskDockerized):
                                          ext_logger=self.logger)
             with tarfile.open(tar_path) as archive:
                 archive.extractall(self.dir_task_src)
+            silent_remove(tar_path)
 
             subdirs = get_subdirs(self.dir_task_src)
             if len(subdirs) != 1:
@@ -98,14 +99,14 @@ class TaskApp(TaskDockerized):
             extracted_path = os.path.join(self.dir_task_src, subdirs[0])
 
             temp_dir = os.path.join(self.dir_task_src, sly.rand_str(5))
+            sly.fs.mkdir(temp_dir)
             for filename in os.listdir(extracted_path):
                 shutil.move(os.path.join(extracted_path, filename), os.path.join(temp_dir, filename))
             remove_dir(extracted_path)
-
+            
             for filename in os.listdir(temp_dir):
                 shutil.move(os.path.join(temp_dir, filename), os.path.join(self.dir_task_src, filename))
             remove_dir(temp_dir)
-            silent_remove(tar_path)
 
             #git.download(git_url, self.dir_task_src, github_token, version)
             if path_cache is not None:
