@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 from packaging import version
 from version_parser import Version
+import urllib.parse
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -289,6 +290,14 @@ class TaskApp(TaskDockerized):
             self.logger.info("Requirements are installed")
 
     def main_step(self):
+        base_url = self.info["appInfo"].get("baseUrl")
+        if base_url is not None:
+            # base_url.lstrip("/")
+            app_url = urllib.parse.urljoin(self.info['server_address'], base_url)
+            self.logger.info(f"To access the app in browser, copy and paste this URL: {app_url}")
+        else:
+            self.logger.warn("baseUrl not found in task info")
+            
         self.find_or_run_container()
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
@@ -320,6 +329,7 @@ class TaskApp(TaskDockerized):
             "TEAM_ID": context.get("teamId"),
             "API_TOKEN": context.get("apiToken"),
             "CONFIG_DIR": self.info["appInfo"].get("configDir", ""),
+            "BASE_URL": self.info["appInfo"].get("baseUrl", ""),
             **context_envs,
             SUPERVISELY_TASK_ID: str(self.info['task_id']),
             'LOG_LEVEL': str(self.app_info.get('logLevel', 'INFO')),
