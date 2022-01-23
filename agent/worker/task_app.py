@@ -279,14 +279,6 @@ class TaskApp(TaskDockerized):
         progress_dummy.iter_done_report()
         self.logger.info("command is running", extra={"command": command})
 
-        base_url = self.info["appInfo"].get("baseUrl")
-        if base_url is not None:
-            # base_url.lstrip("/")
-            app_url = urllib.parse.urljoin(self.info['server_address'], base_url)
-            self.logger.info(f"To access the app in browser, copy and paste this URL: {app_url}")
-        else:
-            self.logger.warn("baseUrl not found in task info")
-
     def install_pip_requirements(self, container_id=None):
         if self._need_sync_pip_cache is True:
             self.logger.info("Installing app requirements")
@@ -298,6 +290,14 @@ class TaskApp(TaskDockerized):
             self.logger.info("Requirements are installed")
 
     def main_step(self):
+        base_url = self.info["appInfo"].get("baseUrl")
+        if base_url is not None:
+            # base_url.lstrip("/")
+            app_url = urllib.parse.urljoin(self.info['server_address'], base_url)
+            self.logger.info(f"To access the app in browser, copy and paste this URL: {app_url}")
+        else:
+            self.logger.warn("baseUrl not found in task info")
+            
         self.find_or_run_container()
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
