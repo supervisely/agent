@@ -335,6 +335,8 @@ class TaskApp(TaskDockerized):
         if constants.DOCKER_NET() is not None:
             envs['VIRTUAL_HOST'] = f'task-{self.info["task_id"]}.supervisely.local'
             envs['VIRTUAL_PORT'] = self.app_config.get("port", 8000)
+        else:
+            self.logger.info("⚠️ Supervisely network is not defined in ENV")
 
         return envs
 
