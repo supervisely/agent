@@ -197,7 +197,7 @@ class TaskApp(TaskDockerized):
             if sly.fs.dir_exists(path_cache) is False or version == "master":
                 sly.fs.mkdir(path_cache)
                 archive_destination = os.path.join(path_cache, "archive.tar")
-                self.spawn_container(add_labels={"pip_cache": "1", "app_session_id": str(self.info['task_id'])})
+                self.spawn_container(add_envs=self.main_step_envs(), add_labels={"pip_cache": "1", "app_session_id": str(self.info['task_id'])})
                 self.install_pip_requirements(container_id=self._container.id)
 
                 #@TODO: handle 404 not found
