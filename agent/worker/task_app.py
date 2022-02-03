@@ -319,10 +319,18 @@ class TaskApp(TaskDockerized):
             "CONTEXT": json.dumps(context),
             "MODAL_STATE": json.dumps(modal_state),
             **modal_envs,
-            "USER_ID": context.get("userId"),
-            "USER_LOGIN": context.get("userLogin"),
+
+            # session owner (sometimes labeler)
+            "USER_ID": context.get("userId"), # labeler
+            "USER_LOGIN": context.get("userLogin"), # labeler
+            "API_TOKEN": context.get("apiToken"), # labeler
+
+            # info who spawns application (manager)
+            "_SPAWN_USER_ID": context.get("spawnUserId"), # labeler
+            "_SPAWN_USER_LOGIN": context.get("spawnUserLogin"), # manager
+            "_SPAWN_API_TOKEN": context.get("spawnApiToken"), # manager
+            
             "TEAM_ID": context.get("teamId"),
-            "API_TOKEN": context.get("apiToken"),
             "CONFIG_DIR": self.info["appInfo"].get("configDir", ""),
             "BASE_URL": self.info["appInfo"].get("baseUrl", ""),
             **context_envs,
