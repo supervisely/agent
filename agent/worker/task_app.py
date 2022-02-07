@@ -17,10 +17,11 @@ from supervisely_lib.io.json import dump_json_file
 from supervisely_lib.io.json import flatten_json, modify_keys
 from supervisely_lib.api.api import SUPERVISELY_TASK_ID
 from supervisely_lib.api.api import Api
-from supervisely_lib.io.fs import ensure_base_path, silent_remove, get_file_name, remove_dir, get_subdirs, file_exists
+from supervisely_lib.io.fs import ensure_base_path, silent_remove, get_file_name, remove_dir, get_subdirs, file_exists, mkdir
 
 _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
+_APP_CONTAINER_DATA_DIR = "/sly-app-data"
 
 
 class TaskApp(TaskDockerized):
@@ -163,6 +164,13 @@ class TaskApp(TaskDockerized):
 
         if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
             res[constants.HOST_REQUESTS_CA_BUNDLE()] = {'bind': constants.REQUESTS_CA_BUNDLE(), 'mode': 'ro'}
+        
+        if constants.SUPERIVSELY_AGENT_FILES() is not None:
+            host_data_dir = os.path.join(constants.SUPERIVSELY_AGENT_FILES(), 
+                                         self.app_config['name'], 
+                                         self.info['task_id'])
+            mkdir(host_data_dir)
+            res[host_data_dir] = {'bind': _APP_CONTAINER_DATA_DIR, 'mode': 'rw'}
 
         return res
 
@@ -337,7 +345,8 @@ class TaskApp(TaskDockerized):
             SUPERVISELY_TASK_ID: str(self.info['task_id']),
             'LOG_LEVEL': str(self.app_info.get('logLevel', 'INFO')),
             'LOGLEVEL': str(self.app_info.get('logLevel', 'INFO')),
-            'PYTHONUNBUFFERED': 1
+            'PYTHONUNBUFFERED': 1,
+            'SLY_APP_DATA_DIR': _APP_CONTAINER_DATA_DIR,
         }
 
         if constants.DOCKER_NET() is not None:
