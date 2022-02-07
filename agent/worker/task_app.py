@@ -343,7 +343,7 @@ class TaskApp(TaskDockerized):
             'LOG_LEVEL': str(self.app_info.get('logLevel', 'INFO')),
             'LOGLEVEL': str(self.app_info.get('logLevel', 'INFO')),
             'PYTHONUNBUFFERED': 1,
-            'DATA_DIR': _APP_CONTAINER_DATA_DIR,
+            'SLY_APP_DATA_DIR': _APP_CONTAINER_DATA_DIR,
         }
 
         if constants.DOCKER_NET() is not None:
