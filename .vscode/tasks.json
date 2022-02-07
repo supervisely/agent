@@ -9,7 +9,7 @@
         "command": "bash",
         "args": [
             "-c",
-            "docker network create supervisely-net 2> /dev/null"
+            "docker network create supervisely-net"
         ],
         "presentation": {
           "reveal": "silent",
