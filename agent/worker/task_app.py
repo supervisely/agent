@@ -165,8 +165,8 @@ class TaskApp(TaskDockerized):
         if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
             res[constants.HOST_REQUESTS_CA_BUNDLE()] = {'bind': constants.REQUESTS_CA_BUNDLE(), 'mode': 'ro'}
         
-        if constants.SUPERIVSELY_AGENT_FILES() is not None:
-            host_data_dir = os.path.join(constants.SUPERIVSELY_AGENT_FILES(), 
+        if constants.SUPERVISELY_AGENT_FILES() is not None:
+            host_data_dir = os.path.join(constants.SUPERVISELY_AGENT_FILES(), 
                                          self.app_config['name'], 
                                          self.info['task_id'])
             mkdir(host_data_dir)
