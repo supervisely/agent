@@ -168,7 +168,7 @@ class TaskApp(TaskDockerized):
         if constants.SUPERVISELY_AGENT_FILES() is not None:
             host_data_dir = os.path.join(constants.SUPERVISELY_AGENT_FILES(), 
                                          self.app_config['name'], 
-                                         self.info['task_id'])
+                                         str(self.info['task_id']))
             mkdir(host_data_dir)
             res[host_data_dir] = {'bind': _APP_CONTAINER_DATA_DIR, 'mode': 'rw'}
 
