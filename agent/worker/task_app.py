@@ -310,7 +310,7 @@ class TaskApp(TaskDockerized):
             if sly.fs.dir_empty(self.host_data_dir):
                 sly.fs.remove_dir(self.host_data_dir)
             parent_app_dir = Path(self.host_data_dir).parent
-            if sly.fs.dir_empty(parent_app_dir):
+            if sly.fs.dir_empty(parent_app_dir) and len(sly.fs.get_subdirs(parent_app_dir)) == 0:
                 sly.fs.remove_dir(parent_app_dir)
 
     def upload_step(self):
