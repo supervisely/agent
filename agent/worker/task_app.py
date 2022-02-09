@@ -37,6 +37,7 @@ class TaskApp(TaskDockerized):
         self._path_cache_host = None
         self._need_sync_pip_cache = False
         self._requirements_path_relative = None
+        self.host_data_dir = None
         super().__init__(*args, **kwargs)
 
     def init_logger(self, loglevel=None):
@@ -166,11 +167,11 @@ class TaskApp(TaskDockerized):
             res[constants.HOST_REQUESTS_CA_BUNDLE()] = {'bind': constants.REQUESTS_CA_BUNDLE(), 'mode': 'ro'}
         
         if constants.SUPERVISELY_AGENT_FILES() is not None:
-            host_data_dir = os.path.join(constants.SUPERVISELY_AGENT_FILES(), 
-                                         self.app_config['name'], 
-                                         str(self.info['task_id']))
-            mkdir(host_data_dir)
-            res[host_data_dir] = {'bind': _APP_CONTAINER_DATA_DIR, 'mode': 'rw'}
+            self.host_data_dir = os.path.join(constants.SUPERVISELY_AGENT_FILES(), 
+                                              self.app_config['name'], 
+                                              str(self.info['task_id']))
+            mkdir(self.host_data_dir)
+            res[self.host_data_dir] = {'bind': _APP_CONTAINER_DATA_DIR, 'mode': 'rw'}
 
         return res
 
@@ -305,6 +306,12 @@ class TaskApp(TaskDockerized):
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
         self.drop_container_and_check_status()
+        if self.host_data_dir is not None and sly.fs.dir_exists(self.host_data_dir):
+            if sly.fs.dir_empty(self.host_data_dir):
+                sly.fs.remove_dir(self.host_data_dir)
+            parent_app_dir = Path(self.host_data_dir).parent
+            if sly.fs.dir_empty(parent_app_dir):
+                sly.fs.remove_dir(parent_app_dir)
 
     def upload_step(self):
         pass

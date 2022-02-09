@@ -1,0 +1,6 @@
+{
+    "files.exclude": {
+        "**/.idea": true,
+        "**/venv": true
+    }
+}
