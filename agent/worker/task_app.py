@@ -271,7 +271,7 @@ class TaskApp(TaskDockerized):
         add_envs = sly.take_with_default(add_envs, {})
         main_script_path = os.path.join(self.dir_task_src_container, self.app_config.get('main_script', 'src/main.py'))
         if command is None:
-            command = "python {}".format(main_script_path)
+            command = f'export PYTHONPATH="$PYTHONPATH:{self.dir_task_src_container}" && python {main_script_path}'
         
         if "entrypoint" in self.app_config:
             command = f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
