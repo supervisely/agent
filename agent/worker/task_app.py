@@ -354,6 +354,7 @@ class TaskApp(TaskDockerized):
             'LOGLEVEL': str(self.app_info.get('logLevel', 'INFO')),
             'PYTHONUNBUFFERED': 1,
             'SLY_APP_DATA_DIR': _APP_CONTAINER_DATA_DIR,
+            constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES()
         }
 
         if constants.DOCKER_NET() is not None:
