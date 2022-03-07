@@ -130,9 +130,15 @@ class TaskApp(TaskDockerized):
         self.app_config = api.app.get_info(module_id, version)["config"]
         self.logger.info("App config", extra={"config": self.app_config})
 
-        need_gpu = self.app_config.get('needGPU', False)
+        need_gpu = False
+        if 'needGPU' in self.app_config:
+            need_gpu = self.app_config['needGPU']
+        if 'need_gpu' in self.app_config:
+            need_gpu = self.app_config['need_gpu']
         if need_gpu:
             self.docker_runtime = 'nvidia'
+        
+        self.logger.info("Docker runtime", extra={"runtime": self.docker_runtime, "need_gpu": need_gpu})
 
         #self.app_config = sly.io.json.load_json_file(os.path.join(self.dir_task_src, 'config.json'))
         self.read_dockerimage_from_config()
