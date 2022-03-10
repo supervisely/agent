@@ -94,11 +94,12 @@ class TaskApp(TaskDockerized):
                                          ext_logger=self.logger)
             with tarfile.open(tar_path) as archive:
                 archive.extractall(self.dir_task_src)
-            silent_remove(tar_path)
-
+            
             subdirs = get_subdirs(self.dir_task_src)
             if len(subdirs) != 1:
+                sly.fs.log_tree(self.dir_task_src, self.logger)
                 raise RuntimeError("Repo is downloaded and extracted, but resulting directory not found")
+            silent_remove(tar_path)
             extracted_path = os.path.join(self.dir_task_src, subdirs[0])
 
             temp_dir = os.path.join(self.dir_task_src, sly.rand_str(5))
