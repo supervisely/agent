@@ -114,10 +114,10 @@ class TaskApp(TaskDockerized):
 
             #git.download(git_url, self.dir_task_src, github_token, version)
             if path_cache is not None:
-                shutil.copytree(self.dir_task_src, path_cache, dirs_exist_ok=True)
+                shutil.copytree(self.dir_task_src, path_cache)
         else:
             self.logger.info("Git repo already exists")
-            shutil.copytree(path_cache, self.dir_task_src)
+            shutil.copytree(path_cache, self.dir_task_src, dirs_exist_ok=True)
 
         self.logger.info("Repo directory on host", extra={"dir": self.dir_task_src})
         sly.fs.log_tree(self.dir_task_src, self.logger)
