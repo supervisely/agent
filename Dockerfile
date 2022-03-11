@@ -48,7 +48,7 @@ RUN apt-get update \
 
 RUN pip install docker --upgrade
 RUN pip install version-parser==1.0.1
-
+RUN pip install python-dotenv==0.19.2
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
