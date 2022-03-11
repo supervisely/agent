@@ -52,7 +52,7 @@ RUN pip install version-parser==1.0.1
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
-RUN pip install supervisely==6.4.3
+RUN pip install supervisely==6.7.14
 
 COPY . /workdir
 
