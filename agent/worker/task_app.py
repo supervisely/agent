@@ -137,18 +137,18 @@ class TaskApp(TaskDockerized):
         if 'need_gpu' in self.app_config:
             need_gpu = self.app_config['need_gpu']
         if need_gpu:
-            # docker_info = self._docker_api.info()
-            # nvidia = 'nvidia'
-            # nvidia_available = False
-            # runtimes = docker_info.get('Runtimes', {})
-            # for runtime_name, runtime_info in runtimes.items():
-            #     if nvidia == runtime_info.get("path", ""):
-            #         nvidia_available = True
-            #         break
-            # if nvidia_available is False:
-            #     self.logger.warn(f"App requires GPU, but runtime {nvidia} not found in docker info, GPU features will be unavailable. Please, check nvidia drivers or contact tech support")
-            # else:
-            self.docker_runtime = 'nvidia'
+            docker_info = self._docker_api.info()
+            nvidia = 'nvidia'
+            nvidia_available = False
+            runtimes = docker_info.get('Runtimes', {})
+            for runtime_name, runtime_info in runtimes.items():
+                if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
+                    nvidia_available = True
+                    break
+            if nvidia_available is False:
+                self.logger.warn(f"App requires GPU, but runtime {nvidia} not found in docker info, GPU features will be unavailable. Please, check nvidia drivers or contact tech support")
+            else:
+                self.docker_runtime = nvidia
             
         self.logger.info("Selected docker runtime", extra={"runtime": self.docker_runtime, "need_gpu": need_gpu})
 
