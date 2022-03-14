@@ -141,6 +141,7 @@ class TaskApp(TaskDockerized):
             nvidia = 'nvidia'
             nvidia_available = False
             runtimes = docker_info.get('Runtimes', {})
+            self.logger.info("Available docker runtimes", extra={"runtimes": runtimes})
             for runtime_name, runtime_info in runtimes.items():
                 if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
                     nvidia_available = True
