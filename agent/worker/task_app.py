@@ -10,6 +10,7 @@ from pathlib import Path
 from packaging import version
 from version_parser import Version
 import urllib.parse
+from slugify import slugify
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -187,8 +188,15 @@ class TaskApp(TaskDockerized):
         
         if constants.SUPERVISELY_AGENT_FILES() is not None:
             self.host_data_dir = os.path.join(constants.SUPERVISELY_AGENT_FILES(), 
-                                              self.app_config['name'], 
+                                              slugify(self.app_config['name']), 
                                               str(self.info['task_id']))
+            
+            self.logger.info("Task host data dir", extra={
+                "dir": self.host_data_dir,
+                "moduleId": self.info["appInfo"]["moduleId"],
+                "app name": self.app_config['name']
+            })
+            
             mkdir(self.host_data_dir)
             res[self.host_data_dir] = {'bind': _APP_CONTAINER_DATA_DIR, 'mode': 'rw'}
 
