@@ -19,3 +19,9 @@ for example
 ln -s ~/work/sly_public/supervisely_lib ./supervisely_lib
 
 ```
+
+
+Build dockerimage
+```sh
+docker build -t supervisely/agent:build --label "LABEL_VERSION=agent:6.999.0" --label "LABEL_INFO=1" --label "LABEL_README=1" --label "LABEL_BUILT_AT=1" .
+```

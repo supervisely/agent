@@ -141,6 +141,7 @@ class TaskDockerized(TaskSly):
 
         self._container_lock.acquire()
         volumes = self._get_task_volumes()
+        self.logger.info('Docker container volumes', extra={'volumes': volumes})
 
         try:
             self._container = self._docker_api.containers.run(
