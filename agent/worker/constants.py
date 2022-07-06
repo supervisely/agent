@@ -65,6 +65,7 @@ _PULL_POLICY_DICT = {
 
 _DOCKER_NET = 'DOCKER_NET'
 _SUPERVISELY_AGENT_FILES = 'SUPERVISELY_AGENT_FILES'
+_OFFLINE_MODE = 'OFFLINE_MODE'
 
 
 _OPTIONAL_DEFAULTS = {
@@ -94,7 +95,8 @@ _OPTIONAL_DEFAULTS = {
     _DOCKER_NET: None,  # or string value 'supervisely-vpn'
     _AGENT_ROOT_DIR: '/sly_agent',
     _DISABLE_TELEMETRY: None,
-    _SUPERVISELY_AGENT_FILES: None
+    _SUPERVISELY_AGENT_FILES: None,
+    _OFFLINE_MODE: False,
 }
 
 
@@ -365,6 +367,10 @@ def DISABLE_TELEMETRY():
 
 def SUPERVISELY_AGENT_FILES():
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
+
+
+def OFFLINE_MODE():
+    return read_optional_setting(_OFFLINE_MODE)
 
 
 def init_constants():

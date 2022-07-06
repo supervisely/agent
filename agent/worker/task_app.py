@@ -230,7 +230,7 @@ class TaskApp(TaskDockerized):
             with open(requirements_path, 'r') as f:
                 self.logger.info(f.read())
 
-            if sly.fs.dir_exists(path_cache) is False or version == "master":
+            if (sly.fs.dir_exists(path_cache) is False or version == "master") and constants.OFFLINE_MODE() is False:
                 sly.fs.mkdir(path_cache)
                 archive_destination = os.path.join(path_cache, "archive.tar")
                 self.spawn_container(add_envs=self.main_step_envs(), add_labels={"pip_cache": "1", "app_session_id": str(self.info['task_id'])})
@@ -265,9 +265,10 @@ class TaskApp(TaskDockerized):
         self.sync_pip_cache()
         if self._container is None:
             self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
-            self.logger.info("Double check pip cache for old agents")
-            self.install_pip_requirements(container_id=self._container.id)
-            self.logger.info("pip second install for old agents is finished")
+            if constants.OFFLINE_MODE() is False:
+                self.logger.info("Double check pip cache for old agents")
+                self.install_pip_requirements(container_id=self._container.id)
+                self.logger.info("pip second install for old agents is finished")
 
     def get_spawn_entrypoint(self):
         inf_command = "while true; do sleep 30; done;"
