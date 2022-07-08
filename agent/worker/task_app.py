@@ -59,7 +59,9 @@ class TaskApp(TaskDockerized):
         sly.fs.ensure_base_path(self.dir_apps_cache_host)
 
         # task container path
-        self.dir_task_container = os.path.join("/sessions", str(self.info['task_id']))
+        # self.dir_task_container = os.path.join("/sessions", str(self.info['task_id']))
+        self.dir_task_container = "/app"
+        
         self.dir_task_src_container = os.path.join(self.dir_task_container, 'repo')
         self.dir_apps_cache_container = "/apps_cache"
         self.app_info = self.info["appInfo"]
