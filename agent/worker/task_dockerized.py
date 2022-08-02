@@ -22,15 +22,15 @@ class TaskStep(Enum):
 # task with main work in separate container and with sequential steps
 class TaskDockerized(TaskSly):
     step_name_mapping = {
-        'DOWNLOAD': TaskStep.DOWNLOAD,
-        'MAIN': TaskStep.MAIN,
-        'UPLOAD': TaskStep.UPLOAD,
+        "DOWNLOAD": TaskStep.DOWNLOAD,
+        "MAIN": TaskStep.MAIN,
+        "UPLOAD": TaskStep.UPLOAD,
     }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.docker_runtime = 'runc'  # or 'nvidia'
+        self.docker_runtime = "runc"  # or 'nvidia'
         self.entrypoint = "/workdir/src/main.py"
         self.action_map = {}
 
@@ -47,9 +47,9 @@ class TaskDockerized(TaskSly):
         self.docker_pulled = False  # in task
 
     def init_docker_image(self):
-        self.docker_image_name = self.info.get('docker_image', None)
-        if self.docker_image_name is not None and ':' not in self.docker_image_name:
-            self.docker_image_name += ':latest'
+        self.docker_image_name = self.info.get("docker_image", None)
+        if self.docker_image_name is not None and ":" not in self.docker_image_name:
+            self.docker_image_name += ":latest"
 
     @property
     def docker_api(self):
@@ -61,24 +61,32 @@ class TaskDockerized(TaskSly):
 
     def report_step_done(self, curr_step):
         if self.completed_step.value < curr_step.value:
-            self.logger.info('STEP_DONE', extra={'step': curr_step.name, 'event_type': sly.EventType.STEP_COMPLETE})
+            self.logger.info(
+                "STEP_DONE",
+                extra={
+                    "step": curr_step.name,
+                    "event_type": sly.EventType.STEP_COMPLETE,
+                },
+            )
             self.completed_step = curr_step
 
     def task_main_func(self):
         self.init_docker_image()
         self.task_dir_cleaner.forbid_dir_cleaning()
 
-        last_step_str = self.info.get('last_complete_step')
-        self.logger.info('LAST_COMPLETE_STEP', extra={'step': last_step_str})
-        self.completed_step = self.step_name_mapping.get(last_step_str, TaskStep.NOTHING)
+        last_step_str = self.info.get("last_complete_step")
+        self.logger.info("LAST_COMPLETE_STEP", extra={"step": last_step_str})
+        self.completed_step = self.step_name_mapping.get(
+            last_step_str, TaskStep.NOTHING
+        )
 
         for curr_step, curr_method in [
             (TaskStep.DOWNLOAD, self.download_step),
-            (TaskStep.MAIN,     self.main_step),
-            (TaskStep.UPLOAD,   self.upload_step),
+            (TaskStep.MAIN, self.main_step),
+            (TaskStep.UPLOAD, self.upload_step),
         ]:
             if self.completed_step.value < curr_step.value:
-                self.logger.info('BEFORE_STEP', extra={'step': curr_step.name})
+                self.logger.info("BEFORE_STEP", extra={"step": curr_step.name})
                 curr_method()
 
         self.task_dir_cleaner.allow_cleaning()
@@ -96,8 +104,10 @@ class TaskDockerized(TaskSly):
 
     def main_step_envs(self):
         envs = {}
-        for env_key in (sly.api.SUPERVISELY_PUBLIC_API_RETRIES,
-                        sly.api.SUPERVISELY_PUBLIC_API_RETRY_SLEEP_SEC):
+        for env_key in (
+            sly.api.SUPERVISELY_PUBLIC_API_RETRIES,
+            sly.api.SUPERVISELY_PUBLIC_API_RETRY_SLEEP_SEC,
+        ):
             env_val = os.getenv(env_key)
             if env_val is not None:
                 envs[env_key] = env_val
@@ -124,10 +134,13 @@ class TaskDockerized(TaskSly):
 
     def _get_task_volumes(self):
         volumes = {
-            self.dir_task_host: {'bind': '/sly_task_data', 'mode': 'rw'},
+            self.dir_task_host: {"bind": "/sly_task_data", "mode": "rw"},
         }
         if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
-            volumes[constants.HOST_REQUESTS_CA_BUNDLE()] = {'bind': constants.REQUESTS_CA_BUNDLE(), 'mode': 'ro'}
+            volumes[constants.HOST_REQUESTS_CA_BUNDLE()] = {
+                "bind": constants.REQUESTS_CA_BUNDLE(),
+                "mode": "ro",
+            }
         return volumes
 
     def get_spawn_entrypoint(self):
@@ -141,7 +154,7 @@ class TaskDockerized(TaskSly):
 
         self._container_lock.acquire()
         volumes = self._get_task_volumes()
-        self.logger.info('Docker container volumes', extra={'volumes': volumes})
+        self.logger.info("Docker container volumes", extra={"volumes": volumes})
 
         try:
             self._container = self._docker_api.containers.run(
@@ -149,25 +162,31 @@ class TaskDockerized(TaskSly):
                 runtime=self.docker_runtime,
                 entrypoint=entrypoint_func(),
                 detach=True,
-                name='sly_task_{}_{}'.format(self.info['task_id'], constants.TASKS_DOCKER_LABEL()),
+                name="sly_task_{}_{}".format(
+                    self.info["task_id"], constants.TASKS_DOCKER_LABEL()
+                ),
                 remove=False,
                 volumes=volumes,
-                environment={'LOG_LEVEL': 'DEBUG',
-                             'LANG': 'C.UTF-8',
-                             'PYTHONUNBUFFERED': '1',
-                             constants._HTTP_PROXY: constants.HTTP_PROXY(),
-                             constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
-                             'HOST_TASK_DIR': self.dir_task_host,
-                             constants._NO_PROXY: constants.NO_PROXY(),
-                             constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
-                             constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
-                             constants._NO_PROXY.lower(): constants.NO_PROXY(),
-                             constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
-                             **add_envs},
-                labels={'ecosystem': 'supervisely',
-                       'ecosystem_token': constants.TASKS_DOCKER_LABEL(),
-                       'task_id': str(self.info['task_id']),
-                       **add_labels},
+                environment={
+                    "LOG_LEVEL": "DEBUG",
+                    "LANG": "C.UTF-8",
+                    "PYTHONUNBUFFERED": "1",
+                    constants._HTTP_PROXY: constants.HTTP_PROXY(),
+                    constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
+                    "HOST_TASK_DIR": self.dir_task_host,
+                    constants._NO_PROXY: constants.NO_PROXY(),
+                    constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
+                    constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
+                    constants._NO_PROXY.lower(): constants.NO_PROXY(),
+                    constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                    **add_envs,
+                },
+                labels={
+                    "ecosystem": "supervisely",
+                    "ecosystem_token": constants.TASKS_DOCKER_LABEL(),
+                    "task_id": str(self.info["task_id"]),
+                    **add_labels,
+                },
                 shm_size=constants.SHM_SIZE(),
                 stdin_open=False,
                 tty=False,
@@ -175,11 +194,21 @@ class TaskDockerized(TaskSly):
                 cpu_quota=constants.CPU_QUOTA(),
                 mem_limit=constants.MEM_LIMIT(),
                 memswap_limit=constants.MEM_LIMIT(),
-                network=constants.DOCKER_NET()
+                network=constants.DOCKER_NET(),
             )
             self._container.reload()
-            self.logger.debug('After spawning. Container status: {}'.format(str(self._container.status)))
-            self.logger.info('Docker container is spawned', extra={'container_id': self._container.id, 'container_name': self._container.name})
+            self.logger.debug(
+                "After spawning. Container status: {}".format(
+                    str(self._container.status)
+                )
+            )
+            self.logger.info(
+                "Docker container is spawned",
+                extra={
+                    "container_id": self._container.id,
+                    "container_name": self._container.name,
+                },
+            )
         finally:
             self._container_lock.release()
 
@@ -202,32 +231,37 @@ class TaskDockerized(TaskSly):
 
     def drop_container_and_check_status(self):
         status = self._stop_wait_container()
-        if (len(status) > 0) and (status['StatusCode'] not in [0]):  # StatusCode must exist
-            raise RuntimeError('Task container finished with non-zero status: {}'.format(str(status)))
-        self.logger.debug('Task container finished with status: {}'.format(str(status)))
+        if (len(status) > 0) and (
+            status["StatusCode"] not in [0]
+        ):  # StatusCode must exist
+            raise RuntimeError(
+                "Task container finished with non-zero status: {}".format(str(status))
+            )
+        self.logger.debug("Task container finished with status: {}".format(str(status)))
         self._drop_container()
         return status
 
     @classmethod
     def parse_log_line(cls, log_line):
-        msg = ''
-        lvl = 'INFO'
+        msg = ""
+        lvl = "INFO"
         try:
             jlog = json.loads(log_line)
-            msg = jlog['message']
-            del jlog['message']
-            lvl = jlog['level'].upper()
-            del jlog['level']
+            msg = jlog["message"]
+            del jlog["message"]
+            lvl = jlog["level"].upper()
+            del jlog["level"]
         except (KeyError, ValueError, TypeError):
-            jlog = {'cont_msg': str(log_line)}
+            msg = str(log_line)
+            jlog = {}
 
-        if 'event_type' not in jlog:
-            jlog['event_type'] = sly.EventType.LOGJ
+        if "event_type" not in jlog:
+            jlog["event_type"] = sly.EventType.LOGJ
 
         return msg, jlog, lvl
 
     def call_event_function(self, jlog):
-        et = jlog['event_type']
+        et = jlog["event_type"]
         if et in self.action_map:
             return self.action_map[et](jlog)
         return {}
@@ -244,9 +278,11 @@ class TaskDockerized(TaskSly):
             if lvl_description is not None:
                 lvl_int = lvl_description.int
             else:
-                lvl_int = sly.LOGGING_LEVELS['INFO'].int
+                lvl_int = sly.LOGGING_LEVELS["INFO"].int
 
             self.logger.log(lvl_int, msg, extra={**res_log, **output})
 
         if not logs_found:
-            self.logger.warn('No logs obtained from container.')  # check if bug occurred
+            self.logger.warn(
+                "No logs obtained from container."
+            )  # check if bug occurred
