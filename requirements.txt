@@ -10,3 +10,4 @@ supervisely==6.50.1
 docker==5.0.3
 black
 python-slugify==6.1.2
+requests==2.28.1

@@ -6,7 +6,8 @@ import threading
 import time
 import multiprocessing
 import platform
-if platform.system() == 'Darwin':
+
+if platform.system() == "Darwin":
     multiprocessing.set_start_method("fork")
 import concurrent.futures
 import sys
@@ -25,9 +26,11 @@ class StopTaskException(Exception):
     pass
 
 
-exit_codes = {sly.EventType.TASK_FINISHED: 0,
-              sly.EventType.TASK_CRASHED: 1,
-              sly.EventType.TASK_STOPPED: 2}
+exit_codes = {
+    sly.EventType.TASK_FINISHED: 0,
+    sly.EventType.TASK_CRASHED: 1,
+    sly.EventType.TASK_STOPPED: 2,
+}
 
 
 # common process, where logs are streamed and saved; the task may be stopped
@@ -38,10 +41,10 @@ class TaskLogged(multiprocessing.Process):
         self.info = deepcopy(task_info)
         # Move API key out of the task info message so that it does not get into
         # logs.
-        self._user_api_key = self.info.pop('user_api_key', None)
+        self._user_api_key = self.info.pop("user_api_key", None)
 
         self.init_task_dir()
-        self.dir_logs = os.path.join(self.dir_task, 'logs')
+        self.dir_logs = os.path.join(self.dir_task, "logs")
         sly.fs.mkdir(self.dir_task)
         sly.fs.mkdir(self.dir_logs)
 
@@ -60,13 +63,19 @@ class TaskLogged(multiprocessing.Process):
         self.public_api_context = None
 
     def init_task_dir(self):
-        self.dir_task = osp.join(constants.AGENT_TASKS_DIR(), str(self.info['task_id']))
-        self.dir_task_host = osp.join(constants.AGENT_TASKS_DIR_HOST(), str(self.info['task_id']))
+        self.dir_task = osp.join(constants.AGENT_TASKS_DIR(), str(self.info["task_id"]))
+        self.dir_task_host = osp.join(
+            constants.AGENT_TASKS_DIR_HOST(), str(self.info["task_id"])
+        )
 
     def init_logger(self, loglevel=None):
-        self.logger = sly.get_task_logger(self.info['task_id'], loglevel=loglevel)
-        sly.change_formatters_default_values(self.logger, 'service_type', sly.ServiceType.AGENT)
-        sly.change_formatters_default_values(self.logger, 'event_type', sly.EventType.LOGJ)
+        self.logger = sly.get_task_logger(self.info["task_id"], loglevel=loglevel)
+        sly.change_formatters_default_values(
+            self.logger, "service_type", sly.ServiceType.AGENT
+        )
+        sly.change_formatters_default_values(
+            self.logger, "event_type", sly.EventType.LOGJ
+        )
 
         self.log_queue = LogQueue()
         add_task_handler(self.logger, self.log_queue)
@@ -74,26 +83,39 @@ class TaskLogged(multiprocessing.Process):
         self.executor_log = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def init_api(self):
-        self.api = sly.AgentAPI(constants.TOKEN(), constants.SERVER_ADDRESS(), self.logger, constants.TIMEOUT_CONFIG_PATH())
+        self.api = sly.AgentAPI(
+            constants.TOKEN(),
+            constants.SERVER_ADDRESS(),
+            self.logger,
+            constants.TIMEOUT_CONFIG_PATH(),
+        )
 
         if self._user_api_key is not None:
-            self.public_api = sly.Api(constants.SERVER_ADDRESS(), self._user_api_key, external_logger=self.logger,
-                                      retry_count=constants.PUBLIC_API_RETRY_LIMIT())
-            task_id = self.info['task_id']
-            self.public_api.add_additional_field('taskId', task_id)
-            self.public_api.add_header('x-task-id', str(task_id))
+            self.public_api = sly.Api(
+                constants.SERVER_ADDRESS(),
+                self._user_api_key,
+                external_logger=self.logger,
+                retry_count=constants.PUBLIC_API_RETRY_LIMIT(),
+            )
+            task_id = self.info["task_id"]
+            self.public_api.add_additional_field("taskId", task_id)
+            self.public_api.add_header("x-task-id", str(task_id))
             self.public_api_context = self.public_api.task.get_context(task_id)
         # else -> TelemetryReporter
 
     def init_additional(self):
-        self.data_mgr = DataManager(self.logger, self.api, self.public_api, self.public_api_context)
+        self.data_mgr = DataManager(
+            self.logger, self.api, self.public_api, self.public_api_context
+        )
 
     def submit_log(self):
         break_flag = False
         while True:
             log_lines = self.log_queue.get_log_batch_nowait()
             if len(log_lines) > 0:
-                self.api.simple_request('Log', sly.api_proto.Empty, sly.api_proto.LogLines(data=log_lines))
+                self.api.simple_request(
+                    "Log", sly.api_proto.Empty, sly.api_proto.LogLines(data=log_lines)
+                )
                 break_flag = False
             else:
                 if break_flag:
@@ -103,15 +125,22 @@ class TaskLogged(multiprocessing.Process):
                 time.sleep(0.3)
 
     def end_log_stop(self):
-        self.logger.info('TASK_END', extra={'event_type': sly.EventType.TASK_STOPPED, 'stopped': 'by_user'})
+        self.logger.info(
+            "TASK_END",
+            extra={"event_type": sly.EventType.TASK_STOPPED, "stopped": "by_user"},
+        )
         return sly.EventType.TASK_STOPPED
 
     def end_log_crash(self, e):
-        self.logger.critical('TASK_END', exc_info=True, extra={'event_type': sly.EventType.TASK_CRASHED, 'exc_str': str(e)})
+        self.logger.critical(
+            "TASK_END",
+            exc_info=True,
+            extra={"event_type": sly.EventType.TASK_CRASHED, "exc_str": str(e)},
+        )
         return sly.EventType.TASK_CRASHED
 
     def end_log_finish(self):
-        self.logger.info('TASK_END', extra={'event_type': sly.EventType.TASK_FINISHED})
+        self.logger.info("TASK_END", extra={"event_type": sly.EventType.TASK_FINISHED})
         return sly.EventType.TASK_FINISHED
 
     # in new process
@@ -120,11 +149,15 @@ class TaskLogged(multiprocessing.Process):
             self._stop_log_event = threading.Event()
             self.init_logger()
             self.init_api()
-            self.future_log = self.executor_log.submit(self.submit_log)  # run log submitting
+            self.future_log = self.executor_log.submit(
+                self.submit_log
+            )  # run log submitting
         except Exception as e:
             # unable to do something another if crashed
             print(e)
-            dump_json_file(str(e), os.path.join(constants.AGENT_ROOT_DIR(), 'logger_fail.json'))
+            dump_json_file(
+                str(e), os.path.join(constants.AGENT_ROOT_DIR(), "logger_fail.json")
+            )
             os._exit(1)  # ok, documented
 
         try:
