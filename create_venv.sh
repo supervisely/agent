@@ -4,7 +4,7 @@
 # Official python docs: https://docs.python.org/3/library/venv.html
 # Superviely developer portal: https://developer.supervise.ly/getting-started/installation#venv
 
-if [ -d "venv" ]; then
+if [ -d ".venv" ]; then
     echo "VENV already exists, will be removed"
     rm -rf .venv
 fi

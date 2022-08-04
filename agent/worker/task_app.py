@@ -272,9 +272,18 @@ class TaskApp(TaskDockerized):
         pass
 
     def find_sdk_version(self, requirements_path):
-        with pathlib.Path(requirements_path).open() as requirements_txt:
-            for requirement in pkg_resources.parse_requirements(requirements_txt):
-                print(requirement)
+        try:
+            with pathlib.Path(requirements_path).open() as requirements_txt:
+                for requirement in pkg_resources.parse_requirements(requirements_txt):
+                    if requirement.project_name == "supervisely":
+                        if (
+                            len(requirement.specs) > 0
+                            and len(requirement.specs[0]) >= 2
+                        ):
+                            version = requirement.specs[0][1]
+                            return version
+        except Exception as e:
+            print(repr(e))
         return None
 
     def get_requirements_path(self):
