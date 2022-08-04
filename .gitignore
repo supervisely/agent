@@ -7,3 +7,4 @@ secret.env
 supervisely_lib
 start.sh
 .venv
+supervisely

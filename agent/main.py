@@ -10,6 +10,9 @@ if gettrace is None:
     print("No sys.gettrace")
 elif gettrace():
     print("Hmm, Debugg is in progress")
+    import faulthandler
+
+    faulthandler.enable()
     # only for convenient debug, has no effect in production
     load_dotenv(os.path.expanduser("~/debug-agent.env"))
 else:
