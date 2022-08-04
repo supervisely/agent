@@ -7,43 +7,44 @@ import hashlib
 from supervisely_lib.io.docker_utils import PullPolicy
 
 
-_AGENT_HOST_DIR = 'AGENT_HOST_DIR'
-_SERVER_ADDRESS = 'SERVER_ADDRESS'
-_ACCESS_TOKEN = 'ACCESS_TOKEN'
-_DOCKER_LOGIN = 'DOCKER_LOGIN'
-_DOCKER_PASSWORD = 'DOCKER_PASSWORD'
-_DOCKER_REGISTRY = 'DOCKER_REGISTRY'
+_AGENT_HOST_DIR = "AGENT_HOST_DIR"
+_SERVER_ADDRESS = "SERVER_ADDRESS"
+_ACCESS_TOKEN = "ACCESS_TOKEN"
+_DOCKER_LOGIN = "DOCKER_LOGIN"
+_DOCKER_PASSWORD = "DOCKER_PASSWORD"
+_DOCKER_REGISTRY = "DOCKER_REGISTRY"
 
-_WITH_LOCAL_STORAGE = 'WITH_LOCAL_STORAGE'
-_UPLOAD_RESULT_IMAGES = 'UPLOAD_RESULT_IMAGES'
-_PULL_ALWAYS = 'PULL_ALWAYS'
-_DEFAULT_TIMEOUTS = 'DEFAULT_TIMEOUTS'
-_DELETE_TASK_DIR_ON_FINISH = 'DELETE_TASK_DIR_ON_FINISH'
-_DELETE_TASK_DIR_ON_FAILURE = 'DELETE_TASK_DIR_ON_FAILURE'
-_CHECK_VERSION_COMPATIBILITY = 'CHECK_VERSION_COMPATIBILITY'
-_DOCKER_API_CALL_TIMEOUT = 'DOCKER_API_CALL_TIMEOUT'
-_HTTP_PROXY = 'HTTP_PROXY'
-_HTTPS_PROXY = 'HTTPS_PROXY'
-_NO_PROXY = 'NO_PROXY'
-_PUBLIC_API_RETRY_LIMIT = 'PUBLIC_API_RETRY_LIMIT'
-_APP_DEBUG_DOCKER_IMAGE = 'APP_DEBUG_DOCKER_IMAGE'
+_WITH_LOCAL_STORAGE = "WITH_LOCAL_STORAGE"
+_UPLOAD_RESULT_IMAGES = "UPLOAD_RESULT_IMAGES"
+_PULL_ALWAYS = "PULL_ALWAYS"
+_DEFAULT_TIMEOUTS = "DEFAULT_TIMEOUTS"
+_DELETE_TASK_DIR_ON_FINISH = "DELETE_TASK_DIR_ON_FINISH"
+_DELETE_TASK_DIR_ON_FAILURE = "DELETE_TASK_DIR_ON_FAILURE"
+_CHECK_VERSION_COMPATIBILITY = "CHECK_VERSION_COMPATIBILITY"
+_DOCKER_API_CALL_TIMEOUT = "DOCKER_API_CALL_TIMEOUT"
+_HTTP_PROXY = "HTTP_PROXY"
+_HTTPS_PROXY = "HTTPS_PROXY"
+_NO_PROXY = "NO_PROXY"
+_PUBLIC_API_RETRY_LIMIT = "PUBLIC_API_RETRY_LIMIT"
+_APP_DEBUG_DOCKER_IMAGE = "APP_DEBUG_DOCKER_IMAGE"
 
-_REQUESTS_CA_BUNDLE = 'REQUESTS_CA_BUNDLE'
-_HOST_REQUESTS_CA_BUNDLE = 'HOST_REQUESTS_CA_BUNDLE'
+_REQUESTS_CA_BUNDLE = "REQUESTS_CA_BUNDLE"
+_HOST_REQUESTS_CA_BUNDLE = "HOST_REQUESTS_CA_BUNDLE"
 
 # container limits
-_CPU_PERIOD = 'CPU_PERIOD'
-_CPU_QUOTA = 'CPU_QUOTA'
-_MEM_LIMIT = 'MEM_LIMIT'
-_SHM_SIZE = 'SHM_SIZE'
+_CPU_PERIOD = "CPU_PERIOD"
+_CPU_QUOTA = "CPU_QUOTA"
+_MEM_LIMIT = "MEM_LIMIT"
+_SHM_SIZE = "SHM_SIZE"
 
-_PULL_POLICY = 'PULL_POLICY'
+_PULL_POLICY = "PULL_POLICY"
 
-_GIT_LOGIN = 'GIT_LOGIN'
-_GIT_PASSWORD = 'GIT_PASSWORD'
-_GITHUB_TOKEN = 'GITHUB_TOKEN'
-_AGENT_ROOT_DIR = 'AGENT_ROOT_DIR'
-_DISABLE_TELEMETRY = 'DISABLE_TELEMETRY'
+_GIT_LOGIN = "GIT_LOGIN"
+_GIT_PASSWORD = "GIT_PASSWORD"
+_GITHUB_TOKEN = "GITHUB_TOKEN"
+_AGENT_ROOT_DIR = "AGENT_ROOT_DIR"
+_DISABLE_TELEMETRY = "DISABLE_TELEMETRY"
+_DEFAULT_APP_DOCKER_IMAGE = "DEFAULT_APP_DOCKER_IMAGE"
 
 
 _REQUIRED_SETTINGS = [
@@ -52,7 +53,7 @@ _REQUIRED_SETTINGS = [
     _ACCESS_TOKEN,
     _DOCKER_LOGIN,
     _DOCKER_PASSWORD,
-    _DOCKER_REGISTRY
+    _DOCKER_REGISTRY,
 ]
 
 
@@ -60,23 +61,23 @@ _PULL_POLICY_DICT = {
     str(PullPolicy.ALWAYS): PullPolicy.ALWAYS,
     str(PullPolicy.IF_AVAILABLE): PullPolicy.IF_AVAILABLE,
     str(PullPolicy.IF_NOT_PRESENT): PullPolicy.IF_NOT_PRESENT,
-    str(PullPolicy.NEVER): PullPolicy.NEVER
+    str(PullPolicy.NEVER): PullPolicy.NEVER,
 }
 
-_DOCKER_NET = 'DOCKER_NET'
-_SUPERVISELY_AGENT_FILES = 'SUPERVISELY_AGENT_FILES'
-_OFFLINE_MODE = 'OFFLINE_MODE'
+_DOCKER_NET = "DOCKER_NET"
+_SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
+_OFFLINE_MODE = "OFFLINE_MODE"
 
 
 _OPTIONAL_DEFAULTS = {
-    _WITH_LOCAL_STORAGE: 'true',
-    _UPLOAD_RESULT_IMAGES: 'true',
+    _WITH_LOCAL_STORAGE: "true",
+    _UPLOAD_RESULT_IMAGES: "true",
     _PULL_ALWAYS: None,
-    _DEFAULT_TIMEOUTS: 'true',
-    _DELETE_TASK_DIR_ON_FINISH: 'true',
-    _DELETE_TASK_DIR_ON_FAILURE: 'false',
-    _CHECK_VERSION_COMPATIBILITY: 'false',
-    _DOCKER_API_CALL_TIMEOUT: '60',
+    _DEFAULT_TIMEOUTS: "true",
+    _DELETE_TASK_DIR_ON_FINISH: "true",
+    _DELETE_TASK_DIR_ON_FAILURE: "false",
+    _CHECK_VERSION_COMPATIBILITY: "false",
+    _DOCKER_API_CALL_TIMEOUT: "60",
     _HTTP_PROXY: "",
     _HTTPS_PROXY: "",
     _NO_PROXY: "",
@@ -84,7 +85,7 @@ _OPTIONAL_DEFAULTS = {
     _CPU_PERIOD: None,
     _CPU_QUOTA: None,
     _MEM_LIMIT: None,
-    _PULL_POLICY: str(PullPolicy.IF_AVAILABLE), #str(PullPolicy.NEVER),
+    _PULL_POLICY: str(PullPolicy.IF_AVAILABLE),  # str(PullPolicy.NEVER),
     _GIT_LOGIN: None,
     _GIT_PASSWORD: None,
     _GITHUB_TOKEN: None,
@@ -93,10 +94,11 @@ _OPTIONAL_DEFAULTS = {
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
     _DOCKER_NET: None,  # or string value 'supervisely-vpn'
-    _AGENT_ROOT_DIR: '/sly_agent',
+    _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
     _SUPERVISELY_AGENT_FILES: None,
     _OFFLINE_MODE: False,
+    _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
 }
 
 
@@ -126,10 +128,10 @@ def _agent_to_host_path(local_path):
 
 def SERVER_ADDRESS():
     str_url = os.environ[_SERVER_ADDRESS]
-    if ('http://' not in str_url) and ('https://' not in str_url):
-        str_url = os.path.join('http://', str_url) #@TODO: raise with error
+    if ("http://" not in str_url) and ("https://" not in str_url):
+        str_url = os.path.join("http://", str_url)  # @TODO: raise with error
     parsed_uri = urlparse(str_url)
-    server_address = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
+    server_address = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
     return server_address
 
 
@@ -138,11 +140,11 @@ def TOKEN():
 
 
 def TASKS_DOCKER_LABEL():
-    return 'supervisely_{}'.format(hashlib.sha256(TOKEN().encode('utf-8')).hexdigest())
+    return "supervisely_{}".format(hashlib.sha256(TOKEN().encode("utf-8")).hexdigest())
 
 
 def TASKS_DOCKER_LABEL_LEGACY():
-    return 'supervisely_{}'.format(TOKEN())
+    return "supervisely_{}".format(TOKEN())
 
 
 def DOCKER_LOGIN():
@@ -158,7 +160,7 @@ def DOCKER_REGISTRY():
 
 
 def AGENT_TASKS_DIR_HOST():
-    return os.path.join(HOST_DIR(), 'tasks')
+    return os.path.join(HOST_DIR(), "tasks")
 
 
 def AGENT_TASK_SHARED_DIR_HOST():
@@ -178,26 +180,27 @@ def DOCKER_API_CALL_TIMEOUT():
 
 
 def AGENT_LOG_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'logs')
+    return os.path.join(AGENT_ROOT_DIR(), "logs")
 
 
 def AGENT_TASKS_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'tasks')
+    return os.path.join(AGENT_ROOT_DIR(), "tasks")
 
 
 def AGENT_TASK_SHARED_DIR():
     return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED)
 
+
 def AGENT_TMP_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'tmp')
+    return os.path.join(AGENT_ROOT_DIR(), "tmp")
 
 
 def AGENT_IMPORT_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'import')
+    return os.path.join(AGENT_ROOT_DIR(), "import")
 
 
 def AGENT_STORAGE_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'storage')
+    return os.path.join(AGENT_ROOT_DIR(), "storage")
 
 
 def WITH_LOCAL_STORAGE():
@@ -211,8 +214,12 @@ def UPLOAD_RESULT_IMAGES():
 def PULL_ALWAYS():
     val = read_optional_setting(_PULL_ALWAYS)
     if val is not None:
-        sly.logger.warn("ENV variable PULL_ALWAYS is deprecated and will be ignored."
-                        " Use PULL_POLICY instead with one of the following values: {}".format(list(_PULL_POLICY_DICT.keys())))
+        sly.logger.warn(
+            "ENV variable PULL_ALWAYS is deprecated and will be ignored."
+            " Use PULL_POLICY instead with one of the following values: {}".format(
+                list(_PULL_POLICY_DICT.keys())
+            )
+        )
     return True
 
 
@@ -221,8 +228,14 @@ def CHECK_VERSION_COMPATIBILITY():
 
 
 def TIMEOUT_CONFIG_PATH():
-    use_default_timeouts = sly.env.flag_from_env(read_optional_setting(_DEFAULT_TIMEOUTS))
-    return None if use_default_timeouts else '/workdir/src/configs/timeouts_for_stateless.json'
+    use_default_timeouts = sly.env.flag_from_env(
+        read_optional_setting(_DEFAULT_TIMEOUTS)
+    )
+    return (
+        None
+        if use_default_timeouts
+        else "/workdir/src/configs/timeouts_for_stateless.json"
+    )
 
 
 def NETW_CHUNK_SIZE():
@@ -264,6 +277,7 @@ def HTTP_PROXY():
 def HTTPS_PROXY():
     return read_optional_setting(_HTTPS_PROXY)
 
+
 def NO_PROXY():
     return read_optional_setting(_NO_PROXY)
 
@@ -296,7 +310,11 @@ def MEM_LIMIT():
 def PULL_POLICY():
     val = read_optional_setting(_PULL_POLICY).lower()
     if val not in _PULL_POLICY_DICT:
-        raise RuntimeError("Unknown pull policy {!r}. Supported values: {}".format(val, list(_PULL_POLICY_DICT.keys())))
+        raise RuntimeError(
+            "Unknown pull policy {!r}. Supported values: {}".format(
+                val, list(_PULL_POLICY_DICT.keys())
+            )
+        )
     else:
         return _PULL_POLICY_DICT[val]
 
@@ -318,15 +336,15 @@ def GIT_PASSWORD():
 
 
 def AGENT_APP_SESSIONS_DIR():
-    return os.path.join(AGENT_ROOT_DIR(), 'app_sessions')
+    return os.path.join(AGENT_ROOT_DIR(), "app_sessions")
 
 
 def AGENT_APP_SESSIONS_DIR_HOST():
-    return os.path.join(HOST_DIR(), 'app_sessions')
+    return os.path.join(HOST_DIR(), "app_sessions")
 
 
 def AGENT_APPS_CACHE_DIR_HOST():
-    return os.path.join(HOST_DIR(), 'apps_cache')
+    return os.path.join(HOST_DIR(), "apps_cache")
 
 
 def GITHUB_TOKEN():
@@ -360,7 +378,7 @@ def SHM_SIZE():
 def DOCKER_NET():
     return read_optional_setting(_DOCKER_NET)
 
-    
+
 def DISABLE_TELEMETRY():
     return read_optional_setting(_DISABLE_TELEMETRY)
 
@@ -373,6 +391,10 @@ def OFFLINE_MODE():
     return read_optional_setting(_OFFLINE_MODE)
 
 
+def DEFAULT_APP_DOCKER_IMAGE():
+    return read_optional_setting(_DEFAULT_APP_DOCKER_IMAGE)
+
+
 def init_constants():
     sly.fs.mkdir(AGENT_LOG_DIR())
     sly.fs.mkdir(AGENT_TASKS_DIR())
@@ -383,8 +405,7 @@ def init_constants():
     sly.fs.mkdir(AGENT_IMPORT_DIR())
     os.chmod(AGENT_IMPORT_DIR(), 0o777)  # octal
     PULL_ALWAYS()
-    #sly.fs.mkdir(AGENT_APP_SOURCES_DIR())
+    # sly.fs.mkdir(AGENT_APP_SOURCES_DIR())
     sly.fs.mkdir(AGENT_APP_SESSIONS_DIR())
     sly.fs.mkdir(APPS_STORAGE_DIR())
     sly.fs.mkdir(APPS_PIP_CACHE_DIR())
-
