@@ -11,6 +11,9 @@ from packaging import version
 from version_parser import Version
 import urllib.parse
 from slugify import slugify
+import pkg_resources
+import pathlib
+
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -205,10 +208,18 @@ class TaskApp(TaskDockerized):
                     )
                 )
                 self.info["docker_image"] = constants.APP_DEBUG_DOCKER_IMAGE()
-
         except KeyError as e:
-            self.logger.critical(
-                'File "config.json" does not contain "docker_image" field'
+            requirements_path = self.get_requirements_path()
+            version = "latest"
+            if sly.fs.file_exists(requirements_path):
+                version_in_req = self.find_sdk_version(requirements_path)
+                if version_in_req is not None:
+                    version = version_in_req
+            self.info["docker_image"] = (
+                constants.DEFAULT_APP_DOCKER_IMAGE() + ":" + version
+            )
+            self.logger.info(
+                f'Dockerimage not found in config.json, so it is set to default: {self.info["docker_image"]}'
             )
 
     def is_isolate(self):
@@ -260,10 +271,13 @@ class TaskApp(TaskDockerized):
     def download_step(self):
         pass
 
-    def sync_pip_cache(self):
-        version = self.app_info.get("version", "master")
-        module_id = self.app_info.get("moduleId")
+    def find_sdk_version(self, requirements_path):
+        with pathlib.Path(requirements_path).open() as requirements_txt:
+            for requirement in pkg_resources.parse_requirements(requirements_txt):
+                print(requirement)
+        return None
 
+    def get_requirements_path(self):
         requirements_path = os.path.join(
             self.dir_task_src, self.app_info.get("configDir"), "requirements.txt"
         )
@@ -279,6 +293,13 @@ class TaskApp(TaskDockerized):
         self.logger.info(
             f"Relative path to requirements: {self._requirements_path_relative}"
         )
+        return requirements_path
+
+    def sync_pip_cache(self):
+        version = self.app_info.get("version", "master")
+        module_id = self.app_info.get("moduleId")
+
+        requirements_path = self.get_requirements_path()
 
         path_cache = os.path.join(
             constants.APPS_PIP_CACHE_DIR(), str(module_id), version
