@@ -7,3 +7,6 @@ grpcio-tools==1.47.0
 packaging==21.3
 version-parser==1.0.1
 supervisely==6.50.1
+docker==5.0.3
+black
+python-slugify==6.1.2

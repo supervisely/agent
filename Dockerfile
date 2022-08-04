@@ -30,7 +30,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
 RUN pip install --no-cache-dir \
-    docker==3.3.0 \
+    docker==5.0.3 \
     psutil==5.4.5 \
     requests==2.24.0 \
     hurry.filesize==0.9 \

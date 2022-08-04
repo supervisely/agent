@@ -11,7 +11,7 @@ if gettrace is None:
 elif gettrace():
     print("Hmm, Debugg is in progress")
     # only for convenient debug, has no effect in production
-    load_dotenv(os.path.expanduser("~/supervisely.env"))
+    load_dotenv(os.path.expanduser("~/debug-agent.env"))
 else:
     print("Debugger is disabled")
 
