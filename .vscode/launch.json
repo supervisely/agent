@@ -10,8 +10,8 @@
             "request": "launch",
             "program": "agent/main.py",
             "console": "integratedTerminal",
-            "preLaunchTask": "create-network",
-            "postDebugTask": "remove-network"
+            // "preLaunchTask": "create-network",
+            // "postDebugTask": "remove-network"
         }
     ]
 }
