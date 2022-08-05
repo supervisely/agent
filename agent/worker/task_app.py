@@ -512,6 +512,9 @@ class TaskApp(TaskDockerized):
             "SLY_APP_DATA_DIR": _APP_CONTAINER_DATA_DIR,
             constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
             "APP_MODE": "production",  # or "development"
+            "APP_IS_RUNNING_ON": "supervisely",
+            "APP_NAME": self.app_config.get("name", "Supervisely App"),
+            "ENV": "production",
         }
 
         if constants.DOCKER_NET() is not None:
