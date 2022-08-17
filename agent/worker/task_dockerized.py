@@ -157,6 +157,23 @@ class TaskDockerized(TaskSly):
         self.logger.info("Docker container volumes", extra={"volumes": volumes})
 
         try:
+            all_environments = {
+                "LOG_LEVEL": "DEBUG",
+                "LANG": "C.UTF-8",
+                "PYTHONUNBUFFERED": "1",
+                constants._HTTP_PROXY: constants.HTTP_PROXY(),
+                constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
+                "HOST_TASK_DIR": self.dir_task_host,
+                constants._NO_PROXY: constants.NO_PROXY(),
+                constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
+                constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
+                constants._NO_PROXY.lower(): constants.NO_PROXY(),
+                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                **add_envs,
+            }
+            if constants.SSL_CERT_FILE() is not None:
+                all_environments[constants._SSL_CERT_FILE] = constants.SSL_CERT_FILE()
+
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
@@ -167,20 +184,7 @@ class TaskDockerized(TaskSly):
                 ),
                 remove=False,
                 volumes=volumes,
-                environment={
-                    "LOG_LEVEL": "DEBUG",
-                    "LANG": "C.UTF-8",
-                    "PYTHONUNBUFFERED": "1",
-                    constants._HTTP_PROXY: constants.HTTP_PROXY(),
-                    constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
-                    "HOST_TASK_DIR": self.dir_task_host,
-                    constants._NO_PROXY: constants.NO_PROXY(),
-                    constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
-                    constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
-                    constants._NO_PROXY.lower(): constants.NO_PROXY(),
-                    constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
-                    **add_envs,
-                },
+                environment=all_environments,
                 labels={
                     "ecosystem": "supervisely",
                     "ecosystem_token": constants.TASKS_DOCKER_LABEL(),

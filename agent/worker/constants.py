@@ -30,6 +30,7 @@ _APP_DEBUG_DOCKER_IMAGE = "APP_DEBUG_DOCKER_IMAGE"
 
 _REQUESTS_CA_BUNDLE = "REQUESTS_CA_BUNDLE"
 _HOST_REQUESTS_CA_BUNDLE = "HOST_REQUESTS_CA_BUNDLE"
+_SSL_CERT_FILE = "SSL_CERT_FILE"
 
 # container limits
 _CPU_PERIOD = "CPU_PERIOD"
@@ -91,6 +92,7 @@ _OPTIONAL_DEFAULTS = {
     _GITHUB_TOKEN: None,
     _APP_DEBUG_DOCKER_IMAGE: None,
     _REQUESTS_CA_BUNDLE: None,
+    _SSL_CERT_FILE: None,
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
     _DOCKER_NET: None,  # or string value 'supervisely-vpn'
@@ -369,6 +371,10 @@ def REQUESTS_CA_BUNDLE():
 
 def HOST_REQUESTS_CA_BUNDLE():
     return read_optional_setting(_HOST_REQUESTS_CA_BUNDLE)
+
+
+def SSL_CERT_FILE():
+    return read_optional_setting(_SSL_CERT_FILE)
 
 
 def SHM_SIZE():
