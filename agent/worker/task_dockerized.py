@@ -169,6 +169,7 @@ class TaskDockerized(TaskSly):
                 constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
                 constants._NO_PROXY.lower(): constants.NO_PROXY(),
                 constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             }
             if constants.SSL_CERT_FILE() is not None:
