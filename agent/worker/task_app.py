@@ -438,9 +438,14 @@ class TaskApp(TaskDockerized):
                 "Installing app requirements...", 1, ext_logger=self.logger
             )
             progress_dummy.iter_done_report()
-            command = "pip3 install --root-user-action=ignore -r " + os.path.join(
-                self.dir_task_src_container, self._requirements_path_relative
+            command = (
+                "pip3 install --root-user-action=ignore --disable-pip-version-check -r "
+                + os.path.join(
+                    self.dir_task_src_container, self._requirements_path_relative
+                )
             )
+            self.logger.info(f"PIP command: {command}")
+
             self._exec_command(
                 command, add_envs=self.main_step_envs(), container_id=container_id
             )
