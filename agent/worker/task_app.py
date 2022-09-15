@@ -519,9 +519,7 @@ class TaskApp(TaskDockerized):
             "APP_MODE": "production",  # or "development"
             "ENV": "production",  # the same as "APP_MODE"
             "APP_NAME": self.app_config.get("name", "Supervisely App"),
-            "icon": self.app_config.get(
-                "icon", "https://cdn.supervise.ly/img/logo.363b442.png"
-            ),
+            "icon": self.app_config.get("icon", "https://cdn.supervise.ly/favicon.ico"),
         }
 
         if constants.DOCKER_NET() is not None:
