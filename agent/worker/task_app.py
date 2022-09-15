@@ -522,6 +522,12 @@ class TaskApp(TaskDockerized):
             "icon": self.app_config.get("icon", "https://cdn.supervise.ly/favicon.ico"),
         }
 
+        if "modal.state.slyProjectId" in modal_envs:
+            envs["context.projectId"] = modal_envs["modal.state.slyProjectId"]
+
+        if "modal.state.slyDatasetId" in modal_envs:
+            envs["context.datasetId"] = modal_envs["modal.state.slyDatasetId"]
+
         if constants.DOCKER_NET() is not None:
             envs["VIRTUAL_HOST"] = f'task-{self.info["task_id"]}.supervisely.local'
             envs["VIRTUAL_PORT"] = self.app_config.get("port", 8000)
