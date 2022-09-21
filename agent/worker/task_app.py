@@ -402,11 +402,12 @@ class TaskApp(TaskDockerized):
                 "API_TOKEN": self.info["api_token"],
                 "AGENT_TOKEN": constants.TOKEN(),
                 constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             },
         )
         self._logs_output = self._docker_api.api.exec_start(
-            self._exec_id, stream=True, demux=False
+            self._exec_id, stream=True
         )
 
     def exec_command(self, add_envs=None, command=None):
@@ -438,8 +439,9 @@ class TaskApp(TaskDockerized):
                 "Installing app requirements...", 1, ext_logger=self.logger
             )
             progress_dummy.iter_done_report()
+            # --root-user-action=ignore 
             command = (
-                "pip3 install --root-user-action=ignore --disable-pip-version-check -r "
+                "pip3 install --disable-pip-version-check -r "
                 + os.path.join(
                     self.dir_task_src_container, self._requirements_path_relative
                 )
@@ -520,6 +522,7 @@ class TaskApp(TaskDockerized):
             "ENV": "production",  # the same as "APP_MODE"
             "APP_NAME": self.app_config.get("name", "Supervisely App"),
             "icon": self.app_config.get("icon", "https://cdn.supervise.ly/favicon.ico"),
+            "PIP_ROOT_USER_ACTION": "ignore",
         }
 
         if "modal.state.slyProjectId" in modal_envs:
