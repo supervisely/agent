@@ -247,11 +247,13 @@ class TaskApp(TaskDockerized):
                 "mode": "ro",
             }
 
+        
         if constants.SUPERVISELY_AGENT_FILES() is not None:
+            relative_app_data_dir = os.path.join(slugify(self.app_config["name"]), str(self.info["task_id"]))
+            
             self.host_data_dir = os.path.join(
                 constants.SUPERVISELY_AGENT_FILES(),
-                slugify(self.app_config["name"]),
-                str(self.info["task_id"]),
+                relative_app_data_dir
             )
 
             self.logger.info(
@@ -265,9 +267,16 @@ class TaskApp(TaskDockerized):
 
             mkdir(self.host_data_dir)
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
+            
+            api = sly.Api(self.info["server_address"], self.info["api_token"])
+            api.task.update_meta(
+                int(self.info["task_id"]), 
+                {}, 
+                agent_storage_folder=constants.SUPERVISELY_AGENT_FILES(), 
+                relative_app_dir=relative_app_data_dir
+            )
 
-        api = sly.Api(self.info["server_address"], self.info["api_token"])
-        api.task.update_meta(int(self.info["task_id"]), {}, agent_storage_folder=self.host_data_dir)
+        
         return res
 
     def download_step(self):
