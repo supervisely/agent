@@ -4,7 +4,7 @@ from enum import Enum
 from threading import Lock
 import json
 import os
-
+import copy
 import supervisely_lib as sly
 
 from worker.agent_utils import TaskDirCleaner
@@ -154,7 +154,15 @@ class TaskDockerized(TaskSly):
 
         self._container_lock.acquire()
         volumes = self._get_task_volumes()
-        self.logger.info("Docker container volumes", extra={"volumes": volumes})
+        volumes_dupl = copy.deepcopy(volumes)
+        volumes_to_log = {}
+        for host_path, binding in volumes_dupl.items():
+            new_binding = copy.deepcopy(binding)
+            if "bind" in new_binding:
+                new_binding["bind"] = new_binding["bind"].replace(constants.TOKEN(), '***')            
+            volumes_to_log[host_path.replace(constants.TOKEN(), '***')] = new_binding
+            
+        self.logger.info("Docker container volumes", extra={"volumes": volumes_to_log})
 
         try:
             all_environments = {
