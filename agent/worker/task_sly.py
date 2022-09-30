@@ -4,6 +4,7 @@ import supervisely_lib as sly
 
 from supervisely_lib._utils import _remove_sensitive_information
 from worker.task_logged import TaskLogged
+from worker import constants
 import logging
 
 
@@ -25,6 +26,12 @@ class TaskSly(TaskLogged):
     def report_start(self):
         self.logger.info('TASK_START', extra={'event_type': sly.EventType.TASK_STARTED})
         to_log = _remove_sensitive_information(self.info)
+        if "agent_info" in to_log:
+            if "environ" in to_log["agent_info"]:
+                if "DOCKER_NET" in to_log["agent_info"]["environ"]:
+                    value = to_log["agent_info"]["environ"]["DOCKER_NET"]
+                    value = value.replace(constants.TOKEN(), '***')
+                    to_log["agent_info"]["environ"]["DOCKER_NET"] = value
         self.logger.info('TASK_MSG', extra=to_log)
 
     def task_main_func(self):
