@@ -13,7 +13,7 @@ import urllib.parse
 from slugify import slugify
 import pkg_resources
 import pathlib
-
+import copy
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -553,8 +553,15 @@ class TaskApp(TaskDockerized):
             envs["VIRTUAL_PORT"] = self.app_config.get("port", 8000)
         else:
             self.logger.info("⚠️ Supervisely network is not defined in ENV")
-
-        return envs
+        
+        # Handle case for some dockerimages where env names with dot sumbol are not supported
+        final_envs = copy.deepcopy(envs)
+        for k, v in envs.items():
+            if "." in k:
+                new_k = k.replace(".", "_").upper()
+                final_envs[new_k] = v
+        
+        return final_envs
 
     def process_logs(self):
         logs_found = False

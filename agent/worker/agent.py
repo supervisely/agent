@@ -109,8 +109,8 @@ class Agent:
 
         self.agent_info = {
             'hardware_info': hw_info,
-            'agent_image': config.get("Image", "docker.enterprise.supervise.ly/agent:6.3.0"), # for debug
-            'agent_version': config.get("Labels", {}).get("VERSION", "agent:6.3.0"),  # for debug
+            'agent_image': config.get("Image", "docker.enterprise.supervise.ly/agent:6.6.9"), # for debug
+            'agent_version': config.get("Labels", {}).get("VERSION", "agent:6.6.9"),  # for debug
             'agent_image_digest': get_self_docker_image_digest(),
             'environ': {
                 constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
