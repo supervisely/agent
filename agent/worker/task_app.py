@@ -541,6 +541,12 @@ class TaskApp(TaskDockerized):
 
         if "modal.state.slyDatasetId" in modal_envs:
             envs["context.datasetId"] = modal_envs["modal.state.slyDatasetId"]
+            
+        if "modal.state.slyFile" in modal_envs:
+            envs["context.slyFile"] = modal_envs["modal.state.slyFile"]
+        
+        if "modal.state.slyFolder" in modal_envs:
+            envs["context.slyFolder"] = modal_envs["modal.state.slyFolder"]
 
         if constants.DOCKER_NET() is not None:
             envs["VIRTUAL_HOST"] = f'task-{self.info["task_id"]}.supervisely.local'
