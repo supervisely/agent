@@ -30,8 +30,9 @@ class TaskSly(TaskLogged):
             if "environ" in to_log["agent_info"]:
                 if "DOCKER_NET" in to_log["agent_info"]["environ"]:
                     value = to_log["agent_info"]["environ"]["DOCKER_NET"]
-                    value = value.replace(constants.TOKEN(), '***')
-                    to_log["agent_info"]["environ"]["DOCKER_NET"] = value
+                    if value is not None:
+                        value = value.replace(constants.TOKEN(), '***')
+                        to_log["agent_info"]["environ"]["DOCKER_NET"] = value
         self.logger.info('TASK_MSG', extra=to_log)
 
     def task_main_func(self):
