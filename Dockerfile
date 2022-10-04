@@ -54,7 +54,7 @@ RUN pip install python-slugify==6.1.2
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
-RUN pip install supervisely==6.64.3
+RUN pip install supervisely==6.66.1
 
 COPY . /workdir
 
