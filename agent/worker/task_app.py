@@ -249,10 +249,10 @@ class TaskApp(TaskDockerized):
 
         
         if constants.SUPERVISELY_AGENT_FILES() is not None:
-            relative_app_data_dir = os.path.join(slugify(self.app_config["name"]), str(self.info["task_id"]))
+            relative_app_data_dir = os.path.join("app_data", slugify(self.app_config["name"]), str(self.info["task_id"]))
             
             self.host_data_dir = os.path.join(
-                constants.SUPERVISELY_AGENT_FILES(),
+                constants.SUPERVISELY_AGENT_FILES(),  # constants.SUPERVISELY_SYNCED_APP_DATA() 
                 relative_app_data_dir
             )
 
@@ -269,6 +269,7 @@ class TaskApp(TaskDockerized):
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
             
             api = sly.Api(self.info["server_address"], self.info["api_token"])
+            
             api.task.update_meta(
                 int(self.info["task_id"]), 
                 {}, 
@@ -529,6 +530,7 @@ class TaskApp(TaskDockerized):
             "PYTHONUNBUFFERED": 1,
             "SLY_APP_DATA_DIR": _APP_CONTAINER_DATA_DIR,
             constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
+            "SUPERVISELY_SYNCED_APP_DATA": constants.SUPERVISELY_SYNCED_APP_DATA(),
             "APP_MODE": "production",  # or "development"
             "ENV": "production",  # the same as "APP_MODE"
             "APP_NAME": self.app_config.get("name", "Supervisely App"),

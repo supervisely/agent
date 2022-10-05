@@ -393,6 +393,13 @@ def SUPERVISELY_AGENT_FILES():
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
+def SUPERVISELY_SYNCED_APP_DATA():
+    agent_storage_dir = read_optional_setting(_SUPERVISELY_AGENT_FILES)
+    if agent_storage_dir is None:
+        return None
+    return os.path.join(agent_storage_dir, "app_data")
+
+
 def OFFLINE_MODE():
     return read_optional_setting(_OFFLINE_MODE)
 
@@ -415,3 +422,5 @@ def init_constants():
     sly.fs.mkdir(AGENT_APP_SESSIONS_DIR())
     sly.fs.mkdir(APPS_STORAGE_DIR())
     sly.fs.mkdir(APPS_PIP_CACHE_DIR())
+    if SUPERVISELY_SYNCED_APP_DATA() is not None:
+        sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA())

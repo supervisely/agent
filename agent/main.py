@@ -34,9 +34,34 @@ def parse_envs():
     args = {**args_opt, **args_req}
     return args
 
+def remove_empty_folders(path):
+    if path is None:
+        return
+    if not os.path.isdir(path):
+        return
+    # if os.path.normpath(path) == os.path.normpath(constants.SUPERVISELY_SYNCED_APP_DATA()):
+    #     return
+
+    # remove empty subfolders
+    files = os.listdir(path)
+    if len(files):
+        for f in files:
+            fullpath = os.path.join(path, f)
+            if os.path.isdir(fullpath):
+                remove_empty_folders(fullpath)
+
+    # if folder empty, delete it
+    files = os.listdir(path)
+    if len(files) == 0 and os.path.normpath(path) != os.path.normpath(constants.SUPERVISELY_SYNCED_APP_DATA()):
+        sly.logger.info(f"Removing empty folder: {path}")
+        os.rmdir(path)
 
 def main(args):
     sly.logger.info("ENVS", extra={**args, constants._DOCKER_PASSWORD: "hidden"})
+    
+    sly.logger.info("Remove empty directories in agent storage")
+    remove_empty_folders(constants.SUPERVISELY_AGENT_FILES())
+    
     agent = Agent()
     agent.inf_loop()
     agent.wait_all()
