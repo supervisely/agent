@@ -39,8 +39,6 @@ def remove_empty_folders(path):
         return
     if not os.path.isdir(path):
         return
-    # if os.path.normpath(path) == os.path.normpath(constants.SUPERVISELY_SYNCED_APP_DATA()):
-    #     return
 
     # remove empty subfolders
     files = os.listdir(path)
@@ -52,17 +50,21 @@ def remove_empty_folders(path):
 
     # if folder empty, delete it
     files = os.listdir(path)
-    if len(files) == 0 and os.path.normpath(path) != os.path.normpath(constants.SUPERVISELY_SYNCED_APP_DATA()):
+    if len(files) == 0 and os.path.normpath(path) != os.path.normpath(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()):
         sly.logger.info(f"Removing empty folder: {path}")
         os.rmdir(path)
+
 
 def main(args):
     sly.logger.info("ENVS", extra={**args, constants._DOCKER_PASSWORD: "hidden"})
     
-    sly.logger.info(f"Agent storage: {constants.SUPERVISELY_AGENT_FILES()}")
-    sly.logger.info(f"Agent storage app data: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
+    sly.logger.info(f"Agent storage [host]: {constants.SUPERVISELY_AGENT_FILES()}")
+    sly.logger.info(f"Agent storage [container]: {constants.SUPERVISELY_AGENT_FILES_CONTAINER()}")
+    sly.logger.info(f"Agent storage app data [host]: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
+    sly.logger.info(f"Agent storage app data [container]: {constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()}")
+    
     sly.logger.info("Remove empty directories in agent storage...")
-    remove_empty_folders(constants.SUPERVISELY_AGENT_FILES())
+    remove_empty_folders(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
     
     agent = Agent()
     agent.inf_loop()

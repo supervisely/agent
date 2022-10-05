@@ -67,6 +67,7 @@ _PULL_POLICY_DICT = {
 
 _DOCKER_NET = "DOCKER_NET"
 _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
+_SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
 
 
@@ -99,6 +100,7 @@ _OPTIONAL_DEFAULTS = {
     _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
     _SUPERVISELY_AGENT_FILES: None,
+    _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
 }
@@ -390,14 +392,30 @@ def DISABLE_TELEMETRY():
 
 
 def SUPERVISELY_AGENT_FILES():
+    #/root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
+    #/root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
+def SUPERVISELY_AGENT_FILES_CONTAINER():
+    host_dir = SUPERVISELY_AGENT_FILES()
+    if host_dir is None:
+        return None
+    agent_storage_dir_in_agent_container = read_optional_setting(_SUPERVISELY_AGENT_FILES_CONTAINER)
+    return agent_storage_dir_in_agent_container
+
+
 def SUPERVISELY_SYNCED_APP_DATA():
-    agent_storage_dir = read_optional_setting(_SUPERVISELY_AGENT_FILES)
+    agent_storage_dir = SUPERVISELY_AGENT_FILES()
     if agent_storage_dir is None:
         return None
     return os.path.join(agent_storage_dir, "app_data")
+
+def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
+    dir_in_container = SUPERVISELY_AGENT_FILES_CONTAINER()
+    if dir_in_container is None:
+        return None
+    return os.path.join(dir_in_container, "app_data")
 
 
 def OFFLINE_MODE():
@@ -422,5 +440,7 @@ def init_constants():
     sly.fs.mkdir(AGENT_APP_SESSIONS_DIR())
     sly.fs.mkdir(APPS_STORAGE_DIR())
     sly.fs.mkdir(APPS_PIP_CACHE_DIR())
-    if SUPERVISELY_SYNCED_APP_DATA() is not None:
-        sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA())
+    if SUPERVISELY_AGENT_FILES_CONTAINER() is not None:
+        sly.fs.mkdir(SUPERVISELY_AGENT_FILES_CONTAINER())
+    if SUPERVISELY_SYNCED_APP_DATA_CONTAINER() is not None:
+        sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
