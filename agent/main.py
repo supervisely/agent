@@ -59,7 +59,9 @@ def remove_empty_folders(path):
 def main(args):
     sly.logger.info("ENVS", extra={**args, constants._DOCKER_PASSWORD: "hidden"})
     
-    sly.logger.info("Remove empty directories in agent storage")
+    sly.logger.info(f"Agent storage: {constants.SUPERVISELY_AGENT_FILES()}")
+    sly.logger.info(f"Agent storage app data: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
+    sly.logger.info("Remove empty directories in agent storage...")
     remove_empty_folders(constants.SUPERVISELY_AGENT_FILES())
     
     agent = Agent()
