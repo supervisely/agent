@@ -47,6 +47,7 @@ _GITHUB_TOKEN = "GITHUB_TOKEN"
 _AGENT_ROOT_DIR = "AGENT_ROOT_DIR"
 _DISABLE_TELEMETRY = "DISABLE_TELEMETRY"
 _DEFAULT_APP_DOCKER_IMAGE = "DEFAULT_APP_DOCKER_IMAGE"
+_AGENT_FILES_IN_APP_CONTAINER = "AGENT_FILES_IN_APP_CONTAINER"
 
 
 _REQUIRED_SETTINGS = [
@@ -104,6 +105,7 @@ _OPTIONAL_DEFAULTS = {
     _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
+    _AGENT_FILES_IN_APP_CONTAINER: "/agent-storage",
 }
 
 
@@ -411,6 +413,14 @@ def SUPERVISELY_AGENT_FILES_CONTAINER():
         return None
     agent_storage_dir_in_agent_container = read_optional_setting(_SUPERVISELY_AGENT_FILES_CONTAINER)
     return agent_storage_dir_in_agent_container
+
+
+def AGENT_FILES_IN_APP_CONTAINER():
+    host_dir = SUPERVISELY_AGENT_FILES()
+    if host_dir is None:
+        return None
+    res = read_optional_setting(_AGENT_FILES_IN_APP_CONTAINER)
+    return res
 
 
 def SUPERVISELY_SYNCED_APP_DATA():

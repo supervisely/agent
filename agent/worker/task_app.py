@@ -262,9 +262,12 @@ class TaskApp(TaskDockerized):
 
             mkdir(self.host_data_dir)
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
+            res[constants.SUPERVISELY_AGENT_FILES()] = {
+                "bind": constants.AGENT_FILES_IN_APP_CONTAINER(),
+                "mode": "rw",
+            }
 
             api = sly.Api(self.info["server_address"], self.info["api_token"])
-
             api.task.update_meta(
                 int(self.info["task_id"]),
                 {},
@@ -536,6 +539,9 @@ class TaskApp(TaskDockerized):
             envs["VIRTUAL_PORT"] = self.app_config.get("port", 8000)
         else:
             self.logger.info("⚠️ Supervisely network is not defined in ENV")
+
+        if constants.SUPERVISELY_AGENT_FILES() is not None:
+            envs["AGENT_STORAGE"] = constants.AGENT_FILES_IN_APP_CONTAINER()
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)
