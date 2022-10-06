@@ -58,9 +58,7 @@ class TaskApp(TaskDockerized):
 
     def init_task_dir(self):
         # agent container paths
-        self.dir_task = os.path.join(
-            constants.AGENT_APP_SESSIONS_DIR(), str(self.info["task_id"])
-        )
+        self.dir_task = os.path.join(constants.AGENT_APP_SESSIONS_DIR(), str(self.info["task_id"]))
         self.dir_task_src = os.path.join(self.dir_task, "repo")
         # host paths
         self.dir_task_host = os.path.join(
@@ -70,9 +68,7 @@ class TaskApp(TaskDockerized):
         team_id = self.info.get("context", {}).get("teamId", "unknown")
         if team_id == "unknown":
             self.logger.warn("teamId not found in context")
-        self.dir_apps_cache_host = os.path.join(
-            constants.AGENT_APPS_CACHE_DIR_HOST(), str(team_id)
-        )
+        self.dir_apps_cache_host = os.path.join(constants.AGENT_APPS_CACHE_DIR_HOST(), str(team_id))
         sly.fs.ensure_base_path(self.dir_apps_cache_host)
 
         # task container path
@@ -160,9 +156,7 @@ class TaskApp(TaskDockerized):
         api = Api(self.info["server_address"], self.info["api_token"])
         module_id = self.info["appInfo"]["moduleId"]
         version = self.app_info.get("version", "master")
-        self.logger.info(
-            "App moduleId == {} [v={}] in ecosystem".format(module_id, version)
-        )
+        self.logger.info("App moduleId == {} [v={}] in ecosystem".format(module_id, version))
         self.app_config = api.app.get_info(module_id, version)["config"]
         self.logger.info("App config", extra={"config": self.app_config})
 
@@ -215,9 +209,7 @@ class TaskApp(TaskDockerized):
                 version_in_req = self.find_sdk_version(requirements_path)
                 if version_in_req is not None:
                     version = version_in_req
-            self.info["docker_image"] = (
-                constants.DEFAULT_APP_DOCKER_IMAGE() + ":" + version
-            )
+            self.info["docker_image"] = constants.DEFAULT_APP_DOCKER_IMAGE() + ":" + version
             self.logger.info(
                 f'Dockerimage not found in config.json, so it is set to default: {self.info["docker_image"]}'
             )
@@ -247,13 +239,14 @@ class TaskApp(TaskDockerized):
                 "mode": "ro",
             }
 
-        
         if constants.SUPERVISELY_AGENT_FILES() is not None:
-            relative_app_data_dir = os.path.join("app_data", slugify(self.app_config["name"]), str(self.info["task_id"]))
-            
+            relative_app_data_dir = os.path.join(
+                "app_data", slugify(self.app_config["name"]), str(self.info["task_id"])
+            )
+
             self.host_data_dir = os.path.join(
-                constants.SUPERVISELY_AGENT_FILES(),  # constants.SUPERVISELY_SYNCED_APP_DATA() 
-                relative_app_data_dir
+                constants.SUPERVISELY_AGENT_FILES(),  # constants.SUPERVISELY_SYNCED_APP_DATA()
+                relative_app_data_dir,
             )
 
             self.logger.info(
@@ -267,17 +260,16 @@ class TaskApp(TaskDockerized):
 
             mkdir(self.host_data_dir)
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
-            
+
             api = sly.Api(self.info["server_address"], self.info["api_token"])
-            
+
             api.task.update_meta(
-                int(self.info["task_id"]), 
-                {}, 
-                agent_storage_folder=constants.SUPERVISELY_AGENT_FILES(), 
-                relative_app_dir=relative_app_data_dir
+                int(self.info["task_id"]),
+                {},
+                agent_storage_folder=constants.SUPERVISELY_AGENT_FILES(),
+                relative_app_dir=relative_app_data_dir,
             )
 
-        
         return res
 
     def download_step(self):
@@ -288,10 +280,7 @@ class TaskApp(TaskDockerized):
             with pathlib.Path(requirements_path).open() as requirements_txt:
                 for requirement in pkg_resources.parse_requirements(requirements_txt):
                     if requirement.project_name == "supervisely":
-                        if (
-                            len(requirement.specs) > 0
-                            and len(requirement.specs[0]) >= 2
-                        ):
+                        if len(requirement.specs) > 0 and len(requirement.specs[0]) >= 2:
                             version = requirement.specs[0][1]
                             return version
         except Exception as e:
@@ -311,9 +300,7 @@ class TaskApp(TaskDockerized):
                 self.app_info.get("configDir"), "requirements.txt"
             )
 
-        self.logger.info(
-            f"Relative path to requirements: {self._requirements_path_relative}"
-        )
+        self.logger.info(f"Relative path to requirements: {self._requirements_path_relative}")
         return requirements_path
 
     def sync_pip_cache(self):
@@ -325,9 +312,7 @@ class TaskApp(TaskDockerized):
         path_cache = os.path.join(
             constants.APPS_PIP_CACHE_DIR(), str(module_id), version
         )  # in agent container
-        self._path_cache_host = constants._agent_to_host_path(
-            os.path.join(path_cache, "pip")
-        )
+        self._path_cache_host = constants._agent_to_host_path(os.path.join(path_cache, "pip"))
 
         if sly.fs.file_exists(requirements_path):
 
@@ -418,9 +403,7 @@ class TaskApp(TaskDockerized):
                 **add_envs,
             },
         )
-        self._logs_output = self._docker_api.api.exec_start(
-            self._exec_id, stream=True
-        )
+        self._logs_output = self._docker_api.api.exec_start(self._exec_id, stream=True)
 
     def exec_command(self, add_envs=None, command=None):
         add_envs = sly.take_with_default(add_envs, {})
@@ -433,14 +416,14 @@ class TaskApp(TaskDockerized):
             command = f'bash -c "export PYTHONPATH="$PYTHONPATH:{self.dir_task_src_container}" && python {main_script_path}"'
 
         if "entrypoint" in self.app_config:
-            command = f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
+            command = (
+                f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
+            )
         self.logger.info("command to run", extra={"command": command})
         self._exec_command(command, add_envs)
 
         # change pulling progress to app progress
-        progress_dummy = sly.Progress(
-            "Application is started ...", 1, ext_logger=self.logger
-        )
+        progress_dummy = sly.Progress("Application is started ...", 1, ext_logger=self.logger)
         progress_dummy.iter_done_report()
         self.logger.info("command is running", extra={"command": command})
 
@@ -451,18 +434,13 @@ class TaskApp(TaskDockerized):
                 "Installing app requirements...", 1, ext_logger=self.logger
             )
             progress_dummy.iter_done_report()
-            # --root-user-action=ignore 
-            command = (
-                "pip3 install --disable-pip-version-check -r "
-                + os.path.join(
-                    self.dir_task_src_container, self._requirements_path_relative
-                )
+            # --root-user-action=ignore
+            command = "pip3 install --disable-pip-version-check -r " + os.path.join(
+                self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
 
-            self._exec_command(
-                command, add_envs=self.main_step_envs(), container_id=container_id
-            )
+            self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
             self.process_logs()
             self.logger.info("Requirements are installed")
 
@@ -471,9 +449,7 @@ class TaskApp(TaskDockerized):
         if base_url is not None:
             # base_url.lstrip("/")
             app_url = urllib.parse.urljoin(self.info["server_address"], base_url)
-            self.logger.info(
-                f"To access the app in browser, copy and paste this URL: {app_url}"
-            )
+            self.logger.info(f"To access the app in browser, copy and paste this URL: {app_url}")
         else:
             self.logger.warn("baseUrl not found in task info")
 
@@ -485,10 +461,7 @@ class TaskApp(TaskDockerized):
             if sly.fs.dir_empty(self.host_data_dir):
                 sly.fs.remove_dir(self.host_data_dir)
             parent_app_dir = Path(self.host_data_dir).parent
-            if (
-                sly.fs.dir_empty(parent_app_dir)
-                and len(sly.fs.get_subdirs(parent_app_dir)) == 0
-            ):
+            if sly.fs.dir_empty(parent_app_dir) and len(sly.fs.get_subdirs(parent_app_dir)) == 0:
                 sly.fs.remove_dir(parent_app_dir)
 
     def upload_step(self):
@@ -543,10 +516,10 @@ class TaskApp(TaskDockerized):
 
         if "modal.state.slyDatasetId" in modal_envs:
             envs["context.datasetId"] = modal_envs["modal.state.slyDatasetId"]
-            
+
         if "modal.state.slyFile" in modal_envs:
             envs["context.slyFile"] = modal_envs["modal.state.slyFile"]
-        
+
         if "modal.state.slyFolder" in modal_envs:
             envs["context.slyFolder"] = modal_envs["modal.state.slyFolder"]
 
@@ -555,14 +528,14 @@ class TaskApp(TaskDockerized):
             envs["VIRTUAL_PORT"] = self.app_config.get("port", 8000)
         else:
             self.logger.info("⚠️ Supervisely network is not defined in ENV")
-        
+
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)
         for k, v in envs.items():
             if "." in k:
                 new_k = k.replace(".", "_").upper()
                 final_envs[new_k] = v
-        
+
         return final_envs
 
     def process_logs(self):
@@ -588,9 +561,7 @@ class TaskApp(TaskDockerized):
                 _process_line(log_part)
 
         if not logs_found:
-            self.logger.warn(
-                "No logs obtained from container."
-            )  # check if bug occurred
+            self.logger.warn("No logs obtained from container.")  # check if bug occurred
 
     def _stop_wait_container(self):
         if self.is_isolate():
@@ -619,6 +590,6 @@ class TaskApp(TaskDockerized):
         self.logger.debug("Task container finished with status: {}".format(str(status)))
         if status != 0:
             raise RuntimeError(
-            # self.logger.warn(
+                # self.logger.warn(
                 "Task container finished with non-zero status: {}".format(str(status))
             )
