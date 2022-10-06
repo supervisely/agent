@@ -4,6 +4,7 @@ import os
 from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
+import re
 from supervisely_lib.io.docker_utils import PullPolicy
 
 
@@ -232,14 +233,8 @@ def CHECK_VERSION_COMPATIBILITY():
 
 
 def TIMEOUT_CONFIG_PATH():
-    use_default_timeouts = sly.env.flag_from_env(
-        read_optional_setting(_DEFAULT_TIMEOUTS)
-    )
-    return (
-        None
-        if use_default_timeouts
-        else "/workdir/src/configs/timeouts_for_stateless.json"
-    )
+    use_default_timeouts = sly.env.flag_from_env(read_optional_setting(_DEFAULT_TIMEOUTS))
+    return None if use_default_timeouts else "/workdir/src/configs/timeouts_for_stateless.json"
 
 
 def NETW_CHUNK_SIZE():
@@ -391,9 +386,22 @@ def DISABLE_TELEMETRY():
     return read_optional_setting(_DISABLE_TELEMETRY)
 
 
+def AGENT_ID():
+    try:
+        host_dir = SUPERVISELY_AGENT_FILES()
+        if host_dir is None:
+            return None
+        if "supervisely/agent-" in host_dir:
+            search = re.search("supervisely/agent-(\d+)(.*)", host_dir)
+            agent_id = int(search.group(1))
+            return agent_id
+    except Exception as e:
+        return None
+
+
 def SUPERVISELY_AGENT_FILES():
-    #/root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
-    #/root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
+    # /root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
+    # /root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
@@ -410,6 +418,7 @@ def SUPERVISELY_SYNCED_APP_DATA():
     if agent_storage_dir is None:
         return None
     return os.path.join(agent_storage_dir, "app_data")
+
 
 def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
     dir_in_container = SUPERVISELY_AGENT_FILES_CONTAINER()

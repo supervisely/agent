@@ -50,6 +50,7 @@ class TaskApp(TaskDockerized):
         self._need_sync_pip_cache = False
         self._requirements_path_relative = None
         self.host_data_dir = None
+        self.agent_id = None
         super().__init__(*args, **kwargs)
 
     def init_logger(self, loglevel=None):
@@ -105,6 +106,7 @@ class TaskApp(TaskDockerized):
 
             api = Api(self.info["server_address"], self.info["api_token"])
             tar_path = os.path.join(self.dir_task_src, "repo.tar.gz")
+
             api.app.download_git_archive(
                 self.app_info["moduleId"],
                 self.app_info["id"],
@@ -445,6 +447,11 @@ class TaskApp(TaskDockerized):
             self.logger.info("Requirements are installed")
 
     def main_step(self):
+        api = Api(self.info["server_address"], self.info["api_token"])
+        task_info_from_server = api.task.get_info_by_id(int(self.info["task_id"]))
+        self.agent_id = task_info_from_server.get("agentId")
+        self.logger.info(f"Agent ID = {self.agent_id}")
+
         base_url = self.info["appInfo"].get("baseUrl")
         if base_url is not None:
             # base_url.lstrip("/")
@@ -509,6 +516,7 @@ class TaskApp(TaskDockerized):
             "APP_NAME": self.app_config.get("name", "Supervisely App"),
             "icon": self.app_config.get("icon", "https://cdn.supervise.ly/favicon.ico"),
             "PIP_ROOT_USER_ACTION": "ignore",
+            "AGENT_ID": self.agent_id,
         }
 
         if "modal.state.slyProjectId" in modal_envs:

@@ -116,6 +116,7 @@ class Agent:
             self.logger.warn("Docker container info unavailable, agent is running in debug VENV")
 
         self.agent_info = {
+            "agent_id_from_storage_path": constants.AGENT_ID(),
             "hardware_info": hw_info,
             "agent_image": config.get(
                 "Image", "docker.enterprise.supervise.ly/agent:6.6.9"
