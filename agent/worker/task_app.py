@@ -522,17 +522,24 @@ class TaskApp(TaskDockerized):
             "AGENT_ID": self.agent_id,
         }
 
+        if "context.workspaceId" in envs:
+            envs["WORKSPACE_ID"] = modal_envs["context.workspaceId"]
+
         if "modal.state.slyProjectId" in modal_envs:
             envs["context.projectId"] = modal_envs["modal.state.slyProjectId"]
+            envs["PROJECT_ID"] = modal_envs["modal.state.slyProjectId"]
 
         if "modal.state.slyDatasetId" in modal_envs:
             envs["context.datasetId"] = modal_envs["modal.state.slyDatasetId"]
+            envs["DATASET_ID"] = modal_envs["modal.state.slyDatasetId"]
 
         if "modal.state.slyFile" in modal_envs:
             envs["context.slyFile"] = modal_envs["modal.state.slyFile"]
+            envs["FILE"] = modal_envs["modal.state.slyFile"]
 
         if "modal.state.slyFolder" in modal_envs:
             envs["context.slyFolder"] = modal_envs["modal.state.slyFolder"]
+            envs["FOLDER"] = modal_envs["modal.state.slyFolder"]
 
         if constants.DOCKER_NET() is not None:
             envs["VIRTUAL_HOST"] = f'task-{self.info["task_id"]}.supervisely.local'
