@@ -8,3 +8,4 @@ supervisely_lib
 start.sh
 .venv
 supervisely
+.DS_Store

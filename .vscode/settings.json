@@ -1,6 +1,25 @@
 {
     "files.exclude": {
-        "**/.idea": true,
-        "**/venv": true
-    }
+        "**/__pycache__": true,
+        "venv": true
+    },
+    "python.defaultInterpreterPath": ".venv/bin/python",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnType": true,
+    "black-formatter.args": [
+        "--line-length",
+        "100"
+    ],
+    "[html]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+    },
+    "debug.inlineValues": "off",
+    "python.analysis.typeCheckingMode": "off"
 }
