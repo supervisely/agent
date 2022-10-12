@@ -523,7 +523,7 @@ class TaskApp(TaskDockerized):
         }
 
         if "context.workspaceId" in envs:
-            envs["WORKSPACE_ID"] = modal_envs["context.workspaceId"]
+            envs["WORKSPACE_ID"] = envs["context.workspaceId"]
 
         if "modal.state.slyProjectId" in modal_envs:
             envs["context.projectId"] = modal_envs["modal.state.slyProjectId"]
