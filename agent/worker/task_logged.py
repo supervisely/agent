@@ -64,18 +64,12 @@ class TaskLogged(multiprocessing.Process):
 
     def init_task_dir(self):
         self.dir_task = osp.join(constants.AGENT_TASKS_DIR(), str(self.info["task_id"]))
-        self.dir_task_host = osp.join(
-            constants.AGENT_TASKS_DIR_HOST(), str(self.info["task_id"])
-        )
+        self.dir_task_host = osp.join(constants.AGENT_TASKS_DIR_HOST(), str(self.info["task_id"]))
 
     def init_logger(self, loglevel=None):
         self.logger = sly.get_task_logger(self.info["task_id"], loglevel=loglevel)
-        sly.change_formatters_default_values(
-            self.logger, "service_type", sly.ServiceType.AGENT
-        )
-        sly.change_formatters_default_values(
-            self.logger, "event_type", sly.EventType.LOGJ
-        )
+        sly.change_formatters_default_values(self.logger, "service_type", sly.ServiceType.AGENT)
+        sly.change_formatters_default_values(self.logger, "event_type", sly.EventType.LOGJ)
 
         self.log_queue = LogQueue()
         add_task_handler(self.logger, self.log_queue)
@@ -104,9 +98,7 @@ class TaskLogged(multiprocessing.Process):
         # else -> TelemetryReporter
 
     def init_additional(self):
-        self.data_mgr = DataManager(
-            self.logger, self.api, self.public_api, self.public_api_context
-        )
+        self.data_mgr = DataManager(self.logger, self.api, self.public_api, self.public_api_context)
 
     def submit_log(self):
         break_flag = False
@@ -132,10 +124,9 @@ class TaskLogged(multiprocessing.Process):
         return sly.EventType.TASK_STOPPED
 
     def end_log_crash(self, e):
-        self.logger.critical(
+        self.logger.info(
             "TASK_END",
-            exc_info=True,
-            extra={"event_type": sly.EventType.TASK_CRASHED, "exc_str": str(e)},
+            extra={"event_type": sly.EventType.TASK_CRASHED, "exit_status": str(e)},
         )
         return sly.EventType.TASK_CRASHED
 
@@ -149,15 +140,11 @@ class TaskLogged(multiprocessing.Process):
             self._stop_log_event = threading.Event()
             self.init_logger()
             self.init_api()
-            self.future_log = self.executor_log.submit(
-                self.submit_log
-            )  # run log submitting
+            self.future_log = self.executor_log.submit(self.submit_log)  # run log submitting
         except Exception as e:
             # unable to do something another if crashed
             print(e)
-            dump_json_file(
-                str(e), os.path.join(constants.AGENT_ROOT_DIR(), "logger_fail.json")
-            )
+            dump_json_file(str(e), os.path.join(constants.AGENT_ROOT_DIR(), "logger_fail.json"))
             os._exit(1)  # ok, documented
 
         try:
