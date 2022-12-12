@@ -459,7 +459,7 @@ class TaskApp(TaskDockerized):
         if base_url is not None:
             # base_url.lstrip("/")
             app_url = urllib.parse.urljoin(self.info["server_address"], base_url)
-            self.logger.info(f"To access the app in browser, copy and paste this URL: {app_url}")
+            self.logger.info(f"✅ To access the app in browser, copy and paste this URL: {app_url}")
         else:
             self.logger.warn("baseUrl not found in task info")
 
