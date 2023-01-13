@@ -281,7 +281,10 @@ class TaskApp(TaskDockerized):
         if mount_settings is not None:
             self.logger.info(f"Mount settings for task", extra={"folderToMount": mount_settings})
             host_folder = mount_settings.get("path")
-            mode = mount_settings.get("mode", "r")
+            mode = mount_settings.get("mode", "ro")
+            if mode not in ["ro", "rw"]:
+                self.logger.warn(f"Unknown mounting mode: {mode}. Set to 'ro'")
+                mode = "ro"
             if host_folder is not None and host_folder != "":
                 self.logger.info(
                     f"Agent will mount host directory: {host_folder} [mode: {mode}]-> {_MOUNT_FOLDER_IN_CONTAINER}"
