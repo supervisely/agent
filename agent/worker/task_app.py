@@ -35,6 +35,8 @@ _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
 _APP_CONTAINER_DATA_DIR = "/sly-app-data"
 
+_MOUNT_FOLDER_IN_CONTAINER = "/mount_folder"
+
 
 class TaskApp(TaskDockerized):
     def __init__(self, *args, **kwargs):
@@ -274,6 +276,20 @@ class TaskApp(TaskDockerized):
                 agent_storage_folder=constants.SUPERVISELY_AGENT_FILES(),
                 relative_app_dir=relative_app_data_dir,
             )
+
+        mount_settings = self.info.get("folderToMount", None)
+        if mount_settings is not None:
+            self.logger.info(f"Mount settings for task", extra={"folderToMount": mount_settings})
+            host_folder = mount_settings.get("path")
+            mode = mount_settings.get("mode", "r")
+            if host_folder is not None and host_folder != "":
+                self.logger.info(
+                    f"Agent will mount host directory: {host_folder} [mode: {mode}]-> {_MOUNT_FOLDER_IN_CONTAINER}"
+                )
+                res[host_folder] = {
+                    "bind": _MOUNT_FOLDER_IN_CONTAINER,
+                    "mode": mode,
+                }
 
         return res
 
