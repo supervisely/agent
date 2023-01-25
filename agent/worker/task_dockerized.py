@@ -5,6 +5,7 @@ from threading import Lock
 import json
 import os
 import copy
+import docker
 import supervisely_lib as sly
 
 from worker.agent_utils import TaskDirCleaner
@@ -37,7 +38,7 @@ class TaskDockerized(TaskSly):
         self.completed_step = TaskStep.NOTHING
         self.task_dir_cleaner = TaskDirCleaner(self.dir_task)
 
-        self._docker_api = None  # must be set by someone
+        self._docker_api: docker.DockerClient = None  # must be set by someone
 
         self._container = None
         self._container_lock = Lock()  # to drop container from different threads
@@ -76,9 +77,7 @@ class TaskDockerized(TaskSly):
 
         last_step_str = self.info.get("last_complete_step")
         self.logger.info("LAST_COMPLETE_STEP", extra={"step": last_step_str})
-        self.completed_step = self.step_name_mapping.get(
-            last_step_str, TaskStep.NOTHING
-        )
+        self.completed_step = self.step_name_mapping.get(last_step_str, TaskStep.NOTHING)
 
         for curr_step, curr_method in [
             (TaskStep.DOWNLOAD, self.download_step),
@@ -159,9 +158,9 @@ class TaskDockerized(TaskSly):
         for host_path, binding in volumes_dupl.items():
             new_binding = copy.deepcopy(binding)
             if "bind" in new_binding:
-                new_binding["bind"] = new_binding["bind"].replace(constants.TOKEN(), '***')            
-            volumes_to_log[host_path.replace(constants.TOKEN(), '***')] = new_binding
-            
+                new_binding["bind"] = new_binding["bind"].replace(constants.TOKEN(), "***")
+            volumes_to_log[host_path.replace(constants.TOKEN(), "***")] = new_binding
+
         self.logger.info("Docker container volumes", extra={"volumes": volumes_to_log})
 
         try:
@@ -183,14 +182,17 @@ class TaskDockerized(TaskSly):
             if constants.SSL_CERT_FILE() is not None:
                 all_environments[constants._SSL_CERT_FILE] = constants.SSL_CERT_FILE()
 
+            ipc_mode = ""
+            if self.docker_runtime == "nvidia":
+                ipc_mode = "host"
+                self.logger.info(f"NVidia runtime, IPC mode is set to {ipc_mode}")
+
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
                 entrypoint=entrypoint_func(),
                 detach=True,
-                name="sly_task_{}_{}".format(
-                    self.info["task_id"], constants.TASKS_DOCKER_LABEL()
-                ),
+                name="sly_task_{}_{}".format(self.info["task_id"], constants.TASKS_DOCKER_LABEL()),
                 remove=False,
                 volumes=volumes,
                 environment=all_environments,
@@ -208,12 +210,11 @@ class TaskDockerized(TaskSly):
                 mem_limit=constants.MEM_LIMIT(),
                 memswap_limit=constants.MEM_LIMIT(),
                 network=constants.DOCKER_NET(),
+                ipc_mode=ipc_mode,
             )
             self._container.reload()
             self.logger.debug(
-                "After spawning. Container status: {}".format(
-                    str(self._container.status)
-                )
+                "After spawning. Container status: {}".format(str(self._container.status))
             )
             self.logger.info(
                 "Docker container is spawned",
@@ -244,9 +245,7 @@ class TaskDockerized(TaskSly):
 
     def drop_container_and_check_status(self):
         status = self._stop_wait_container()
-        if (len(status) > 0) and (
-            status["StatusCode"] not in [0]
-        ):  # StatusCode must exist
+        if (len(status) > 0) and (status["StatusCode"] not in [0]):  # StatusCode must exist
             raise RuntimeError(
                 "Task container finished with non-zero status: {}".format(str(status))
             )
@@ -296,6 +295,4 @@ class TaskDockerized(TaskSly):
             self.logger.log(lvl_int, msg, extra={**res_log, **output})
 
         if not logs_found:
-            self.logger.warn(
-                "No logs obtained from container."
-            )  # check if bug occurred
+            self.logger.warn("No logs obtained from container.")  # check if bug occurred
