@@ -39,6 +39,7 @@ jobs:
         with:
           context: ./
           file: ./Dockerfile
+          provenance: false
           builder: ${{ steps.buildx.outputs.name }}
           push: true
           tags: |
