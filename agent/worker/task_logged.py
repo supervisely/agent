@@ -124,9 +124,13 @@ class TaskLogged(multiprocessing.Process):
         return sly.EventType.TASK_STOPPED
 
     def end_log_crash(self, e):
-        self.logger.info(
+        self.logger.warn(
             "TASK_END",
-            extra={"event_type": sly.EventType.TASK_CRASHED, "exit_status": str(e)},
+            extra={
+                "event_type": sly.EventType.TASK_CRASHED,
+                "exit_status": str(e),
+                "exc_str": repr(e),
+            },
         )
         return sly.EventType.TASK_CRASHED
 
