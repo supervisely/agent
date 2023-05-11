@@ -169,22 +169,22 @@ class TaskApp(TaskDockerized):
             need_gpu = self.app_config["needGPU"]
         if "need_gpu" in self.app_config:
             need_gpu = self.app_config["need_gpu"]
-        if need_gpu:
-            docker_info = self._docker_api.info()
-            nvidia = "nvidia"
-            nvidia_available = False
-            runtimes = docker_info.get("Runtimes", {})
-            self.logger.info("Available docker runtimes", extra={"runtimes": runtimes})
-            for runtime_name, runtime_info in runtimes.items():
-                if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
-                    nvidia_available = True
-                    break
-            if nvidia_available is False:
-                self.logger.warn(
-                    f"App requires GPU, but runtime {nvidia} not found in docker info, GPU features will be unavailable. Please, check nvidia drivers or contact tech support"
-                )
-            else:
-                self.docker_runtime = nvidia
+        # if need_gpu:
+        docker_info = self._docker_api.info()
+        nvidia = "nvidia"
+        nvidia_available = False
+        runtimes = docker_info.get("Runtimes", {})
+        self.logger.info("Available docker runtimes", extra={"runtimes": runtimes})
+        for runtime_name, runtime_info in runtimes.items():
+            if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
+                nvidia_available = True
+                break
+        if nvidia_available is False:
+            self.logger.warn(
+                f"App requires GPU, but runtime {nvidia} not found in docker info, GPU features will be unavailable. Please, check nvidia drivers or contact tech support"
+            )
+        else:
+            self.docker_runtime = nvidia
 
         self.logger.info(
             "Selected docker runtime",
@@ -339,7 +339,6 @@ class TaskApp(TaskDockerized):
         self._path_cache_host = constants._agent_to_host_path(os.path.join(path_cache, "pip"))
 
         if sly.fs.file_exists(requirements_path):
-
             self._need_sync_pip_cache = True
 
             self.logger.info("requirements.txt:")
