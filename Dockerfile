@@ -55,8 +55,8 @@ RUN pip install python-slugify==6.1.2
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
 RUN pip install httpx
-RUN pip install supervisely==6.72.6
-RUN pip install requests-toolbelt==1.0.0
+RUN pip install supervisely==6.72.7
+RUN pip install requests-toolbelt>=1.0.0
 
 COPY . /workdir
 
