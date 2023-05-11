@@ -48,7 +48,7 @@ RUN apt-get update \
     && apt-get autoclean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
-RUN pip install docker --upgrade
+RUN pip install docker==6.0.1
 RUN pip install version-parser==1.0.1
 RUN pip install python-slugify==6.1.2
 
