@@ -180,8 +180,8 @@ class TaskApp(TaskDockerized):
                 nvidia_available = True
                 break
         if nvidia_available is False:
-            self.logger.warn(
-                f"App requires GPU, but runtime {nvidia} not found in docker info, GPU features will be unavailable. Please, check nvidia drivers or contact tech support"
+            self.logger.info(
+                f"Runtime {nvidia} not found in docker info, GPU features will be unavailable. If this app needs GPU, please, check nvidia drivers on the computer where agent was spawned or contact tech support"
             )
         else:
             self.docker_runtime = nvidia
