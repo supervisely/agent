@@ -9,6 +9,7 @@ import subprocess
 import os
 import supervisely_lib as sly
 import uuid
+import torch
 
 from worker import constants
 from worker.task_factory import create_task, is_task_type
@@ -115,6 +116,18 @@ class Agent:
             config = {}
             self.logger.warn("Docker container info unavailable, agent is running in debug VENV")
 
+        gpu_info = None
+        try:
+            gpu_info = {}
+            gpu_info["is_available"] = torch.cuda.is_available()
+            if gpu_info["is_available"]:
+                gpu_info["device_count"] = torch.cuda.device_count()
+                gpu_info["device_names"] = []
+                for idx in range(gpu_info["device_count"]):
+                    gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
+        except Exception as e:
+            self.logger.warning(repr(e))
+
         self.agent_info = {
             "agent_id_from_storage_path": constants.AGENT_ID(),
             "hardware_info": hw_info,
@@ -127,8 +140,9 @@ class Agent:
                 constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
                 constants._DOCKER_NET: constants.DOCKER_NET(),
             },
+            "gpu_info": gpu_info,
         }
-
+        # @todo: add GPU device info
         resp = self.api.simple_request(
             "AgentConnected",
             sly.api_proto.ServerInfo,
