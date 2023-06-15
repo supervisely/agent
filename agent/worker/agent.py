@@ -128,6 +128,8 @@ class Agent:
         except Exception as e:
             self.logger.warning(repr(e))
 
+        hw_info["gpuinfo"] = gpu_info
+
         self.agent_info = {
             "agent_id_from_storage_path": constants.AGENT_ID(),
             "hardware_info": hw_info,
