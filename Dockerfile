@@ -58,6 +58,8 @@ RUN pip install httpx
 RUN pip install supervisely==6.72.7
 RUN pip install requests-toolbelt>=1.0.0
 
+RUN pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
+
 COPY . /workdir
 
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
