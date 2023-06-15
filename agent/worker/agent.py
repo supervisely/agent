@@ -142,7 +142,6 @@ class Agent:
                 constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
                 constants._DOCKER_NET: constants.DOCKER_NET(),
             },
-            "gpu_info": gpu_info,
         }
         # @todo: add GPU device info
         resp = self.api.simple_request(
