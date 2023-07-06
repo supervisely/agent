@@ -122,7 +122,7 @@ class TaskApp(TaskDockerized):
 
             subdirs = get_subdirs(self.dir_task_src)
             if len(subdirs) != 1:
-                sly.fs.log_tree(self.dir_task_src, self.logger, level="error")
+                sly.fs.log_tree(self.dir_task_src, self.logger)
                 raise RuntimeError(
                     "Repo is downloaded and extracted, but resulting directory not found"
                 )
