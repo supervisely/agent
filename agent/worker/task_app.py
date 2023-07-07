@@ -153,7 +153,7 @@ class TaskApp(TaskDockerized):
             shutil.copytree(path_cache, self.dir_task_src, dirs_exist_ok=True)
 
         self.logger.info("Repo directory on host", extra={"dir": self.dir_task_src})
-        sly.fs.log_tree(self.dir_task_src, self.logger)
+        sly.fs.log_tree(self.dir_task_src, self.logger, level="debug")
 
     def init_docker_image(self):
         self.download_or_get_repo()
