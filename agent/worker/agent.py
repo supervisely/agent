@@ -9,6 +9,10 @@ import subprocess
 import os
 import supervisely_lib as sly
 import uuid
+import warnings
+
+warnings.filterwarnings(action="ignore", category=UserWarning)
+
 import torch
 
 from worker import constants
@@ -17,7 +21,7 @@ from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
 from worker.system_info import get_hw_info, get_self_docker_image_digest
 from worker.app_file_streamer import AppFileStreamer
-from worker.telemetry_reporter import TelemetryReporter
+from worker.telemetry_reporter import TelemetryReporter, TelemetryAutoUpdater
 from supervisely_lib._utils import _remove_sensitive_information
 
 
@@ -123,8 +127,26 @@ class Agent:
             if gpu_info["is_available"]:
                 gpu_info["device_count"] = torch.cuda.device_count()
                 gpu_info["device_names"] = []
+                gpu_info["device_memory"] = []
                 for idx in range(gpu_info["device_count"]):
                     gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
+                    try:
+                        device_props = torch.cuda.get_device_properties(idx)
+                        t = device_props.total_memory
+                        r = torch.cuda.memory_reserved(idx)
+                        a = torch.cuda.memory_allocated(idx)
+                        mem = {
+                            "total": t,
+                            "reserved": r,
+                            "allocated": a,
+                            "free": t - r,
+                        }
+                    except Exception as e:
+                        self.logger.debug(repr(e))
+                        mem = {}
+                    finally:
+                        gpu_info["device_memory"].append(mem)
+
         except Exception as e:
             self.logger.warning(repr(e))
 
@@ -388,6 +410,15 @@ class Agent:
                     self.follow_daemon,
                     self.logger,
                     TelemetryReporter,
+                    "TELEMETRY_REPORTER",
+                )
+            )
+            self.thread_list.append(
+                self.thread_pool.submit(
+                    sly.function_wrapper_external_logger,
+                    self.follow_daemon,
+                    self.logger,
+                    TelemetryAutoUpdater,
                     "TELEMETRY_REPORTER",
                 )
             )
