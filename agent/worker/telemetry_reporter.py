@@ -8,7 +8,7 @@ import supervisely_lib as sly
 
 from worker.task_logged import TaskLogged
 from worker import constants
-from worker.system_info import get_directory_size_bytes
+from worker.system_info import get_directory_size_bytes, get_gpu_info
 
 
 class TelemetryReporter(TaskLogged):
@@ -86,6 +86,7 @@ class TelemetryReporter(TaskLogged):
             "nvsmi": nvsmi_output.decode("utf-8"),
             "node_storage": node_storage,
             "docker_image": docker_image,
+            "gpu_info": get_gpu_info(self.logger),
         }
 
         info_str = json.dumps(server_info)
