@@ -116,23 +116,23 @@ class TelemetryReporter(TaskLogged):
             )
 
 
-class TelemetryAutoUpdater(TelemetryReporter):
-    def task_main_func(self):
-        try:
-            self.logger.info("TELEMETRY_AUTO_UPDATER_60SEC_INITIALIZED")
-            while True:
-                self.api.simple_request(
-                    "UpdateTelemetry",
-                    sly.api_proto.Empty,
-                    sly.api_proto.AgentInfo(info=self.get_telemetry_str()),
-                )
-                time.sleep(60)
-        except Exception as e:
-            self.logger.warning(
-                "TELEMETRY_AUTO_UPDATER_60SEC_CRASHED",
-                exc_info=True,
-                extra={
-                    "event_type": sly.EventType.TASK_CRASHED,
-                    "exc_str": str(e),
-                },
-            )
+# class TelemetryAutoUpdater(TelemetryReporter):
+#     def task_main_func(self):
+#         try:
+#             self.logger.info("TELEMETRY_AUTO_UPDATER_60SEC_INITIALIZED")
+#             while True:
+#                 self.api.simple_request(
+#                     "UpdateTelemetry",
+#                     sly.api_proto.Empty,
+#                     sly.api_proto.AgentInfo(info=self.get_telemetry_str()),
+#                 )
+#                 time.sleep(60)
+#         except Exception as e:
+#             self.logger.warning(
+#                 "TELEMETRY_AUTO_UPDATER_60SEC_CRASHED",
+#                 exc_info=True,
+#                 extra={
+#                     "event_type": sly.EventType.TASK_CRASHED,
+#                     "exc_str": str(e),
+#                 },
+#             )

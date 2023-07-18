@@ -21,7 +21,7 @@ from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
 from worker.system_info import get_hw_info, get_self_docker_image_digest, get_gpu_info
 from worker.app_file_streamer import AppFileStreamer
-from worker.telemetry_reporter import TelemetryReporter, TelemetryAutoUpdater
+from worker.telemetry_reporter import TelemetryReporter
 from supervisely_lib._utils import _remove_sensitive_information
 
 
@@ -335,6 +335,8 @@ class Agent:
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         proc = process_cls()
         self.daemons_list.append(proc)
+        GPU_FREQ = 60
+        last_gpu_message = 0
         try:
             proc.start()
             while True:
@@ -344,6 +346,17 @@ class Agent:
                     time.sleep(1)  # an opportunity to send log
                     raise RuntimeError(err_msg)
                 time.sleep(sleep_sec)
+                last_gpu_message -= sleep_sec
+                if last_gpu_message <= 0:
+                    self.api.simple_request(
+                        "UpdateTelemetry",
+                        sly.api_proto.Empty,
+                        sly.api_proto.AgentInfo(
+                            info=json.dumps({"gpu_info": get_gpu_info(self.logger)})
+                        ),
+                    )
+                    last_gpu_message = GPU_FREQ
+
         except Exception as e:
             proc.terminate()
             proc.join(timeout=2)
@@ -381,15 +394,6 @@ class Agent:
                     self.follow_daemon,
                     self.logger,
                     TelemetryReporter,
-                    "TELEMETRY_REPORTER",
-                )
-            )
-            self.thread_list.append(
-                self.thread_pool.submit(
-                    sly.function_wrapper_external_logger,
-                    self.follow_daemon,
-                    self.logger,
-                    TelemetryAutoUpdater,
                     "TELEMETRY_REPORTER",
                 )
             )
