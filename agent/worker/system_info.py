@@ -188,6 +188,7 @@ def get_self_docker_image_digest():
 
 
 def get_gpu_info(logger):
+    torch.cuda.init()
     gpu_info = None
     try:
         gpu_info = {}
