@@ -51,6 +51,7 @@ RUN apt-get update \
 RUN pip install docker==6.0.1
 RUN pip install version-parser==1.0.1
 RUN pip install python-slugify==6.1.2
+RUN pip install nvidia-ml-py==12.535.77
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
