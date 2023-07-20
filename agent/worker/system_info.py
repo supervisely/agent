@@ -239,8 +239,8 @@ def get_gpu_info(logger):
                     device_props = smi.nvmlDeviceGetMemoryInfo(handle)
                     mem = {
                         "total": device_props.total,
-                        "allocated": device_props.used,
-                        "free": device_props.free,
+                        "reserved": device_props.used,
+                        "available": device_props.free,
                     }
                 except Exception as e:
                     logger.debug(repr(e))
