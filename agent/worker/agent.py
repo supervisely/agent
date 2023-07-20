@@ -348,11 +348,13 @@ class Agent:
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
                 if last_gpu_message <= 0:
+                    gpu_info = get_gpu_info(self.logger)
+                    self.logger.debug(f"GPU state: {gpu_info}")
                     self.api.simple_request(
                         "UpdateTelemetry",
                         sly.api_proto.Empty,
                         sly.api_proto.AgentInfo(
-                            info=json.dumps({"gpu_info": get_gpu_info(self.logger)})
+                            info=json.dumps({"gpu_info": gpu_info})
                         ),
                     )
                     last_gpu_message = GPU_FREQ
