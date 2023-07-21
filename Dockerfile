@@ -51,14 +51,16 @@ RUN apt-get update \
 RUN pip install docker==6.0.1
 RUN pip install version-parser==1.0.1
 RUN pip install python-slugify==6.1.2
+RUN pip install nvidia-ml-py==12.535.77
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
 RUN pip install httpx
-RUN pip install supervisely==6.72.59
 RUN pip install requests-toolbelt>=1.0.0
 
 RUN pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
+
+RUN pip install supervisely==6.72.71
 
 COPY . /workdir
 

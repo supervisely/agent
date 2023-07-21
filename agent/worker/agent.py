@@ -9,13 +9,17 @@ import subprocess
 import os
 import supervisely_lib as sly
 import uuid
+import warnings
+
+warnings.filterwarnings(action="ignore", category=UserWarning)
+
 import torch
 
 from worker import constants
 from worker.task_factory import create_task, is_task_type
 from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
-from worker.system_info import get_hw_info, get_self_docker_image_digest
+from worker.system_info import get_hw_info, get_self_docker_image_digest, get_gpu_info
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
 from supervisely_lib._utils import _remove_sensitive_information
@@ -116,18 +120,7 @@ class Agent:
             config = {}
             self.logger.warn("Docker container info unavailable, agent is running in debug VENV")
 
-        gpu_info = None
-        try:
-            gpu_info = {}
-            gpu_info["is_available"] = torch.cuda.is_available()
-            if gpu_info["is_available"]:
-                gpu_info["device_count"] = torch.cuda.device_count()
-                gpu_info["device_names"] = []
-                for idx in range(gpu_info["device_count"]):
-                    gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
-        except Exception as e:
-            self.logger.warning(repr(e))
-
+        gpu_info = get_gpu_info(self.logger)
         hw_info["gpuinfo"] = gpu_info
 
         self.agent_info = {
@@ -342,6 +335,8 @@ class Agent:
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         proc = process_cls()
         self.daemons_list.append(proc)
+        GPU_FREQ = 60
+        last_gpu_message = 0
         try:
             proc.start()
             while True:
@@ -351,6 +346,19 @@ class Agent:
                     time.sleep(1)  # an opportunity to send log
                     raise RuntimeError(err_msg)
                 time.sleep(sleep_sec)
+                last_gpu_message -= sleep_sec
+                if last_gpu_message <= 0:
+                    gpu_info = get_gpu_info(self.logger)
+                    self.logger.debug(f"GPU state: {gpu_info}")
+                    self.api.simple_request(
+                        "UpdateTelemetry",
+                        sly.api_proto.Empty,
+                        sly.api_proto.AgentInfo(
+                            info=json.dumps({"gpu_info": gpu_info})
+                        ),
+                    )
+                    last_gpu_message = GPU_FREQ
+
         except Exception as e:
             proc.terminate()
             proc.join(timeout=2)

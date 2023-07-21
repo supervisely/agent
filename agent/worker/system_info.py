@@ -5,8 +5,14 @@ import platform
 import subprocess
 
 import psutil
+import pynvml as smi
 import docker
 import socket
+import warnings
+
+warnings.filterwarnings(action="ignore", category=UserWarning)
+
+import torch
 
 import supervisely_lib as sly
 
@@ -180,3 +186,69 @@ def _get_self_docker_image_digest():
 
 def get_self_docker_image_digest():
     return sly.catch_silently(_get_self_docker_image_digest)
+
+
+def get_gpu_info_with_torch(logger):
+    torch.cuda.init()
+    gpu_info = None
+    try:
+        gpu_info = {}
+        gpu_info["is_available"] = torch.cuda.is_available()
+        if gpu_info["is_available"]:
+            gpu_info["device_count"] = torch.cuda.device_count()
+            gpu_info["device_names"] = []
+            gpu_info["device_memory"] = []
+            for idx in range(gpu_info["device_count"]):
+                gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
+                try:
+                    device_props = torch.cuda.get_device_properties(idx)
+                    t = device_props.total_memory
+                    r = torch.cuda.memory_reserved(idx)
+                    a = torch.cuda.memory_allocated(idx)
+                    mem = {
+                        "total": t,
+                        "reserved": r,
+                        "allocated": a,
+                        "free": t - r,
+                    }
+                except Exception as e:
+                    logger.debug(repr(e))
+                    mem = {}
+                finally:
+                    gpu_info["device_memory"].append(mem)
+
+    except Exception as e:
+        logger.warning(repr(e))
+    return gpu_info
+
+
+def get_gpu_info(logger):
+    gpu_info = None
+    try:
+        smi.nvmlInit()
+        gpu_info = {}
+        gpu_info["is_available"] = torch.cuda.is_available()
+        if gpu_info["is_available"]:
+            gpu_info["device_count"] = smi.nvmlDeviceGetCount()
+            gpu_info["device_names"] = []
+            gpu_info["device_memory"] = []
+            for idx in range(gpu_info["device_count"]):
+                handle = smi.nvmlDeviceGetHandleByIndex(idx)
+                gpu_info["device_names"].append(smi.nvmlDeviceGetName(handle))
+                try:
+                    device_props = smi.nvmlDeviceGetMemoryInfo(handle)
+                    mem = {
+                        "total": device_props.total,
+                        "reserved": device_props.used,
+                        "available": device_props.free,
+                    }
+                except Exception as e:
+                    logger.debug(repr(e))
+                    mem = {}
+                finally:
+                    gpu_info["device_memory"].append(mem)
+        smi.nvmlShutdown()
+
+    except Exception as e:
+        logger.warning(repr(e))
+    return gpu_info
