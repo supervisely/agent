@@ -225,10 +225,10 @@ def get_gpu_info_with_torch(logger):
 def get_gpu_info(logger):
     gpu_info = None
     try:
-        smi.nvmlInit()
         gpu_info = {}
         gpu_info["is_available"] = torch.cuda.is_available()
         if gpu_info["is_available"]:
+            smi.nvmlInit()
             gpu_info["device_count"] = smi.nvmlDeviceGetCount()
             gpu_info["device_names"] = []
             gpu_info["device_memory"] = []
@@ -247,7 +247,7 @@ def get_gpu_info(logger):
                     mem = {}
                 finally:
                     gpu_info["device_memory"].append(mem)
-        smi.nvmlShutdown()
+            smi.nvmlShutdown()
 
     except Exception as e:
         logger.warning(repr(e))
