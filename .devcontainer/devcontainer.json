@@ -1,0 +1,25 @@
+{
+    "image": "agent_dev:latest",
+    "runArgs": [
+        "--gpus",
+        "all",
+        "--ipc=host",
+        "--net=host",
+        "--cap-add",
+        "NET_ADMIN"
+    ],
+    "containerEnv": {
+        "DOCKER_NET": "supervisely-net-4teLy3yQZMsH8yEkU9tVX3GQaJaUA6AB"
+    },
+    "mounts": [
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    ],
+    "remoteUser": "fedor",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python"
+            ]
+        }
+    }
+}
