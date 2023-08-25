@@ -1,8 +1,11 @@
 FROM supervisely/agent:6.7.20
 
+# use same name in devcontainer.json
 ARG USERNAME=fedor
-ARG USER_UID=1000
+# execute `echo $UID` on host
+ARG USER_UID=1002
 ARG USER_GID=$USER_UID
+# execute `getent group docker` on host
 ARG DOCKER_UID=999
 
 RUN groupadd --gid $USER_GID $USERNAME \

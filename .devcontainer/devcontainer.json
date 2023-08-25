@@ -1,5 +1,8 @@
 {
-    "image": "agent_dev:latest",
+    // "image": "agent_dev:latest",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
     "runArgs": [
         "--gpus",
         "all",
