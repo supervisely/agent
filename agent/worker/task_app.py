@@ -656,6 +656,7 @@ class TaskApp(TaskDockerized):
         if status != 0:
             if len(self._task_reports) > 0:
                 last_report = self._task_reports[-1]
+                self.logger.debug("Founded error report.", extra=last_report)
                 raise sly.app.exceptions.DialogWindowError(
                     title=last_report.title,
                     description=last_report.message,
