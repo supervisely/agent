@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import os
+from typing import List
 from worker import constants
 import requests
 import tarfile
@@ -14,6 +15,7 @@ from slugify import slugify
 import pkg_resources
 import pathlib
 import copy
+from collections import namedtuple
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -37,6 +39,7 @@ _APP_CONTAINER_DATA_DIR = "/sly-app-data"
 
 _MOUNT_FOLDER_IN_CONTAINER = "/mount_folder"
 
+ErrorReport = namedtuple('ErrorReport', ['title', 'message'])
 
 class TaskApp(TaskDockerized):
     def __init__(self, *args, **kwargs):
@@ -53,6 +56,7 @@ class TaskApp(TaskDockerized):
         self._requirements_path_relative = None
         self.host_data_dir = None
         self.agent_id = None
+        self._task_reports: List[ErrorReport] = []
         super().__init__(*args, **kwargs)
 
     def init_logger(self, loglevel=None):
@@ -592,12 +596,34 @@ class TaskApp(TaskDockerized):
                 lvl_int = sly.LOGGING_LEVELS["INFO"].int
             self.logger.log(lvl_int, msg, extra=res_log)
 
+            err_title, err_desc = None, None
+
+            if "Error title" in msg:
+                err_title = msg.split(":")[-1]
+            if "Error message" in msg:
+                err_desc = msg.split(":")[-1]
+            return err_title, err_desc
+
         # @TODO: parse multiline logs correctly (including exceptions)
         log_line = ""
+
         for log_line_arr in self._logs_output:
             for log_part in log_line_arr.decode("utf-8").splitlines():
                 logs_found = True
-                _process_line(log_part)
+                title, msg = _process_line(log_part)
+
+                # process supervisely DialogWindowError
+                if title is not None:
+                    self._task_reports.append(ErrorReport(title, None))
+                if msg is not None:
+                    try:
+                        last_report = self._task_reports[-1]
+                        if last_report.message is None: 
+                            last_report.message = msg
+                        else:
+                            self.logger.warn("Last DialogWindowError report was suspicious.")
+                    except IndexError:
+                        continue
 
         if not logs_found:
             self.logger.warn("No logs obtained from container.")  # check if bug occurred
@@ -628,6 +654,12 @@ class TaskApp(TaskDockerized):
             self._drop_container()
         self.logger.debug("Task container finished with status: {}".format(str(status)))
         if status != 0:
+            if len(self._task_reports) > 0:
+                last_report = self._task_reports[-1]
+                raise sly.app.exceptions.DialogWindowError(
+                    title=last_report.title,
+                    description=last_report.message,
+                )
             raise RuntimeError(
                 # self.logger.warn(
                 "Task container finished with non-zero status: {}".format(str(status))
