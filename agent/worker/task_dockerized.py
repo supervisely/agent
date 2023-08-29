@@ -7,7 +7,6 @@ import os
 import copy
 import docker
 import supervisely_lib as sly
-from collections import namedtuple
 from dataclasses import dataclass
 from typing import List, Optional
 
