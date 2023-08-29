@@ -30,6 +30,8 @@ from supervisely_lib.io.fs import (
     file_exists,
     mkdir,
 )
+from .agent_exceptions import handle_exceptions
+
 
 _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
@@ -53,7 +55,7 @@ class TaskApp(TaskDockerized):
         self._requirements_path_relative = None
         self.host_data_dir = None
         self.agent_id = None
-        
+
         super().__init__(*args, **kwargs)
 
     def init_logger(self, loglevel=None):
@@ -385,6 +387,7 @@ class TaskApp(TaskDockerized):
             else:
                 self.logger.info("Use existing pip cache")
 
+    @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
         sly.docker_utils.docker_pull_if_needed(
@@ -601,7 +604,6 @@ class TaskApp(TaskDockerized):
             for log_part in log_line_arr.decode("utf-8").splitlines():
                 logs_found = True
                 _process_line(log_part)
-
 
         if not logs_found:
             self.logger.warn("No logs obtained from container.")  # check if bug occurred
