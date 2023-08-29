@@ -8,7 +8,8 @@ import copy
 import docker
 import supervisely_lib as sly
 from collections import namedtuple
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional
 
 from worker.agent_utils import TaskDirCleaner
 from worker import constants
@@ -21,7 +22,14 @@ class TaskStep(Enum):
     MAIN = 2
     UPLOAD = 3
 
-ErrorReport = namedtuple('ErrorReport', ['title', 'message'])
+
+@dataclass
+class ErrorReport(object):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {"title": self.title, "description": self.description}
 
 # task with main work in separate container and with sequential steps
 class TaskDockerized(TaskSly):
@@ -305,18 +313,20 @@ class TaskDockerized(TaskSly):
 
     def _process_report(self, log_msg: str):
         err_title, err_desc = None, None
-        if "Error title" in log_msg:
-            err_title = log_msg.split(":")[-1]
-        if "Error message" in log_msg:
-            err_desc = log_msg.split(":")[-1]
+        splits = log_msg.split(":")
+        
+        if splits[0].endswith("Error title"):
+            err_title = splits[-1].strip()
+        if splits[0].endswith("Error message"):
+            err_desc = splits[-1].strip()
         
         if err_title is not None:
-            self._task_reports.append(ErrorReport(err_title, None))
+            self._task_reports.append(ErrorReport(title=err_title))
         if err_desc is not None:
             try:
                 last_report = self._task_reports[-1]
-                if last_report.message is None: 
-                    last_report.message = log_msg
+                if last_report.description is None: 
+                    last_report.description = err_desc
                 else:
                     self.logger.warn("Last DialogWindowError report was suspicious.")
                     self.logger.warn("Found message without title.")

@@ -16,7 +16,7 @@ import pathlib
 import copy
 
 import supervisely_lib as sly
-from .task_dockerized import TaskDockerized, ErrorReport
+from .task_dockerized import TaskDockerized
 from supervisely_lib.io.json import dump_json_file
 from supervisely_lib.io.json import flatten_json, modify_keys
 from supervisely_lib.api.api import SUPERVISELY_TASK_ID
@@ -633,12 +633,9 @@ class TaskApp(TaskDockerized):
         self.logger.debug("Task container finished with status: {}".format(str(status)))
         if status != 0:
             if len(self._task_reports) > 0:
-                last_report = self._task_reports[-1]
+                last_report = self._task_reports[-1].to_dict()
                 self.logger.debug("Founded error report.", extra=last_report)
-                raise sly.app.exceptions.DialogWindowError(
-                    title=last_report.title,
-                    description=last_report.message,
-                )
+                raise sly.app.exceptions.DialogWindowError(**last_report)
             raise RuntimeError(
                 # self.logger.warn(
                 "Task container finished with non-zero status: {}".format(str(status))
