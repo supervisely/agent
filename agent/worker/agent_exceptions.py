@@ -8,12 +8,13 @@ from supervisely_lib.io.exception_handlers import HandleException, handle_additi
 class PullErrors:
     class ImageNotFound(HandleException):
         def __init__(self, exception: Exception, stack: List[traceback.FrameSummary]):
-            self.code = "d1001"
+            # TODO: rule for error codes inside side apps/modules
+            self.code = 11001
             self.title = "Docker image not found"
-            json_text = exception.args[0].response.text
-            default_msg = "no additional info provided"
+            default_msg = str(exception)
 
             try:
+                json_text = exception.args[0].response.text
                 info = json.loads(json_text)
                 self.message = info.get("message", default_msg)
             except json.decoder.JSONDecodeError:
