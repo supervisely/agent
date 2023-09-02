@@ -348,6 +348,10 @@ def AGENT_APPS_CACHE_DIR_HOST():
     return os.path.join(HOST_DIR(), "apps_cache")
 
 
+def AGENT_APPS_CACHE_DIR():
+    return os.path.join(AGENT_ROOT_DIR(), "apps_cache")
+
+
 def GITHUB_TOKEN():
     return read_optional_setting(_GITHUB_TOKEN)
 

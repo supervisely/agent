@@ -75,7 +75,9 @@ class TaskApp(TaskDockerized):
         if team_id == "unknown":
             self.logger.warn("teamId not found in context")
         self.dir_apps_cache_host = os.path.join(constants.AGENT_APPS_CACHE_DIR_HOST(), str(team_id))
-        sly.fs.ensure_base_path(self.dir_apps_cache_host)
+        self.dir_apps_cache = os.path.join(constants.AGENT_APPS_CACHE_DIR(), str(team_id))
+
+        sly.fs.ensure_base_path(self.dir_apps_cache)
 
         # task container path
         # self.dir_task_container = os.path.join("/sessions", str(self.info['task_id']))
@@ -256,6 +258,12 @@ class TaskApp(TaskDockerized):
                 relative_app_data_dir,
             )
 
+            self.data_dir = os.path.join(
+                constants.SUPERVISELY_AGENT_FILES_CONTAINER(),
+                relative_app_data_dir
+            )
+            mkdir(self.data_dir)
+
             self.logger.info(
                 "Task host data dir",
                 extra={
@@ -265,7 +273,6 @@ class TaskApp(TaskDockerized):
                 },
             )
 
-            mkdir(self.host_data_dir)
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
             res[constants.SUPERVISELY_AGENT_FILES()] = {
                 "bind": constants.AGENT_FILES_IN_APP_CONTAINER(),
