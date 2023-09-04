@@ -232,9 +232,12 @@ def get_gpu_info(logger):
             gpu_info["device_count"] = smi.nvmlDeviceGetCount()
             gpu_info["device_names"] = []
             gpu_info["device_memory"] = []
+            gpu_info["device_capability"] = []
             for idx in range(gpu_info["device_count"]):
                 handle = smi.nvmlDeviceGetHandleByIndex(idx)
+                capability = smi.nvmlDeviceGetCudaComputeCapability(handle)
                 gpu_info["device_names"].append(smi.nvmlDeviceGetName(handle))
+                gpu_info["device_capability"].append(capability)
                 try:
                     device_props = smi.nvmlDeviceGetMemoryInfo(handle)
                     mem = {
@@ -247,6 +250,8 @@ def get_gpu_info(logger):
                     mem = {}
                 finally:
                     gpu_info["device_memory"].append(mem)
+            gpu_info['driver_version'] = smi.nvmlSystemGetDriverVersion()
+            gpu_info['cuda_version'] = smi.nvmlSystemGetCudaDriverVersion()
             smi.nvmlShutdown()
 
     except Exception as e:
