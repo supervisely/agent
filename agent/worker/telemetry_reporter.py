@@ -71,14 +71,38 @@ class TelemetryReporter(TaskLogged):
             .get("Image", "Unavailable, may be in debug mode")
         )
 
+        # img_sizeb, nn_sizeb - idk; root -- agent root
+        # TODO: when or where apps use this?
         img_sizeb = get_directory_size_bytes(self.data_mgr.storage.images.storage_root_path)
         nn_sizeb = get_directory_size_bytes(self.data_mgr.storage.nns.storage_root_path)
+
+        # some apps store weights in SUPERVISELY_SYNCED_APP_DATA_CONTAINER; root -- agent files
+        # TODO: check why? 
+        models_sizeb = get_directory_size_bytes(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
+        
+        # tasks_sizeb - idk; root -- agent root
         tasks_sizeb = get_directory_size_bytes(constants.AGENT_TASKS_DIR())
+
+        # app_sessions_sizeb - size of session file: repo (sometimes) and logs (always); root -- agent root
+        app_sessions_sizeb = get_directory_size_bytes(constants.AGENT_APP_SESSIONS_DIR())
+
+        # cache of app's git tags; root -- agent root
+        git_tags_sizeb = get_directory_size_bytes(constants.APPS_STORAGE_DIR())
+
+        # pip's cache; root -- agent root
+        pip_cache_sizeb = get_directory_size_bytes(constants.APPS_PIP_CACHE_DIR())
+
+
+        # TODO: full apps cache == tasks_sizeb + app_sessions_sizeb?
+        full_tasks_cache = tasks_sizeb + app_sessions_sizeb
+        
+        total = full_tasks_cache + pip_cache_sizeb + img_sizeb + nn_sizeb
+
         node_storage = [
             {"Images": bytes_to_human(img_sizeb)},
             {"NN weights": bytes_to_human(nn_sizeb)},
-            {"Tasks": bytes_to_human(tasks_sizeb)},
-            {"Total": bytes_to_human(img_sizeb + nn_sizeb + tasks_sizeb)},
+            {"Tasks": bytes_to_human(full_tasks_cache)},
+            {"Total": bytes_to_human(total)},
         ]
 
         server_info = {
@@ -95,7 +119,7 @@ class TelemetryReporter(TaskLogged):
     def task_main_func(self):
         try:
             self.logger.info("TELEMETRY_REPORTER_INITIALIZED")
-
+            # self.logger.debug(f"TELEMETRY REPORT: {self.get_telemetry_str()}")
             for _ in self.api.get_endless_stream(
                 "GetTelemetryTask", sly.api_proto.Task, sly.api_proto.Empty()
             ):
