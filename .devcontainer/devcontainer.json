@@ -12,10 +12,15 @@
         "NET_ADMIN"
     ],
     "containerEnv": {
-        "DOCKER_NET": "supervisely-net-4teLy3yQZMsH8yEkU9tVX3GQaJaUA6AB"
+        // access token from secret.env
+        "DOCKER_NET": "supervisely-net-{access token}"
     },
     "mounts": [
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+        // AGENT_HOST_DIR and AGENT_ROOT_DIR in env file; AGENT_ROOT_DIR should be created in Dockerfile
+        "source=/home/fedor_lisin/agent_debug_dir/agent,target=/sly_agent,type=bind",
+        // SUPERVISELY_AGENT_FILES and SUPERVISELY_AGENT_FILES_CONTAINER in env file; SUPERVISELY_AGENT_FILES_CONTAINER should be created in Dockerfile
+        "source=/home/fedor_lisin/agent_debug_dir/files,target=/app/sly-files,type=bind"
     ],
     "remoteUser": "fedor",
     "customizations": {

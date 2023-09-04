@@ -1,9 +1,9 @@
-FROM supervisely/agent:6.7.20
+FROM supervisely/agent:latest
 
 # use same name in devcontainer.json
 ARG USERNAME=fedor
 # execute `echo $UID` on host
-ARG USER_UID=1002
+ARG USER_UID=1003
 ARG USER_GID=$USER_UID
 # execute `getent group docker` on host
 ARG DOCKER_UID=999
@@ -20,5 +20,11 @@ RUN groupadd --gid $USER_GID $USERNAME \
 RUN groupadd -g $DOCKER_UID docker \
     && usermod -aG docker $USERNAME
 
+RUN mkdir /sly_agent
+RUN mkdir -p /app/sly-files
+# uncomment and uninstall to debug sdk
+# RUN pip3 uninstall -y supervisely
+
+# if no User defined all files changed in devcontainer will have root as owner
 USER $USERNAME
-ENTRYPOINT /bin/bash
+ENTRYPOINT ["/bin/bash"]
