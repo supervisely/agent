@@ -75,8 +75,11 @@ class TelemetryReporter(TaskLogged):
         img_sizeb = get_directory_size_bytes(self.data_mgr.storage.images.storage_root_path)
         nn_sizeb = get_directory_size_bytes(self.data_mgr.storage.nns.storage_root_path)
 
+        # apps cache - idk what is it; {agent root}/apps_cache
+        apps_cache_sizeb = get_directory_size_bytes(constants.AGENT_APPS_CACHE_DIR())
+
         # some apps store weights in SUPERVISELY_SYNCED_APP_DATA_CONTAINER; {agent files}/app_data
-        # TODO: check why? 
+        # after the update, this data is deleted at the end of the task
         models_logs_sizeb = get_directory_size_bytes(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
         
         # tasks_sizeb - legacy plugins data; {agent root}/tasks
