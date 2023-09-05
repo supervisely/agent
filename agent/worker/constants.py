@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import os
+from datetime import timedelta
 from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
@@ -454,7 +455,7 @@ def SUPERVISELY_SYNCED_APP_DATA():
 
 
 def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
-    "default: /app/sly-files/app_data"
+    "default: /sly-files/app_data"
     dir_in_container = SUPERVISELY_AGENT_FILES_CONTAINER()
     if dir_in_container is None:
         return None
@@ -467,6 +468,14 @@ def OFFLINE_MODE():
 
 def DEFAULT_APP_DOCKER_IMAGE():
     return read_optional_setting(_DEFAULT_APP_DOCKER_IMAGE)
+
+
+def AUTO_CLEAN_INT_RANGE_DAYS():
+    return 14
+
+
+def AUTO_CLEAN_TIMEDELTA_DAYS() -> timedelta:
+    return timedelta(days=AUTO_CLEAN_INT_RANGE_DAYS())
 
 
 def init_constants():
