@@ -71,37 +71,36 @@ class TelemetryReporter(TaskLogged):
             .get("Image", "Unavailable, may be in debug mode")
         )
 
-        # img_sizeb, nn_sizeb - idk; root -- agent root
-        # TODO: when or where apps use this?
+        # img_sizeb, nn_sizeb - legacy plugins data; {agent root}/storage/{images|models}
         img_sizeb = get_directory_size_bytes(self.data_mgr.storage.images.storage_root_path)
         nn_sizeb = get_directory_size_bytes(self.data_mgr.storage.nns.storage_root_path)
 
-        # some apps store weights in SUPERVISELY_SYNCED_APP_DATA_CONTAINER; root -- agent files
+        # some apps store weights in SUPERVISELY_SYNCED_APP_DATA_CONTAINER; {agent files}/app_data
         # TODO: check why? 
-        models_sizeb = get_directory_size_bytes(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
+        models_logs_sizeb = get_directory_size_bytes(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
         
-        # tasks_sizeb - idk; root -- agent root
+        # tasks_sizeb - legacy plugins data; {agent root}/tasks
         tasks_sizeb = get_directory_size_bytes(constants.AGENT_TASKS_DIR())
 
-        # app_sessions_sizeb - size of session file: repo (sometimes) and logs (always); root -- agent root
+        # app_sessions_sizeb - size of session file: repo (sometimes) and logs (always); {agent root}/app_sessions
         app_sessions_sizeb = get_directory_size_bytes(constants.AGENT_APP_SESSIONS_DIR())
 
-        # cache of app's git tags; root -- agent root
+        # cache of app's git tags; {agent root}/storage/apps
         git_tags_sizeb = get_directory_size_bytes(constants.APPS_STORAGE_DIR())
 
-        # pip's cache; root -- agent root
+        # pip's cache; {agent root}/storage/apps_pip_cache
         pip_cache_sizeb = get_directory_size_bytes(constants.APPS_PIP_CACHE_DIR())
 
-
-        # TODO: full apps cache == tasks_sizeb + app_sessions_sizeb?
-        full_tasks_cache = tasks_sizeb + app_sessions_sizeb
+        legacy_plugins_sizeb = img_sizeb + nn_sizeb + tasks_sizeb
+        apps_sizeb = git_tags_sizeb + pip_cache_sizeb + app_sessions_sizeb + models_logs_sizeb
         
-        total = full_tasks_cache + pip_cache_sizeb + img_sizeb + nn_sizeb
+        total = legacy_plugins_sizeb + apps_sizeb
 
         node_storage = [
-            {"Images": bytes_to_human(img_sizeb)},
-            {"NN weights": bytes_to_human(nn_sizeb)},
-            {"Tasks": bytes_to_human(full_tasks_cache)},
+            # Rename fields
+            {"Images": bytes_to_human(legacy_plugins_sizeb)},
+            {"NN weights": bytes_to_human(pip_cache_sizeb)},
+            {"Tasks": bytes_to_human(apps_sizeb)},
             {"Total": bytes_to_human(total)},
         ]
 
