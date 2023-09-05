@@ -496,12 +496,11 @@ class TaskApp(TaskDockerized):
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
         self.drop_container_and_check_status()
-        # host data dir is unreachable from inside agent docker
-        # local data_dir mount should be used 
         if self.data_dir is not None and sly.fs.dir_exists(self.data_dir):
-            if sly.fs.dir_empty(self.data_dir):
-                sly.fs.remove_dir(self.data_dir)
+            # previous code: if sly.fs.dir_empty(self.data_dir)
             parent_app_dir = Path(self.data_dir).parent
+            if not sly.fs.dir_empty(self.data_dir):
+                sly.fs.remove_dir(self.data_dir)
             if sly.fs.dir_empty(parent_app_dir) and len(sly.fs.get_subdirs(parent_app_dir)) == 0:
                 sly.fs.remove_dir(parent_app_dir)
 
