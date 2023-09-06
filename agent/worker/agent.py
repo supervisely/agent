@@ -13,7 +13,7 @@ from pathlib import Path
 
 import supervisely_lib as sly
 
-from worker.agent_utils import TaskDirCleaner
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
@@ -43,6 +43,8 @@ class Agent:
         self.future_log = None
 
         self.logger.info("Agent comes back...")
+
+        self.app_auto_cleaner = AppDirCleaner(self.logger)
 
         self.task_pool_lock = threading.Lock()
         self.task_pool = {}  # task_id -> task_manager (process_id)
@@ -397,6 +399,11 @@ class Agent:
                 sly.function_wrapper_external_logger, self.send_connect_info, self.logger
             )
         )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
+            )
+        )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -437,3 +444,17 @@ class Agent:
 
         if len(futures_statuses.not_done) != 0:
             raise RuntimeError("AGENT: EXCEPTION IN BASE FUTURE !!!")
+
+    def task_clear_old_data(self):
+        day = 60 * 60 * 24
+        while True:
+            with self.task_pool_lock:
+                all_tasks = set(self.task_pool.keys())
+
+            try:
+                self.app_auto_cleaner.auto_clean(all_tasks)
+            except Exception as e:
+                self.logger.exception(e)
+                raise e
+
+            time.sleep(day)
