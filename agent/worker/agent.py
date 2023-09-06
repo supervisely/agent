@@ -4,12 +4,16 @@ import time
 import docker
 import json
 import threading
-from concurrent.futures import ThreadPoolExecutor, wait
 import subprocess
 import os
-import supervisely_lib as sly
 import uuid
 import warnings
+from concurrent.futures import ThreadPoolExecutor, wait
+from pathlib import Path
+
+import supervisely_lib as sly
+
+from worker.agent_utils import TaskDirCleaner
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
@@ -191,6 +195,12 @@ class Agent:
                     "Task could not be stopped. Not found", extra={"task_id": task_id}
                 )
 
+                dir_task = str(Path(constants.AGENT_APP_SESSIONS_DIR()) / str(task_id))
+                if os.path.exists(dir_task):
+                    cleaner = TaskDirCleaner(dir_task)
+                    cleaner.allow_cleaning()
+                    cleaner.clean()
+
                 self.logger.info(
                     "TASK_MISSED",
                     extra={
@@ -353,9 +363,7 @@ class Agent:
                     self.api.simple_request(
                         "UpdateTelemetry",
                         sly.api_proto.Empty,
-                        sly.api_proto.AgentInfo(
-                            info=json.dumps({"gpu_info": gpu_info})
-                        ),
+                        sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
                     )
                     last_gpu_message = GPU_FREQ
 
