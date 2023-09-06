@@ -79,9 +79,11 @@ class TelemetryReporter(TaskLogged):
         apps_cache_sizeb = get_directory_size_bytes(constants.AGENT_APPS_CACHE_DIR())
 
         # some apps store weights in SUPERVISELY_SYNCED_APP_DATA_CONTAINER; {agent files}/app_data
-        # after the update, this data is deleted at the end of the task
-        models_logs_sizeb = get_directory_size_bytes(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
-        
+        # after v6.7.23 update, this data is deleted at the end of the task
+        models_logs_sizeb = get_directory_size_bytes(
+            constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()
+        )
+
         # tasks_sizeb - legacy plugins data; {agent root}/tasks
         tasks_sizeb = get_directory_size_bytes(constants.AGENT_TASKS_DIR())
 
@@ -96,13 +98,16 @@ class TelemetryReporter(TaskLogged):
 
         legacy_plugins_sizeb = img_sizeb + nn_sizeb + tasks_sizeb
         apps_sizeb = git_tags_sizeb + pip_cache_sizeb + app_sessions_sizeb + models_logs_sizeb
-        
+
         total = legacy_plugins_sizeb + apps_sizeb
 
         node_storage = [
             # Rename fields
+            # Rename: Plugins
             {"Images": bytes_to_human(legacy_plugins_sizeb)},
+            # Rename: PIP cache
             {"NN weights": bytes_to_human(pip_cache_sizeb)},
+            # Rename: Apps
             {"Tasks": bytes_to_human(apps_sizeb)},
             {"Total": bytes_to_human(total)},
         ]
