@@ -2,11 +2,8 @@
 
 import os
 import os.path as osp
-from typing import List, Union
 
-import supervisely as sly
-from datetime import datetime, timedelta
-from pathlib import Path
+import supervisely_lib as sly
 
 from worker.task_sly import TaskSly
 from worker.agent_utils import TaskDirCleaner
@@ -133,39 +130,6 @@ class TaskCleanNode(TaskSly):
             TaskDirCleaner(dir_task).clean_forced()
         self.logger.info("Temporary tasks data has been removed.")
 
-    def clean_agent_logs(self):
-        self.logger.info("Auto remove: clean old agent logs.")
-        root_path = Path(constants.AGENT_LOG_DIR())
-
-        old_logs = self._get_old_files_or_paths(root_path)
-        for log_path in old_logs:
-            sly.fs.silent_remove(log_path)
-
-        self.logger.info(f"Removed agent logs: {log_path}")
-
-    def clean_app_sessions(self, auto=True):
-        root_path = Path(constants.AGENT_APP_SESSIONS_DIR())
-        removed_ids = []
-        now = datetime.now()
-        if auto is True:
-            old_apps = self._get_old_files_or_paths(root_path)
-        else:
-            # get all files and folders
-            old_apps = self._get_old_files_or_paths(age_limit=timedelta(0))
-
-        for app in old_apps:
-            app_path = Path(app)
-            app_id = app_path.name
-
-            if not os.path.exists(app_path / "__do_not_clean.marker"):
-                removed_ids.append(app_id)
-                sly.fs.silent_remove(app)
-                continue
-
-            if self._check_task_id_finished_or_crashed(app_id):
-                removed_ids.append(app_id)
-                sly.fs.silent_remove(app)
-
     def task_main_func(self):
         self.logger.info("CLEAN_NODE_START")
 
@@ -187,34 +151,3 @@ class TaskCleanNode(TaskSly):
                 self.remove_weights(nns_storage, weights_to_rm)
 
         self.logger.info("CLEAN_NODE_FINISH")
-
-    def _get_log_datetime(self, log_name) -> datetime:
-        return datetime.strptime(log_name, "log_%Y-%m-%d_%H:%M:%S.txt")
-
-    def _get_file_or_path_datetime(self, path: Union[Path, str]) -> datetime:
-        time_sec = max(os.path.getmtime(path), os.path.getatime(path))
-        return datetime.fromtimestamp(time_sec)
-
-    def _get_old_files_or_paths(
-        self,
-        parent_path: Union[Path, str],
-        age_limit: timedelta = constants.AUTO_CLEAN_TIMEDELTA_DAYS,
-    ) -> List[str]:
-        now = datetime.now()
-        ppath = Path(parent_path)
-        old_path_files = []
-        for file_or_path in os.listdir(parent_path):
-            full_path = ppath / file_or_path
-            file_datetime = self._get_file_or_path_datetime(full_path)
-            if (now - file_datetime) > age_limit:
-                old_path_files.append(str(full_path))
-
-        return old_path_files
-
-    def _check_task_id_finished_or_crashed(self, task_id: Union[str, int]) -> bool:
-        try:
-            task_id = int(task_id)
-        except ValueError as exc:
-            self.logger.exception(exc)
-
-        return True
