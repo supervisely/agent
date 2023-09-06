@@ -91,28 +91,32 @@ class AppDirCleaner:
         self.logger = logger
 
     def clean_agent_logs(self):
-        self.logger.info("Auto remove: clean old agent logs.")
         root_path = Path(constants.AGENT_LOG_DIR())
+        removed = []
 
-        old_logs = self._get_old_files_or_folders(root_path)
+        old_logs = self._get_old_files_or_folders(root_path, only_files=True)
         for log_path in old_logs:
             sly.fs.silent_remove(log_path)
+            removed.append(log_path)
 
-        self.logger.info(f"Removed agent logs: {log_path}")
+        self.logger.info(f"Removed agent logs: {removed}")
 
     def clean_app_sessions(
         self,
         auto=False,
         working_apps: Optional[Container[int]] = None,
     ) -> List[str]:
+        """Delete sessions logs and repository clones of finished/crashed apps"""
         root_path = Path(constants.AGENT_APP_SESSIONS_DIR())
         cleaned_sessions = []
 
         if auto is True:
-            old_apps = self._get_old_files_or_folders(root_path)
+            old_apps = self._get_old_files_or_folders(root_path, only_folders=True)
         else:
             # get all files and folders
-            old_apps = self._get_old_files_or_folders(root_path, age_limit=timedelta(days=0))
+            old_apps = self._get_old_files_or_folders(
+                root_path, only_folders=True, age_limit=timedelta(days=0)
+            )
 
         for app in old_apps:
             app_path = Path(app)
@@ -120,47 +124,78 @@ class AppDirCleaner:
 
             if not os.path.exists(app_path / "__do_not_clean.marker"):
                 cleaned_sessions.append(app_id)
-                sly.fs.silent_remove(app)
+                sly.fs.remove_dir(app)
                 continue
 
             if self._check_task_id_finished_or_crashed(app_id, working_apps):
                 cleaned_sessions.append(app_id)
-                sly.fs.silent_remove(app)
-        self.logger.info(f"Cleaned sessions: {cleaned_sessions}")
+                sly.fs.remove_dir(app)
+
+        if auto is True:
+            self.logger.info(f"Removed sessions: {cleaned_sessions}")
+
         return cleaned_sessions
 
     def clean_app_files(self, cleaned_sessions: List[str]):
-        root_path = Path(constants.SUPERVISELY_AGENT_FILES_CONTAINER()) / "app_data"
+        """Delete files, used in finished/crashed apps"""
+        if constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER() is not None:
+            root_path = Path(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
+        else:
+            return
 
         for app_name in os.listdir(root_path):
-            if os.path.isdir(app_name):
-                app_path = root_path / app_name
+            app_path = root_path / app_name
+            if os.path.isdir(app_path):
                 for task_id in os.listdir(app_path):
-                    if task_id in cleaned_sessions:
-                        sly.fs.silent_remove(app_path / task_id)
+                    task_path = app_path / task_id
+                    if task_id in cleaned_sessions and os.path.isdir(task_path):
+                        sly.fs.remove_dir()
+
+                if sly.fs.dir_empty(app_path):
+                    sly.fs.remove_dir(app_path)
 
     def clean_pip_cache(self, auto=False):
         root_path = Path(constants.APPS_PIP_CACHE_DIR())
+        removed = []
 
         for module_id in os.listdir(root_path):
             module_caches_path = root_path / module_id
 
             if auto is True:
-                old_cache = self._get_old_files_or_folders(module_caches_path)
+                old_cache = self._get_old_files_or_folders(module_caches_path, only_folders=True)
             else:
-                old_cache = self._get_old_files_or_folders(module_caches_path, timedelta(days=0))
+                old_cache = self._get_old_files_or_folders(
+                    module_caches_path, only_folders=True, age_limit=timedelta(days=0)
+                )
 
             for ver_path in old_cache:
-                sly.fs.silent_remove(ver_path)
+                removed.append(ver_path)
+                sly.fs.remove_dir(ver_path)
 
-            if len(os.listdir(module_caches_path)) == 0:
-                sly.fs.silent_remove(module_caches_path)
+            if sly.fs.dir_empty(module_caches_path):
+                sly.fs.remove_dir(module_caches_path)
+
+        self.logger.info(f"Removed PIP cache: {removed}")
+
+    def clean_git_tags(self):
+        # TODO: add conditions?
+        root_path = Path(constants.APPS_STORAGE_DIR())
+        sly.fs.remove_dir(str(root_path / "github.com"))
 
     def auto_clean(self, working_apps: Optional[Container[int]]):
-        cleaned_sessions = self.clean_app_sessions(auto=True, working_apps=working_apps)
-        self.clean_app_files(cleaned_sessions)
-        self.clean_pip_cache(auto=True)
+        self.logger.info("Auto cleaning task started.")
+        self._apps_cleaner(working_apps, auto=True)
         self.clean_agent_logs()
+
+    def clean_all_app_data(self, working_apps: Container[int]):
+        self.logger.info("Cleaning apps data.")
+        self._apps_cleaner(working_apps, auto=False)
+        self.clean_git_tags()
+
+    def _apps_cleaner(self, working_apps: Optional[Container[int]], auto: bool = False):
+        cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
+        self.clean_app_files(cleaned_sessions)
+        self.clean_pip_cache(auto=auto)
 
     def _get_log_datetime(self, log_name) -> datetime:
         return datetime.strptime(log_name, "log_%Y-%m-%d_%H:%M:%S.txt")
@@ -172,23 +207,38 @@ class AppDirCleaner:
     def _get_old_files_or_folders(
         self,
         parent_path: Union[Path, str],
-        age_limit: timedelta = constants.AUTO_CLEAN_TIMEDELTA_DAYS,
+        only_files: bool = False,
+        only_folders: bool = False,
+        age_limit: timedelta = constants.AUTO_CLEAN_TIMEDELTA_DAYS(),
     ) -> List[str]:
         """Return abs path for folders/files which last modification/access
         datetime is greater than constants.AUTO_CLEAN_TIMEDELTA_DAYS (default: 14)
 
         :param parent_path: path to serach
         :type parent_path: Union[Path, str]
+        :param only_files: _description_, defaults to False
+        :type only_files: bool, optional
+        :param only_folders: _description_, defaults to False
+        :type only_folders: bool, optional
         :param age_limit: _description_, defaults to constants.AUTO_CLEAN_TIMEDELTA_DAYS
         :type age_limit: timedelta, optional
         :return: list of absolute paths
         :rtype: List[str]
         """
+        if (only_files and only_folders) is True:
+            raise ValueError("only_files and only_folders can't be True simultaneously.")
+
         now = datetime.now()
         ppath = Path(parent_path)
         old_path_files = []
         for file_or_path in os.listdir(parent_path):
             full_path = ppath / file_or_path
+
+            if only_files and os.path.isdir(full_path):
+                continue
+            elif only_folders and os.path.isfile(full_path):
+                continue
+
             file_datetime = self._get_file_or_path_datetime(full_path)
             if (now - file_datetime) > age_limit:
                 old_path_files.append(str(full_path))
