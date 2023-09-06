@@ -429,7 +429,7 @@ def SUPERVISELY_AGENT_FILES():
 
 
 def SUPERVISELY_AGENT_FILES_CONTAINER():
-    "{agent files dir}; default /sly-files"
+    "{agent files dir}; default /app/sly-files"
     host_dir = SUPERVISELY_AGENT_FILES()
     if host_dir is None:
         return None
@@ -438,7 +438,7 @@ def SUPERVISELY_AGENT_FILES_CONTAINER():
 
 
 def AGENT_FILES_IN_APP_CONTAINER():
-    "/agent-storage "
+    "/agent-storage"
     host_dir = SUPERVISELY_AGENT_FILES()
     if host_dir is None:
         return None
