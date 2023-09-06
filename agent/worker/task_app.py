@@ -259,8 +259,7 @@ class TaskApp(TaskDockerized):
             )
 
             self.data_dir = os.path.join(
-                constants.SUPERVISELY_AGENT_FILES_CONTAINER(),
-                relative_app_data_dir
+                constants.SUPERVISELY_AGENT_FILES_CONTAINER(), relative_app_data_dir
             )
             mkdir(self.data_dir)
 
@@ -497,10 +496,9 @@ class TaskApp(TaskDockerized):
         self.process_logs()
         self.drop_container_and_check_status()
         if self.data_dir is not None and sly.fs.dir_exists(self.data_dir):
-            # previous code: if sly.fs.dir_empty(self.data_dir)
+            # previous code: if sly.fs.dir_empty(self.data_dir)...
             parent_app_dir = Path(self.data_dir).parent
-            if not sly.fs.dir_empty(self.data_dir):
-                sly.fs.remove_dir(self.data_dir)
+            sly.fs.remove_dir(self.data_dir)
             if sly.fs.dir_empty(parent_app_dir) and len(sly.fs.get_subdirs(parent_app_dir)) == 0:
                 sly.fs.remove_dir(parent_app_dir)
 
