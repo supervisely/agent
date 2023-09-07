@@ -6,7 +6,7 @@ import os.path as osp
 import supervisely_lib as sly
 
 from worker.task_sly import TaskSly
-from worker.agent_utils import TaskDirCleaner
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner
 from worker import constants
 
 
@@ -135,7 +135,7 @@ class TaskCleanNode(TaskSly):
 
         if self.info["action"] == "remove_tasks_data":
             self.clean_tasks_dir()
-        else:
+
             if "projects" in self.info:
                 img_storage = self.data_mgr.storage.images
                 proj_structure = self.list_images_to_remove(
@@ -149,5 +149,9 @@ class TaskCleanNode(TaskSly):
                     nns_storage, self.info["action"], self.info["weights"]
                 )
                 self.remove_weights(nns_storage, weights_to_rm)
+        elif self.info["action"] == "remove_pip_cache":
+            AppDirCleaner(self.logger).clean_pip_cache()
+        elif self.info["action"] == "remove_apps_data":
+            AppDirCleaner(self.logger).clean_all_app_data()
 
         self.logger.info("CLEAN_NODE_FINISH")
