@@ -182,20 +182,26 @@ class AppDirCleaner:
         root_path = Path(constants.APPS_STORAGE_DIR())
         sly.fs.remove_dir(str(root_path / "github.com"))
 
-    def auto_clean(self, working_apps: Optional[Container[int]]):
+    def auto_clean(self, working_apps: Container[int]):
         self.logger.info("Auto cleaning task started.")
         self._apps_cleaner(working_apps, auto=True)
         self.clean_agent_logs()
 
-    def clean_all_app_data(self, working_apps: Container[int]):
+    def clean_all_app_data(self, working_apps: Optional[Container[int]] = None):
         self.logger.info("Cleaning apps data.")
-        self._apps_cleaner(working_apps, auto=False)
+        self._apps_cleaner(working_apps, auto=False, clean_pip=False)
         self.clean_git_tags()
 
-    def _apps_cleaner(self, working_apps: Optional[Container[int]], auto: bool = False):
+    def _apps_cleaner(
+        self,
+        working_apps: Optional[Container[int]],
+        auto: bool = False,
+        clean_pip: bool = True,
+    ):
         cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
         self.clean_app_files(cleaned_sessions)
-        self.clean_pip_cache(auto=auto)
+        if clean_pip is True:
+            self.clean_pip_cache(auto=auto)
 
     def _get_log_datetime(self, log_name) -> datetime:
         return datetime.strptime(log_name, "log_%Y-%m-%d_%H:%M:%S.txt")
