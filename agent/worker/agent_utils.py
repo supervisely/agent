@@ -149,7 +149,7 @@ class AppDirCleaner:
                 for task_id in os.listdir(app_path):
                     task_path = app_path / task_id
                     if task_id in cleaned_sessions and os.path.isdir(task_path):
-                        sly.fs.remove_dir()
+                        sly.fs.remove_dir(task_path)
 
                 if sly.fs.dir_empty(app_path):
                     sly.fs.remove_dir(app_path)

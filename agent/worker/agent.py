@@ -455,6 +455,7 @@ class Agent:
                 self.app_auto_cleaner.auto_clean(all_tasks)
             except Exception as e:
                 self.logger.exception(e)
-                raise e
+                # raise or not?
+                # raise e
 
             time.sleep(day)
