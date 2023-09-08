@@ -131,8 +131,7 @@ class AppDirCleaner:
                 cleaned_sessions.append(app_id)
                 sly.fs.remove_dir(app)
 
-        if auto is True:
-            self.logger.info(f"Removed sessions: {cleaned_sessions}")
+        self.logger.info(f"Removed sessions: {cleaned_sessions}")
 
         return cleaned_sessions
 
