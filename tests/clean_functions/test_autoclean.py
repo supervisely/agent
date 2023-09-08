@@ -1,6 +1,9 @@
 import os
+import shutil
 from logging import getLogger
 from agent.worker import agent_utils
+
+from conftest import run_session
 
 
 logger = getLogger()
@@ -102,3 +105,28 @@ def test_not_old_enough(
 
     # tags untouched
     assert len(os.listdir(storage / "apps" / "github.com" / "supervisely-ecosystem")) == 2
+
+
+def test_clean_files_for_non_existing_session(
+    runned_session,
+    stoped_session,
+    sly_files_path,
+    sly_agent_path,
+    mocked_paths,
+):
+    # setup
+    session_wo_info, module, _ = run_session(sly_agent_path, sly_files_path)
+    shutil.rmtree(str(sly_agent_path / "app_sessions" / str(session_wo_info)))
+
+    # test body
+    cleaner = agent_utils.AppDirCleaner(logger)
+    cleaner.auto_clean(working_apps=[runned_session])
+
+    # results
+    # apps not old enough
+    assert sorted(os.listdir(sly_agent_path / "app_sessions")) == sorted(
+        [str(runned_session), str(stoped_session)]
+    )
+
+    # session_wo_info - has no lihnked session in app_session
+    assert len(os.listdir(sly_files_path)) == 2

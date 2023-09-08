@@ -1,3 +1,4 @@
+from typing import Tuple
 import pytest
 import os
 from pathlib import Path
@@ -31,12 +32,12 @@ def sly_agent_path(tmp_path) -> Path:
 
 @pytest.fixture()
 def runned_session(sly_agent_path: Path, sly_files_path: Path):
-    return _run_session(sly_agent_path, sly_files_path)
+    return run_session(sly_agent_path, sly_files_path)[0]
 
 
 @pytest.fixture()
 def stoped_session(sly_agent_path: Path, sly_files_path: Path):
-    task_id = _run_session(sly_agent_path, sly_files_path)
+    task_id, _, _ = run_session(sly_agent_path, sly_files_path)
     app_session = sly_agent_path / "app_sessions" / str(task_id)
     agent_utils.TaskDirCleaner(str(app_session)).allow_cleaning()
     return task_id
@@ -66,9 +67,9 @@ def _generate_id(pth: Path) -> int:
     return len(os.listdir(pth)) + 1
 
 
-def _module_name(sly_files_path: Path) -> int:
+def _module_name(sly_files_path: Path) -> Tuple[str, int]:
     ind = _generate_id(sly_files_path)
-    return f"module_{ind}"
+    return f"module_{ind}", ind
 
 
 def _mkdir_and_touch(path: Path, filename: str = "randomfile.txt"):
@@ -78,9 +79,9 @@ def _mkdir_and_touch(path: Path, filename: str = "randomfile.txt"):
         os.utime(file, None)
 
 
-def _run_session(agent_path: Path, files_path: Path):
+def run_session(agent_path: Path, files_path: Path):
     task_id = _generate_id(agent_path / "app_sessions")
-    module = _module_name(files_path)
+    module, module_id = _module_name(files_path)
 
     app_session = agent_path / "app_sessions" / str(task_id)
     app_logs = app_session / "logs"
@@ -94,7 +95,7 @@ def _run_session(agent_path: Path, files_path: Path):
 
     storage = agent_path / "storage"
     pip_cache = storage / "apps_pip_cache"
-    module_id = _generate_id(pip_cache)
+    # module_id = _generate_id(pip_cache)
     module_pip_cache = pip_cache / str(module_id) / "v.1"
     _mkdir_and_touch(module_pip_cache)
 
@@ -106,4 +107,4 @@ def _run_session(agent_path: Path, files_path: Path):
     files = files_path / module / str(task_id) / "models"
     _mkdir_and_touch(files)
 
-    return task_id
+    return task_id, module, module_id
