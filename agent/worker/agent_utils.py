@@ -214,24 +214,30 @@ class AppDirCleaner:
         parent_path: Union[Path, str],
         only_files: bool = False,
         only_folders: bool = False,
-        age_limit: timedelta = constants.AUTO_CLEAN_TIMEDELTA_DAYS(),
+        age_limit: Union[timedelta, int] = constants.AUTO_CLEAN_TIMEDELTA_DAYS(),
     ) -> List[str]:
         """Return abs path for folders/files which last modification/access
         datetime is greater than constants.AUTO_CLEAN_TIMEDELTA_DAYS (default: 14)
 
         :param parent_path: path to serach
         :type parent_path: Union[Path, str]
-        :param only_files: _description_, defaults to False
+        :param only_files: return will content only files paths, defaults to False
         :type only_files: bool, optional
-        :param only_folders: _description_, defaults to False
+        :param only_folders: return will content only folders paths, defaults to False
         :type only_folders: bool, optional
-        :param age_limit: _description_, defaults to constants.AUTO_CLEAN_TIMEDELTA_DAYS
+        :param age_limit: max age of file or folder.
+            If `type(age_limit)` is int, will convert to `timedelta(day=age_limit)`;
+            defaults to constants.AUTO_CLEAN_TIMEDELTA_DAYS
         :type age_limit: timedelta, optional
+        :raises ValueError: `only_files` and `only_folders` can't be True simultaneously
         :return: list of absolute paths
         :rtype: List[str]
         """
         if (only_files and only_folders) is True:
             raise ValueError("only_files and only_folders can't be True simultaneously.")
+
+        if isinstance(age_limit, int):
+            age_limit = timedelta(days=age_limit)
 
         now = datetime.now()
         ppath = Path(parent_path)
