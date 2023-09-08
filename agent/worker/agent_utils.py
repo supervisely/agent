@@ -135,7 +135,7 @@ class AppDirCleaner:
 
         return cleaned_sessions
 
-    def clean_app_files(self, cleaned_sessions: List[str]):
+    def clean_app_files(self, cleaned_sessions: List[str], working_apps = Optional[Container[int]],):
         """Delete files, used in finished/crashed apps"""
         if constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER() is not None:
             root_path = Path(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
@@ -147,7 +147,14 @@ class AppDirCleaner:
             if os.path.isdir(app_path):
                 for task_id in os.listdir(app_path):
                     task_path = app_path / task_id
-                    if task_id in cleaned_sessions and os.path.isdir(task_path):
+                    
+                    to_del = False
+                    if task_id in cleaned_sessions:
+                        to_del = True
+                    elif (working_apps is not None) and (int(task_id) not in working_apps):
+                        to_del = True
+
+                    if to_del and os.path.isdir(task_path):
                         sly.fs.remove_dir(task_path)
 
                 if sly.fs.dir_empty(app_path):
@@ -186,9 +193,9 @@ class AppDirCleaner:
         self._apps_cleaner(working_apps, auto=True)
         self.clean_agent_logs()
 
-    def clean_all_app_data(self, working_apps: Optional[Container[int]] = None):
+    def clean_all_app_data(self):
         self.logger.info("Cleaning apps data.")
-        self._apps_cleaner(working_apps, auto=False, clean_pip=False)
+        self._apps_cleaner(working_apps=None, auto=False, clean_pip=False)
         self.clean_git_tags()
 
     def _apps_cleaner(
@@ -198,7 +205,7 @@ class AppDirCleaner:
         clean_pip: bool = True,
     ):
         cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
-        self.clean_app_files(cleaned_sessions)
+        self.clean_app_files(cleaned_sessions, working_apps=working_apps)
         if clean_pip is True:
             self.clean_pip_cache(auto=auto)
 
