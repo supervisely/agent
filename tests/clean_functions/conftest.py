@@ -31,19 +31,15 @@ def sly_agent_path(tmp_path) -> Path:
 
 @pytest.fixture()
 def runned_session(sly_agent_path: Path, sly_files_path: Path):
-    task_id = _generate_id(sly_agent_path / "app_sessions")
-    module_name = _module_name(sly_files_path)
-    _run_session(sly_agent_path, sly_files_path, task_id, module_name)
-    return task_id
+    return _run_session(sly_agent_path, sly_files_path)
 
 
 @pytest.fixture()
 def stoped_session(sly_agent_path: Path, sly_files_path: Path):
-    task_id = _generate_id(sly_agent_path / "app_sessions")
-    module_name = _module_name(sly_files_path)
-    _run_session(sly_agent_path, sly_files_path, task_id, module_name)
+    task_id = _run_session(sly_agent_path, sly_files_path)
     app_session = sly_agent_path / "app_sessions" / str(task_id)
     agent_utils.TaskDirCleaner(str(app_session)).allow_cleaning()
+    return task_id
 
 
 @pytest.fixture()
@@ -75,20 +71,26 @@ def _module_name(sly_files_path: Path) -> int:
     return f"module_{ind}"
 
 
-def _mkdir_and_touch(path: Path):
+def _mkdir_and_touch(path: Path, filename: str = "randomfile.txt"):
     path.mkdir(parents=True, exist_ok=True)
-    file = path / "randomfile.txt"
+    file = path / filename
     with open(file, "a"):
         os.utime(file, None)
 
 
-def _run_session(agent_path: Path, files_path: Path, task_id: int, module: str):
+def _run_session(agent_path: Path, files_path: Path):
+    task_id = _generate_id(agent_path / "app_sessions")
+    module = _module_name(files_path)
+
     app_session = agent_path / "app_sessions" / str(task_id)
-    _mkdir_and_touch(app_session)
+    app_logs = app_session / "logs"
+    app_repo = app_session / "repo"
+    _mkdir_and_touch(app_logs)
+    _mkdir_and_touch(app_repo)
     agent_utils.TaskDirCleaner(str(app_session)).forbid_dir_cleaning()
 
-    app_logs = agent_path / "logs"
-    _mkdir_and_touch(app_logs)
+    agent_logs = agent_path / "logs"
+    _mkdir_and_touch(agent_logs, f"logs_{task_id}")
 
     storage = agent_path / "storage"
     pip_cache = storage / "apps_pip_cache"
