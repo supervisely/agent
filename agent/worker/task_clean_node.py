@@ -119,7 +119,9 @@ class TaskCleanNode(TaskSly):
             result[0]["spaths"] = paths_to_remove
             return result
 
-        raise ValueError("Unknown cleanup action", extra={"action": action})
+        exception = ValueError("Unknown cleanup action")
+        self.logger.exception(exception, extra={"action": action})
+        raise ValueError(f"Unknown cleanup action: {action}")
 
     def clean_tasks_dir(self):
         self.logger.info("Will remove temporary tasks data.")
@@ -139,14 +141,14 @@ class TaskCleanNode(TaskSly):
             if "projects" in self.info:
                 img_storage = self.data_mgr.storage.images
                 proj_structure = self.list_images_to_remove(
-                    img_storage, self.info["action"], self.info["projects"]
+                    img_storage, "delete_all_except_selected", self.info["projects"]
                 )
                 self.remove_images(img_storage, proj_structure)
 
             if "weights" in self.info:
                 nns_storage = self.data_mgr.storage.nns
                 weights_to_rm = self.list_weights_to_remove(
-                    nns_storage, self.info["action"], self.info["weights"]
+                    nns_storage, "delete_all_except_selected", self.info["weights"]
                 )
                 self.remove_weights(nns_storage, weights_to_rm)
         elif self.info["action"] == "remove_pip_cache":
