@@ -44,8 +44,6 @@ class Agent:
 
         self.logger.info("Agent comes back...")
 
-        self.app_auto_cleaner = AppDirCleaner(self.logger)
-
         self.task_pool_lock = threading.Lock()
         self.task_pool = {}  # task_id -> task_manager (process_id)
 
@@ -447,12 +445,13 @@ class Agent:
 
     def task_clear_old_data(self):
         day = 60 * 60 * 24
+        cleaner = AppDirCleaner(self.logger)
         while True:
             with self.task_pool_lock:
                 all_tasks = set(self.task_pool.keys())
 
             try:
-                self.app_auto_cleaner.auto_clean(all_tasks)
+                cleaner.auto_clean(all_tasks)
             except Exception as e:
                 self.logger.exception(e)
                 # raise or not?
