@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             // "preLaunchTask": "create-network",
             // "postDebugTask": "remove-network"
-            "justMyCode": false,
+            "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}:${PYTHONPATH}"
             }
