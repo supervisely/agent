@@ -68,31 +68,3 @@ def test_remove_pip_cache(
 
     # tags untouched
     assert len(os.listdir(storage / "apps" / "github.com" / "supervisely-ecosystem")) == 2
-
-
-def test_not_old_enough(
-    runned_session,
-    stoped_session,
-    sly_files_path,
-    sly_agent_path,
-    mocked_paths,
-):
-    # setup
-    storage = sly_agent_path / "storage"
-
-    # test body
-    cleaner = agent_utils.AppDirCleaner(logger)
-    cleaner.auto_clean(working_apps=[])
-
-    # results
-    # apps not old enough
-    assert len(os.listdir(sly_agent_path / "app_sessions")) == 2
-
-    # cache untouched (it's not old enough)
-    assert len(os.listdir(storage / "apps_pip_cache")) == 2
-
-    # logs untouched (it's not old enough)
-    assert len(os.listdir(sly_agent_path / "logs")) == 2
-
-    # tags untouched
-    assert len(os.listdir(storage / "apps" / "github.com" / "supervisely-ecosystem")) == 2

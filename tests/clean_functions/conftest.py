@@ -103,7 +103,7 @@ def _run_session(agent_path: Path, files_path: Path):
     )
     _mkdir_and_touch(app_storage)
 
-    files = files_path / "app_data" / module / str(task_id) / "models"
+    files = files_path / module / str(task_id) / "models"
     _mkdir_and_touch(files)
 
     return task_id
