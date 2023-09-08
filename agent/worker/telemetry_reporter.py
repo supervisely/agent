@@ -102,13 +102,9 @@ class TelemetryReporter(TaskLogged):
         total = legacy_plugins_sizeb + apps_sizeb
 
         node_storage = [
-            # Rename fields
-            # Rename: Plugins
-            {"Images": bytes_to_human(legacy_plugins_sizeb)},
-            # Rename: PIP cache
+            {"Plugins ": bytes_to_human(legacy_plugins_sizeb)},
             {"NN weights": bytes_to_human(pip_cache_sizeb)},
-            # Rename: Apps
-            {"Tasks": bytes_to_human(apps_sizeb)},
+            {"PIP cache": bytes_to_human(apps_sizeb)},
             {"Total": bytes_to_human(total)},
         ]
 
