@@ -102,9 +102,9 @@ class TelemetryReporter(TaskLogged):
         total = legacy_plugins_sizeb + apps_sizeb
 
         node_storage = [
+            {"App sessions": bytes_to_human(apps_sizeb)},
+            {"PIP cache": bytes_to_human(pip_cache_sizeb)},
             {"Plugins ": bytes_to_human(legacy_plugins_sizeb)},
-            {"App sessions": bytes_to_human(pip_cache_sizeb)},
-            {"PIP cache": bytes_to_human(apps_sizeb)},
             {"Total": bytes_to_human(total)},
         ]
 
