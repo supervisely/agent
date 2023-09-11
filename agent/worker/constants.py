@@ -125,12 +125,12 @@ def read_optional_setting(name):
 
 
 def HOST_DIR():
-    "{agent root host dir}; default '~/.supervisely-agent'"
+    """{agent root host dir}; default '~/.supervisely-agent'"""
     return os.environ[_AGENT_HOST_DIR]
 
 
 def AGENT_ROOT_DIR():
-    "{agent root dir}; default '/sly_agent'"
+    """{agent root dir}; default '/sly_agent'"""
     return read_optional_setting(_AGENT_ROOT_DIR)
 
 
@@ -172,7 +172,7 @@ def DOCKER_REGISTRY():
 
 
 def AGENT_TASKS_DIR_HOST():
-    "default:  '~/.supervisely-agent/tasks"
+    """default:  '~/.supervisely-agent/tasks"""
     return os.path.join(HOST_DIR(), "tasks")
 
 
@@ -193,32 +193,32 @@ def DOCKER_API_CALL_TIMEOUT():
 
 
 def AGENT_LOG_DIR():
-    "default: /sly_agent/logs"
+    """default: /sly_agent/logs"""
     return os.path.join(AGENT_ROOT_DIR(), "logs")
 
 
 def AGENT_TASKS_DIR():
-    "default: /sly_agent/tasks"
+    """default: /sly_agent/tasks"""
     return os.path.join(AGENT_ROOT_DIR(), "tasks")
 
 
 def AGENT_TASK_SHARED_DIR():
-    "default: /sly_agent/tasks/task_shared"
+    "default: /sly_agent/tasks/task_shared"""
     return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED)
 
 
 def AGENT_TMP_DIR():
-    "default: /sly_agent/tmp"
+    """default: /sly_agent/tmp"""
     return os.path.join(AGENT_ROOT_DIR(), "tmp")
 
 
 def AGENT_IMPORT_DIR():
-    "default: /sly_agent/import"
+    """default: /sly_agent/import"""
     return os.path.join(AGENT_ROOT_DIR(), "import")
 
 
 def AGENT_STORAGE_DIR():
-    "default: /sly_agent/storage"
+    """default: /sly_agent/storage"""
     return os.path.join(AGENT_ROOT_DIR(), "storage")
 
 
@@ -357,22 +357,22 @@ def GIT_PASSWORD():
 
 
 def AGENT_APP_SESSIONS_DIR():
-    "default: /sly_agent/app_sessions"
+    """default: /sly_agent/app_sessions"""
     return os.path.join(AGENT_ROOT_DIR(), "app_sessions")
 
 
 def AGENT_APP_SESSIONS_DIR_HOST():
-    "default: ~/.supervisely-agent/app_sessions"
+    """default: ~/.supervisely-agent/app_sessions"""
     return os.path.join(HOST_DIR(), "app_sessions")
 
 
 def AGENT_APPS_CACHE_DIR_HOST():
-    "default: ~/.supervisely-agent/apps_cache"
+    """default: ~/.supervisely-agent/apps_cache"""
     return os.path.join(HOST_DIR(), "apps_cache")
 
 
 def AGENT_APPS_CACHE_DIR():
-    "default: /sly_agent/apps_cache"
+    """default: /sly_agent/apps_cache"""
     return os.path.join(AGENT_ROOT_DIR(), "apps_cache")
 
 
@@ -381,12 +381,12 @@ def GITHUB_TOKEN():
 
 
 def APPS_STORAGE_DIR():
-    "default: /sly_agent/storage/apps"
+    """default: /sly_agent/storage/apps"""
     return os.path.join(AGENT_STORAGE_DIR(), "apps")
 
 
 def APPS_PIP_CACHE_DIR():
-    "default: /sly_agent/storage/apps_pip_cache"
+    """default: /sly_agent/storage/apps_pip_cache"""
     return os.path.join(AGENT_STORAGE_DIR(), "apps_pip_cache")
 
 
@@ -434,12 +434,12 @@ def AGENT_ID():
 def SUPERVISELY_AGENT_FILES():
     # /root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
     # /root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
-    "{agent files host dir}; default `~/supervisely/agent-###`"
+    """{agent files host dir}; default `~/supervisely/agent-###`"""
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
 def SUPERVISELY_AGENT_FILES_CONTAINER():
-    "{agent files dir}; default /app/sly-files"
+    """{agent files dir}; default /app/sly-files"""
     host_dir = SUPERVISELY_AGENT_FILES()
     if host_dir is None:
         return None
@@ -448,7 +448,7 @@ def SUPERVISELY_AGENT_FILES_CONTAINER():
 
 
 def AGENT_FILES_IN_APP_CONTAINER():
-    "/agent-storage"
+    """/agent-storage"""
     host_dir = SUPERVISELY_AGENT_FILES()
     if host_dir is None:
         return None
@@ -457,7 +457,7 @@ def AGENT_FILES_IN_APP_CONTAINER():
 
 
 def SUPERVISELY_SYNCED_APP_DATA():
-    "default: ~/supervisely/agent-###/app_data"
+    """default: ~/supervisely/agent-###/app_data"""
     agent_storage_dir = SUPERVISELY_AGENT_FILES()
     if agent_storage_dir is None:
         return None
@@ -465,7 +465,7 @@ def SUPERVISELY_SYNCED_APP_DATA():
 
 
 def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
-    "default: /app/sly-files/app_data"
+    """default: /app/sly-files/app_data"""
     dir_in_container = SUPERVISELY_AGENT_FILES_CONTAINER()
     if dir_in_container is None:
         return None
