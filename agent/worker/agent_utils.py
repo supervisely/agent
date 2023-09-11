@@ -206,7 +206,8 @@ class AppDirCleaner:
         clean_pip: bool = True,
     ):
         cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
-        self.clean_app_files(cleaned_sessions)
+        if auto is False:
+            self.clean_app_files(cleaned_sessions)
         if clean_pip is True:
             self.clean_pip_cache(auto=auto)
 
