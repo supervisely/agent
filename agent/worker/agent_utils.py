@@ -225,7 +225,8 @@ class AppDirCleaner:
         age_limit: Union[timedelta, int] = constants.AUTO_CLEAN_TIMEDELTA_DAYS(),
     ) -> List[str]:
         """Return abs path for folders/files which last modification/access
-        datetime is greater than constants.AUTO_CLEAN_TIMEDELTA_DAYS (default: 14)
+        datetime is greater than constants.AUTO_CLEAN_TIMEDELTA_DAYS (default: 7);
+        use `AUTO_CLEAN_INT_RANGE_DAYS` env var to setup.
 
         :param parent_path: path to serach
         :type parent_path: Union[Path, str]
