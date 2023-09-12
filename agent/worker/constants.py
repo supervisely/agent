@@ -203,7 +203,7 @@ def AGENT_TASKS_DIR():
 
 
 def AGENT_TASK_SHARED_DIR():
-    "default: /sly_agent/tasks/task_shared"""
+    """default: /sly_agent/tasks/task_shared"""
     return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED)
 
 
