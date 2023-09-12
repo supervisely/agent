@@ -136,7 +136,7 @@ class AppDirCleaner:
         return cleaned_sessions
 
     def clean_app_files(self, cleaned_sessions: List[str]):
-        """Delete files, used in finished/crashed apps"""
+        """Delete files, artifacts used in finished/crashed apps"""
         if constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER() is not None:
             root_path = Path(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
             known_sessions = os.listdir(constants.AGENT_APP_SESSIONS_DIR())
@@ -191,6 +191,7 @@ class AppDirCleaner:
 
     def auto_clean(self, working_apps: Container[int]):
         self.logger.info("Auto cleaning task started.")
+        self._allow_manual_cleaning_if_not_launched(working_apps)
         self._apps_cleaner(working_apps, auto=True)
         self.clean_agent_logs()
 
@@ -281,6 +282,27 @@ class AppDirCleaner:
             return False
 
         return task_id not in working_apps
+
+    def _allow_manual_cleaning_if_not_launched(self, working_apps: Container[int]):
+        root_path = Path(constants.AGENT_APP_SESSIONS_DIR())
+        allow_for_cleaner = []
+        for task_id in os.listdir(root_path):
+            allow = False
+            try:
+                if int(task_id) not in working_apps:
+                    allow = True
+            except ValueError:
+                pass
+
+            dir_task = str(root_path / task_id)
+            if allow and os.path.exists(dir_task):
+                allow_for_cleaner.append(task_id)
+                cleaner = TaskDirCleaner(dir_task)
+                cleaner.allow_cleaning()
+                cleaner.clean()
+
+        if len(allow_for_cleaner) > 0:
+            self.logger.info(f"Files for this session can be manually removed: {allow_for_cleaner}")
 
 
 # @TODO: remove this method or refactor it in future (dict_name - WTF??)
