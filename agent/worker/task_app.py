@@ -30,7 +30,7 @@ from supervisely_lib.io.fs import (
     file_exists,
     mkdir,
 )
-from worker.agent_exceptions import handle_exceptions
+from supervisely_lib.io.exception_handlers import handle_exceptions
 
 
 _ISOLATE = "isolate"
