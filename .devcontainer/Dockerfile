@@ -20,7 +20,9 @@ RUN groupadd --gid $USER_GID $USERNAME \
 RUN groupadd -g $DOCKER_UID docker \
     && usermod -aG docker $USERNAME
 
+# AGENT_ROOT_DIR 
 RUN mkdir /sly_agent
+# SUPERVISELY_AGENT_FILES_CONTAINER
 RUN mkdir -p /app/sly-files
 # uncomment and uninstall to debug sdk
 # RUN pip3 uninstall -y supervisely
