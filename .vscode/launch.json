@@ -16,6 +16,32 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}:${PYTHONPATH}"
             }
+        },
+        {
+            "name": "devcontainer main.py",
+            "type": "python",
+            "request": "launch",
+            "program": "agent/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${PYTHONPATH}"
+            },
+            // app session creates __pycache__ after task ending;
+            // __pycache__ owner is root, so agent need to be launched with sudo setting
+            // inside devcontainer otherwise it crashes on task stop
+            "sudo": true
+        },
+        {
+            "name": "Python: Debug Tests",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "purpose": [
+                "debug-test"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

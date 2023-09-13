@@ -30,6 +30,8 @@ from supervisely_lib.io.fs import (
     file_exists,
     mkdir,
 )
+from supervisely_lib.io.exception_handlers import handle_exceptions
+
 
 _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
@@ -53,6 +55,7 @@ class TaskApp(TaskDockerized):
         self._requirements_path_relative = None
         self.host_data_dir = None
         self.agent_id = None
+
         super().__init__(*args, **kwargs)
 
     def init_logger(self, loglevel=None):
@@ -72,7 +75,9 @@ class TaskApp(TaskDockerized):
         if team_id == "unknown":
             self.logger.warn("teamId not found in context")
         self.dir_apps_cache_host = os.path.join(constants.AGENT_APPS_CACHE_DIR_HOST(), str(team_id))
-        sly.fs.ensure_base_path(self.dir_apps_cache_host)
+        self.dir_apps_cache = os.path.join(constants.AGENT_APPS_CACHE_DIR(), str(team_id))
+
+        sly.fs.ensure_base_path(self.dir_apps_cache)
 
         # task container path
         # self.dir_task_container = os.path.join("/sessions", str(self.info['task_id']))
@@ -253,6 +258,11 @@ class TaskApp(TaskDockerized):
                 relative_app_data_dir,
             )
 
+            self.data_dir = os.path.join(
+                constants.SUPERVISELY_AGENT_FILES_CONTAINER(), relative_app_data_dir
+            )
+            mkdir(self.data_dir)
+
             self.logger.info(
                 "Task host data dir",
                 extra={
@@ -262,7 +272,6 @@ class TaskApp(TaskDockerized):
                 },
             )
 
-            mkdir(self.host_data_dir)
             res[self.host_data_dir] = {"bind": _APP_CONTAINER_DATA_DIR, "mode": "rw"}
             res[constants.SUPERVISELY_AGENT_FILES()] = {
                 "bind": constants.AGENT_FILES_IN_APP_CONTAINER(),
@@ -384,6 +393,7 @@ class TaskApp(TaskDockerized):
             else:
                 self.logger.info("Use existing pip cache")
 
+    @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
         sly.docker_utils.docker_pull_if_needed(
@@ -485,10 +495,10 @@ class TaskApp(TaskDockerized):
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
         self.drop_container_and_check_status()
-        if self.host_data_dir is not None and sly.fs.dir_exists(self.host_data_dir):
-            if sly.fs.dir_empty(self.host_data_dir):
-                sly.fs.remove_dir(self.host_data_dir)
-            parent_app_dir = Path(self.host_data_dir).parent
+        # if exit_code != 0 next code will never execute
+        if self.data_dir is not None and sly.fs.dir_exists(self.data_dir):
+            parent_app_dir = Path(self.data_dir).parent
+            sly.fs.remove_dir(self.data_dir)
             if sly.fs.dir_empty(parent_app_dir) and len(sly.fs.get_subdirs(parent_app_dir)) == 0:
                 sly.fs.remove_dir(parent_app_dir)
 
@@ -591,9 +601,11 @@ class TaskApp(TaskDockerized):
             else:
                 lvl_int = sly.LOGGING_LEVELS["INFO"].int
             self.logger.log(lvl_int, msg, extra=res_log)
+            self._process_report(msg)
 
         # @TODO: parse multiline logs correctly (including exceptions)
         log_line = ""
+
         for log_line_arr in self._logs_output:
             for log_part in log_line_arr.decode("utf-8").splitlines():
                 logs_found = True
@@ -628,6 +640,10 @@ class TaskApp(TaskDockerized):
             self._drop_container()
         self.logger.debug("Task container finished with status: {}".format(str(status)))
         if status != 0:
+            if len(self._task_reports) > 0:
+                last_report = self._task_reports[-1].to_dict()
+                self.logger.debug("Founded error report.", extra=last_report)
+                raise sly.app.exceptions.DialogWindowError(**last_report)
             raise RuntimeError(
                 # self.logger.warn(
                 "Task container finished with non-zero status: {}".format(str(status))

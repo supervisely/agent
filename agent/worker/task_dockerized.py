@@ -7,6 +7,8 @@ import os
 import copy
 import docker
 import supervisely_lib as sly
+from dataclasses import dataclass
+from typing import List, Optional
 
 from worker.agent_utils import TaskDirCleaner
 from worker import constants
@@ -19,6 +21,14 @@ class TaskStep(Enum):
     MAIN = 2
     UPLOAD = 3
 
+
+@dataclass
+class ErrorReport(object):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {"title": self.title, "description": self.description}
 
 # task with main work in separate container and with sequential steps
 class TaskDockerized(TaskSly):
@@ -46,6 +56,7 @@ class TaskDockerized(TaskSly):
         self.docker_image_name = None
 
         self.docker_pulled = False  # in task
+        self._task_reports: List[ErrorReport] = []
 
     def init_docker_image(self):
         self.docker_image_name = self.info.get("docker_image", None)
@@ -246,6 +257,7 @@ class TaskDockerized(TaskSly):
     def drop_container_and_check_status(self):
         status = self._stop_wait_container()
         if (len(status) > 0) and (status["StatusCode"] not in [0]):  # StatusCode must exist
+            # if len(self._task_reports) > 0:
             raise RuntimeError(
                 "Task container finished with non-zero status: {}".format(str(status))
             )
@@ -285,6 +297,7 @@ class TaskDockerized(TaskSly):
             log_line = log_line.decode("utf-8")
             msg, res_log, lvl = self.parse_log_line(log_line)
             output = self.call_event_function(res_log)
+            self._process_report(msg)
 
             lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
             if lvl_description is not None:
@@ -296,3 +309,25 @@ class TaskDockerized(TaskSly):
 
         if not logs_found:
             self.logger.warn("No logs obtained from container.")  # check if bug occurred
+
+    def _process_report(self, log_msg: str):
+        err_title, err_desc = None, None
+        splits = log_msg.split(":")
+        
+        if splits[0].endswith("Error title"):
+            err_title = splits[-1].strip()
+        if splits[0].endswith("Error message"):
+            err_desc = splits[-1].strip()
+        
+        if err_title is not None:
+            self._task_reports.append(ErrorReport(title=err_title))
+        if err_desc is not None:
+            try:
+                last_report = self._task_reports[-1]
+                if last_report.description is None: 
+                    last_report.description = err_desc
+                else:
+                    self.logger.warn("Last DialogWindowError report was suspicious.")
+                    self.logger.warn("Found message without title.")
+            except IndexError:
+                pass

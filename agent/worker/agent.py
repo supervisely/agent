@@ -4,12 +4,16 @@ import time
 import docker
 import json
 import threading
-from concurrent.futures import ThreadPoolExecutor, wait
 import subprocess
 import os
-import supervisely_lib as sly
 import uuid
 import warnings
+from concurrent.futures import ThreadPoolExecutor, wait
+from pathlib import Path
+
+import supervisely_lib as sly
+
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
@@ -191,6 +195,12 @@ class Agent:
                     "Task could not be stopped. Not found", extra={"task_id": task_id}
                 )
 
+                dir_task = str(Path(constants.AGENT_APP_SESSIONS_DIR()) / str(task_id))
+                if os.path.exists(dir_task):
+                    cleaner = TaskDirCleaner(dir_task)
+                    cleaner.allow_cleaning()
+                    cleaner.clean()
+
                 self.logger.info(
                     "TASK_MISSED",
                     extra={
@@ -353,9 +363,7 @@ class Agent:
                     self.api.simple_request(
                         "UpdateTelemetry",
                         sly.api_proto.Empty,
-                        sly.api_proto.AgentInfo(
-                            info=json.dumps({"gpu_info": gpu_info})
-                        ),
+                        sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
                     )
                     last_gpu_message = GPU_FREQ
 
@@ -387,6 +395,11 @@ class Agent:
         self.thread_list.append(
             self.thread_pool.submit(
                 sly.function_wrapper_external_logger, self.send_connect_info, self.logger
+            )
+        )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
             )
         )
         if constants.DISABLE_TELEMETRY() is None:
@@ -429,3 +442,19 @@ class Agent:
 
         if len(futures_statuses.not_done) != 0:
             raise RuntimeError("AGENT: EXCEPTION IN BASE FUTURE !!!")
+
+    def task_clear_old_data(self):
+        day = 60 * 60 * 24
+        cleaner = AppDirCleaner(self.logger)
+        while True:
+            with self.task_pool_lock:
+                all_tasks = set(self.task_pool.keys())
+
+            try:
+                cleaner.auto_clean(all_tasks)
+            except Exception as e:
+                self.logger.exception(e)
+                # raise or not?
+                # raise e
+
+            time.sleep(day)
