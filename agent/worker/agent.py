@@ -168,7 +168,7 @@ class Agent:
             "GetStopTask", sly.api_proto.Id, sly.api_proto.Empty()
         ):
             stop_task_id = task.id
-            self.logger.debug("GET_STOP_TASK", extra={"task_id": stop_task_id})
+            self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
             self.stop_task(stop_task_id)
 
     def stop_task(self, task_id):
