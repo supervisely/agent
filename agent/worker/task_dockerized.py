@@ -30,6 +30,7 @@ class ErrorReport(object):
     def to_dict(self) -> dict:
         return {"title": self.title, "description": self.description}
 
+
 # task with main work in separate container and with sequential steps
 class TaskDockerized(TaskSly):
     step_name_mapping = {
@@ -313,18 +314,18 @@ class TaskDockerized(TaskSly):
     def _process_report(self, log_msg: str):
         err_title, err_desc = None, None
         splits = log_msg.split(":")
-        
+
         if splits[0].endswith("Error title"):
             err_title = splits[-1].strip()
         if splits[0].endswith("Error message"):
             err_desc = splits[-1].strip()
-        
+
         if err_title is not None:
             self._task_reports.append(ErrorReport(title=err_title))
         if err_desc is not None:
             try:
                 last_report = self._task_reports[-1]
-                if last_report.description is None: 
+                if last_report.description is None:
                     last_report.description = err_desc
                 else:
                     self.logger.warn("Last DialogWindowError report was suspicious.")

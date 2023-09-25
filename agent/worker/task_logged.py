@@ -174,7 +174,8 @@ class TaskLogged(multiprocessing.Process):
     def run_and_wait(self, subtask_fn):
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         future = executor.submit(subtask_fn)
-        while future.running():
+
+        while not (future.done() or future.cancelled()):
             time.sleep(0.5)
             if self._stop_event.is_set():
                 executor.shutdown(wait=False)
