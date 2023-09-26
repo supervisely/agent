@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import time
+from typing import Dict
 import docker
 import json
 import threading
@@ -20,6 +21,7 @@ warnings.filterwarnings(action="ignore", category=UserWarning)
 import torch
 
 from worker import constants
+from worker.task_sly import TaskSly
 from worker.task_factory import create_task, is_task_type
 from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
@@ -45,7 +47,7 @@ class Agent:
         self.logger.info("Agent comes back...")
 
         self.task_pool_lock = threading.Lock()
-        self.task_pool = {}  # task_id -> task_manager (process_id)
+        self.task_pool: Dict[int, TaskSly] = {}  # task_id -> task_manager (process_id)
 
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
