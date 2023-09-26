@@ -1,19 +1,22 @@
 # coding: utf-8
+from __future__ import annotations
 
 import os
-from worker import constants
 import requests
 import tarfile
 import shutil
 import json
-from pathlib import Path
-from packaging import version
-from version_parser import Version
 import urllib.parse
-from slugify import slugify
 import pkg_resources
 import pathlib
 import copy
+
+from slugify import slugify
+from pathlib import Path
+from packaging import version
+from version_parser import Version
+from enum import Enum
+from typing import Optional
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
@@ -32,12 +35,45 @@ from supervisely_lib.io.fs import (
 )
 from supervisely_lib.io.exception_handlers import handle_exceptions
 
+from worker import constants
 
 _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
 _APP_CONTAINER_DATA_DIR = "/sly-app-data"
 
 _MOUNT_FOLDER_IN_CONTAINER = "/mount_folder"
+
+
+class GPUFlag(Enum):
+    preffered: str = "preffered"
+    required: str = "required"
+    skipped: str = "skipped"
+
+    @classmethod
+    def from_config(cls, config: dict) -> GPUFlag:
+        gpu_flag = config.get("gpu", None)
+        gpu = cls.from_str(gpu_flag)
+
+        if gpu is GPUFlag.skipped:
+            need_gpu = False
+            if "needGPU" in config:
+                need_gpu = config["needGPU"]
+            if "need_gpu" in config:
+                need_gpu = config["need_gpu"]
+            if need_gpu is True:
+                gpu = GPUFlag.required
+
+        return gpu
+
+    @classmethod
+    def from_str(cls, config_val: Optional[str]) -> GPUFlag:
+        if config_val == "preffered":
+            return GPUFlag.preffered
+        elif config_val == "required":
+            return GPUFlag.required
+        elif config_val is None:
+            return GPUFlag.skipped
+        raise ValueError(f"Unknown gpu flag found in config: {config_val}")
 
 
 class TaskApp(TaskDockerized):
@@ -169,31 +205,40 @@ class TaskApp(TaskDockerized):
         self.app_config = api.app.get_info(module_id, version)["config"]
         self.logger.info("App config", extra={"config": self.app_config})
 
-        need_gpu = False
-        if "needGPU" in self.app_config:
-            need_gpu = self.app_config["needGPU"]
-        if "need_gpu" in self.app_config:
-            need_gpu = self.app_config["need_gpu"]
-        # if need_gpu:
-        docker_info = self._docker_api.info()
-        nvidia = "nvidia"
-        nvidia_available = False
-        runtimes = docker_info.get("Runtimes", {})
-        self.logger.info("Available docker runtimes", extra={"runtimes": runtimes})
-        for runtime_name, runtime_info in runtimes.items():
-            if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
-                nvidia_available = True
-                break
-        if nvidia_available is False:
-            self.logger.info(
-                f"Runtime {nvidia} not found in docker info, GPU features will be unavailable. If this app needs GPU, please, check nvidia drivers on the computer where agent was spawned or contact tech support"
-            )
-        else:
-            self.docker_runtime = nvidia
+        gpu = GPUFlag.from_config(self.app_config)
+        self.docker_runtime = "runc"
+
+        if gpu is not GPUFlag.skipped:
+            docker_info = self._docker_api.info()
+            nvidia = "nvidia"
+            nvidia_available = False
+            runtimes = docker_info.get("Runtimes", {})
+            self.logger.info("Available docker runtimes", extra={"runtimes": runtimes})
+
+            for runtime_name, runtime_info in runtimes.items():
+                if nvidia in runtime_name or nvidia in runtime_info.get("path", ""):
+                    nvidia_available = True
+                    break
+
+            if nvidia_available is False:
+                if gpu is GPUFlag.required:
+                    raise RuntimeError(
+                        f"Runtime {nvidia} required to run the application, but it's not found in docker info."
+                    )
+                elif gpu is GPUFlag.preffered:
+                    self.logger.warn(
+                        (
+                            f"Runtime {nvidia} not found in docker info, GPU features will be unavailable."
+                            "If this app needs GPU, please, check nvidia drivers on the computer where agent"
+                            "was spawned or contact tech support."
+                        )
+                    )
+            else:
+                self.docker_runtime = nvidia
 
         self.logger.info(
             "Selected docker runtime",
-            extra={"runtime": self.docker_runtime, "need_gpu": need_gpu},
+            extra={"runtime": self.docker_runtime, "gpu": gpu.value},
         )
 
         # self.app_config = sly.io.json.load_json_file(os.path.join(self.dir_task_src, 'config.json'))
