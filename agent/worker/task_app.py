@@ -458,6 +458,8 @@ class TaskApp(TaskDockerized):
                 if (self.docker_runtime == "nvidia") and (self._gpu_config is GPUFlag.preffered):
                     self.logger.warn("Can't start docker container. Trying to use another runtime.")
                     self.docker_runtime = "runc"
+                    if self.is_isolate():
+                        self._drop_container()
                     self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
                 else:
                     self.logger.exception(ex)
