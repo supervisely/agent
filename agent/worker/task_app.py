@@ -11,7 +11,7 @@ import pkg_resources
 import pathlib
 import copy
 
-from docker.errors import DockerException, NotFound
+from docker.errors import APIError, NotFound, DockerException
 from slugify import slugify
 from pathlib import Path
 from packaging import version
@@ -454,27 +454,49 @@ class TaskApp(TaskDockerized):
         if self._container is None:
             try:
                 self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
-            except DockerException as ex:
-                if (self.docker_runtime == "nvidia") and (self._gpu_config is GPUFlag.preffered):
+            except APIError as api_ex:
+                msg = api_ex.args[0].response.text
+                clear_msg = json.loads(msg)["message"]
+                is_runtime_err = "runtime create failed" in clear_msg
+                orig_runtime = self.docker_runtime
+
+                if (
+                    is_runtime_err
+                    and (self.docker_runtime == "nvidia")
+                    and (self._gpu_config is GPUFlag.preffered)
+                ):
                     self.logger.warn("Can't start docker container. Trying to use another runtime.")
                     self.docker_runtime = "runc"
 
                     if self._container_name is None:
-                        raise KeyError("Container name not defined. Please, contact support.")
+                        raise KeyError("Container name is not defined. Please, contact support.")
 
                     try:
                         container = self._docker_api.containers.get(self._container_name)
                     except NotFound as nf_ex:
                         self.logger.error(
-                            "Created container not found in list. Please, contact support."
+                            (
+                                "The created container was not found in the list of existing ones."
+                                "Please, contact support."
+                            )
                         )
                         raise nf_ex
 
                     container.remove()
                     self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
                 else:
-                    self.logger.exception(ex)
-                    raise ex
+                    self.logger.exception(api_ex)
+                    if is_runtime_err:
+                        raise DockerException(
+                            (
+                                "Error while trying to start the container "
+                                f"with runtime={orig_runtime}. "
+                                "Check your nvidia drivers, delete gpu flag from application config "
+                                "or reaplace it with gpu=`preffered`. "
+                                f"Docker exception message: {clear_msg}"
+                            )
+                        )
+                    raise api_ex
 
             if constants.OFFLINE_MODE() is False:
                 self.logger.info("Double check pip cache for old agents")
