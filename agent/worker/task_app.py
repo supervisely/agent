@@ -11,6 +11,7 @@ import pkg_resources
 import pathlib
 import copy
 
+from docker.errors import DockerException
 from slugify import slugify
 from pathlib import Path
 from packaging import version
@@ -91,6 +92,7 @@ class TaskApp(TaskDockerized):
         self._requirements_path_relative = None
         self.host_data_dir = None
         self.agent_id = None
+        self._gpu_config: Optional[GPUFlag] = None
 
         super().__init__(*args, **kwargs)
 
@@ -236,6 +238,7 @@ class TaskApp(TaskDockerized):
             else:
                 self.docker_runtime = nvidia
 
+        self._gpu_config = gpu
         self.logger.info(
             "Selected docker runtime",
             extra={"runtime": self.docker_runtime, "gpu": gpu.value},
@@ -449,7 +452,17 @@ class TaskApp(TaskDockerized):
         )
         self.sync_pip_cache()
         if self._container is None:
-            self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
+            try:
+                self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
+            except DockerException as ex:
+                if (self.docker_runtime == "nvidia") and (self._gpu_config is GPUFlag.preffered):
+                    self.logger.warn("Can't start docker container. Trying to use another runtime.")
+                    self.docker_runtime = "runc"
+                    self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
+                else:
+                    self.logger.exception(ex)
+                    raise ex
+
             if constants.OFFLINE_MODE() is False:
                 self.logger.info("Double check pip cache for old agents")
                 self.install_pip_requirements(container_id=self._container.id)
