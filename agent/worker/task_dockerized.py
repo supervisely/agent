@@ -57,6 +57,7 @@ class TaskDockerized(TaskSly):
         self.docker_image_name = None
 
         self.docker_pulled = False  # in task
+        self._container_name = None
         self._task_reports: List[ErrorReport] = []
 
     def init_docker_image(self):
@@ -199,12 +200,15 @@ class TaskDockerized(TaskSly):
                 ipc_mode = "host"
                 self.logger.info(f"NVidia runtime, IPC mode is set to {ipc_mode}")
 
+            self._container_name = "sly_task_{}_{}".format(
+                self.info["task_id"], constants.TASKS_DOCKER_LABEL()
+            )
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
                 entrypoint=entrypoint_func(),
                 detach=True,
-                name="sly_task_{}_{}".format(self.info["task_id"], constants.TASKS_DOCKER_LABEL()),
+                name=self._container_name,
                 remove=False,
                 volumes=volumes,
                 environment=all_environments,

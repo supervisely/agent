@@ -11,7 +11,7 @@ import pkg_resources
 import pathlib
 import copy
 
-from docker.errors import DockerException
+from docker.errors import DockerException, NotFound
 from slugify import slugify
 from pathlib import Path
 from packaging import version
@@ -458,8 +458,19 @@ class TaskApp(TaskDockerized):
                 if (self.docker_runtime == "nvidia") and (self._gpu_config is GPUFlag.preffered):
                     self.logger.warn("Can't start docker container. Trying to use another runtime.")
                     self.docker_runtime = "runc"
-                    if self.is_isolate():
-                        self._drop_container()
+
+                    if self._container_name is None:
+                        raise KeyError("Container name not defined. Please, contact support.")
+
+                    try:
+                        container = self._docker_api.containers.get(self._container_name)
+                    except NotFound as nf_ex:
+                        self.logger.error(
+                            "Created container not found in list. Please, contact support."
+                        )
+                        raise nf_ex
+
+                    container.remove()
                     self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
                 else:
                     self.logger.exception(ex)
