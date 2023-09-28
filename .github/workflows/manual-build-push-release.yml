@@ -1,7 +1,12 @@
 name: manual-build-push-release
 
-on:
+on: 
   workflow_dispatch:
+    inputs:
+      tag_version:
+        description: 'Docker Image Tag'     
+        required: true
+        default: ''
 
 jobs:
   build:
