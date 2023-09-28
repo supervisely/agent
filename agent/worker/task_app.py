@@ -46,7 +46,7 @@ _MOUNT_FOLDER_IN_CONTAINER = "/mount_folder"
 
 
 class GPUFlag(Enum):
-    preffered: str = "preffered"
+    preferred: str = "preferred"
     required: str = "required"
     skipped: str = "skipped"
 
@@ -68,8 +68,8 @@ class GPUFlag(Enum):
 
     @classmethod
     def from_str(cls, config_val: Optional[str]) -> GPUFlag:
-        if config_val == "preffered":
-            return GPUFlag.preffered
+        if config_val == "preferred":
+            return GPUFlag.preferred
         elif config_val == "required":
             return GPUFlag.required
         elif config_val is None:
@@ -227,7 +227,7 @@ class TaskApp(TaskDockerized):
                     raise RuntimeError(
                         f"Runtime {nvidia} required to run the application, but it's not found in docker info."
                     )
-                elif gpu is GPUFlag.preffered:
+                elif gpu is GPUFlag.preferred:
                     self.logger.warn(
                         (
                             f"Runtime {nvidia} not found in docker info, GPU features will be unavailable."
@@ -463,7 +463,7 @@ class TaskApp(TaskDockerized):
                 if (
                     is_runtime_err
                     and (self.docker_runtime == "nvidia")
-                    and (self._gpu_config is GPUFlag.preffered)
+                    and (self._gpu_config is GPUFlag.preferred)
                 ):
                     self.logger.warn("Can't start docker container. Trying to use another runtime.")
                     self.docker_runtime = "runc"
@@ -492,7 +492,7 @@ class TaskApp(TaskDockerized):
                                 "Error while trying to start the container "
                                 f"with runtime={orig_runtime}. "
                                 "Check your nvidia drivers, delete gpu flag from application config "
-                                "or reaplace it with gpu=`preffered`. "
+                                "or reaplace it with gpu=`preferred`. "
                                 f"Docker exception message: {clear_msg}"
                             )
                         )
