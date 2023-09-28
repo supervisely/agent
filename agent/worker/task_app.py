@@ -19,6 +19,14 @@ from version_parser import Version
 from enum import Enum
 from typing import Optional
 
+from docker.errors import APIError, NotFound, DockerException
+from slugify import slugify
+from pathlib import Path
+from packaging import version
+from version_parser import Version
+from enum import Enum
+from typing import Optional
+
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
 from supervisely_lib.io.json import dump_json_file
@@ -36,6 +44,7 @@ from supervisely_lib.io.fs import (
 )
 from supervisely_lib.io.exception_handlers import handle_exceptions
 
+from worker import constants
 from worker import constants
 
 _ISOLATE = "isolate"
@@ -92,6 +101,7 @@ class TaskApp(TaskDockerized):
         self._requirements_path_relative = None
         self.host_data_dir = None
         self.agent_id = None
+        self._gpu_config: Optional[GPUFlag] = None
         self._gpu_config: Optional[GPUFlag] = None
 
         super().__init__(*args, **kwargs)
