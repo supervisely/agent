@@ -209,7 +209,7 @@ class TaskDockerized(TaskSly):
                 entrypoint=entrypoint_func(),
                 detach=True,
                 name=self._container_name,
-                remove=False,
+                remove=False,  # TODO: check autoremove
                 volumes=volumes,
                 environment=all_environments,
                 labels={
