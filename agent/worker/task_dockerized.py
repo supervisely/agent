@@ -30,6 +30,7 @@ class ErrorReport(object):
     def to_dict(self) -> dict:
         return {"title": self.title, "description": self.description}
 
+
 # task with main work in separate container and with sequential steps
 class TaskDockerized(TaskSly):
     step_name_mapping = {
@@ -56,6 +57,7 @@ class TaskDockerized(TaskSly):
         self.docker_image_name = None
 
         self.docker_pulled = False  # in task
+        self._container_name = None
         self._task_reports: List[ErrorReport] = []
 
     def init_docker_image(self):
@@ -198,13 +200,16 @@ class TaskDockerized(TaskSly):
                 ipc_mode = "host"
                 self.logger.info(f"NVidia runtime, IPC mode is set to {ipc_mode}")
 
+            self._container_name = "sly_task_{}_{}".format(
+                self.info["task_id"], constants.TASKS_DOCKER_LABEL()
+            )
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
                 entrypoint=entrypoint_func(),
                 detach=True,
-                name="sly_task_{}_{}".format(self.info["task_id"], constants.TASKS_DOCKER_LABEL()),
-                remove=False,
+                name=self._container_name,
+                remove=False,  # TODO: check autoremove
                 volumes=volumes,
                 environment=all_environments,
                 labels={
@@ -313,18 +318,18 @@ class TaskDockerized(TaskSly):
     def _process_report(self, log_msg: str):
         err_title, err_desc = None, None
         splits = log_msg.split(":")
-        
+
         if splits[0].endswith("Error title"):
             err_title = splits[-1].strip()
         if splits[0].endswith("Error message"):
             err_desc = splits[-1].strip()
-        
+
         if err_title is not None:
             self._task_reports.append(ErrorReport(title=err_title))
         if err_desc is not None:
             try:
                 last_report = self._task_reports[-1]
-                if last_report.description is None: 
+                if last_report.description is None:
                     last_report.description = err_desc
                 else:
                     self.logger.warn("Last DialogWindowError report was suspicious.")
