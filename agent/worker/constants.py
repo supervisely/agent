@@ -7,7 +7,6 @@ import supervisely_lib as sly
 import hashlib
 import re
 from supervisely_lib.io.docker_utils import PullPolicy
-from supervisely_lib.io.fs import copy_dir_recursively
 
 
 _AGENT_HOST_DIR = "AGENT_HOST_DIR"
@@ -509,8 +508,9 @@ def init_constants():
         sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
 
     if REQUESTS_CA_BUNDLE() is not None:
-        sly.fs.mkdir(MOUNTED_REQUESTS_CA_BUNDLE())
-        sly.fs.copy_dir_recursively(
-            REQUESTS_CA_BUNDLE(),
-            MOUNTED_REQUESTS_CA_BUNDLE(),
-        )
+        if os.path.dirname(REQUESTS_CA_BUNDLE()) != MOUNTED_REQUESTS_CA_BUNDLE():
+            filename = sly.fs.get_file_name_with_ext(REQUESTS_CA_BUNDLE())
+            sly.fs.mkdir(MOUNTED_REQUESTS_CA_BUNDLE())
+            sly.fs.copy_file(
+                REQUESTS_CA_BUNDLE(), os.path.join(MOUNTED_REQUESTS_CA_BUNDLE(), filename)
+            )
