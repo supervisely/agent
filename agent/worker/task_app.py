@@ -290,9 +290,9 @@ class TaskApp(TaskDockerized):
                 "mode": "rw",
             }
 
-        if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
-            res[constants.HOST_REQUESTS_CA_BUNDLE()] = {
-                "bind": constants.REQUESTS_CA_BUNDLE(),
+        if constants.REQUESTS_CA_BUNDLE() is not None:
+            res[constants.MOUNTED_HOST_REQUESTS_CA_BUNDLE()] = {
+                "bind": constants.REQUESTS_CA_BUNDLE_DIR_CONTAINER(),
                 "mode": "ro",
             }
 
@@ -524,7 +524,7 @@ class TaskApp(TaskDockerized):
                 "SERVER_ADDRESS": self.info["server_address"],
                 "API_TOKEN": self.info["api_token"],
                 "AGENT_TOKEN": constants.TOKEN(),
-                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE_CONTAINER(),
                 "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             },

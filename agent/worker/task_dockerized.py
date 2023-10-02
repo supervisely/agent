@@ -123,6 +123,10 @@ class TaskDockerized(TaskSly):
             env_val = os.getenv(env_key)
             if env_val is not None:
                 envs[env_key] = env_val
+
+        if constants.REQUESTS_CA_BUNDLE() is not None:
+            envs["REQUESTS_CA_BUNDLE"] = constants.REQUESTS_CA_BUNDLE_IN_CONTAINER()
+
         return envs
 
     def main_step(self):
@@ -148,11 +152,12 @@ class TaskDockerized(TaskSly):
         volumes = {
             self.dir_task_host: {"bind": "/sly_task_data", "mode": "rw"},
         }
-        if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
-            volumes[constants.HOST_REQUESTS_CA_BUNDLE()] = {
-                "bind": constants.REQUESTS_CA_BUNDLE(),
+        if constants.REQUESTS_CA_BUNDLE() is not None:
+            volumes[constants.MOUNTED_HOST_REQUESTS_CA_BUNDLE()] = {
+                "bind": constants.REQUESTS_CA_BUNDLE_DIR_CONTAINER(),
                 "mode": "ro",
             }
+
         return volumes
 
     def get_spawn_entrypoint(self):
@@ -188,7 +193,7 @@ class TaskDockerized(TaskSly):
                 constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
                 constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
                 constants._NO_PROXY.lower(): constants.NO_PROXY(),
-                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE(),
+                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE_CONTAINER(),
                 "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             }
