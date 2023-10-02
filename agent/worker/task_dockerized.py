@@ -148,11 +148,16 @@ class TaskDockerized(TaskSly):
         volumes = {
             self.dir_task_host: {"bind": "/sly_task_data", "mode": "rw"},
         }
-        if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
-            volumes[constants.HOST_REQUESTS_CA_BUNDLE()] = {
+        if constants.REQUESTS_CA_BUNDLE() is not None:
+            volumes[constants.MOUNTED_HOST_REQUESTS_CA_BUNDLE()] = {
                 "bind": constants.REQUESTS_CA_BUNDLE(),
                 "mode": "ro",
             }
+        # if constants.HOST_REQUESTS_CA_BUNDLE() is not None:
+        #     volumes[constants.HOST_REQUESTS_CA_BUNDLE()] = {
+        #         "bind": constants.REQUESTS_CA_BUNDLE(),
+        #         "mode": "ro",
+        #     }
         return volumes
 
     def get_spawn_entrypoint(self):
