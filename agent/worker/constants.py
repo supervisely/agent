@@ -31,6 +31,7 @@ _PUBLIC_API_RETRY_LIMIT = "PUBLIC_API_RETRY_LIMIT"
 _APP_DEBUG_DOCKER_IMAGE = "APP_DEBUG_DOCKER_IMAGE"
 
 _REQUESTS_CA_BUNDLE = "REQUESTS_CA_BUNDLE"
+_REQUESTS_CA_BUNDLE_DIR_CONTAINER = "REQUESTS_CA_BUNDLE_DIR_CONTAINER"
 _HOST_REQUESTS_CA_BUNDLE = "HOST_REQUESTS_CA_BUNDLE"
 _SSL_CERT_FILE = "SSL_CERT_FILE"
 
@@ -109,6 +110,7 @@ _OPTIONAL_DEFAULTS = {
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
     _AGENT_FILES_IN_APP_CONTAINER: "/agent-storage",
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
+    _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
 }
 
 
@@ -395,19 +397,37 @@ def APP_DEBUG_DOCKER_IMAGE():
 
 
 def REQUESTS_CA_BUNDLE():
+    """Certs file in Agent container"""
     return read_optional_setting(_REQUESTS_CA_BUNDLE)
 
+
 def REQUESTS_CA_BUNDLE_DIR():
+    """DIR where REQUESTS_CA_BUNDLE stored"""
     if REQUESTS_CA_BUNDLE() is not None:
         return os.path.dirname(REQUESTS_CA_BUNDLE())
     return None
 
 
-def MOUNTED_REQUESTS_CA_BUNDLE():
+def REQUESTS_CA_BUNDLE_DIR_CONTAINER():
+    """DIR where REQUESTS_CA_BUNDLE stored in App container"""
+    return read_optional_setting(_REQUESTS_CA_BUNDLE_DIR_CONTAINER)
+
+
+def REQUESTS_CA_BUNDLE_CONTAINER():
+    """Certs file in App container"""
+    if REQUESTS_CA_BUNDLE() is not None:
+        filename = sly.fs.get_file_name_with_ext(REQUESTS_CA_BUNDLE())
+        return os.path.join(REQUESTS_CA_BUNDLE_DIR_CONTAINER(), filename)
+    return None
+
+
+def MOUNTED_REQUESTS_CA_BUNDLE_DIR():
+    """Certs file path in mounted volume inside Agent container."""
     return os.path.join(AGENT_ROOT_DIR(), "certs")
 
 
 def MOUNTED_HOST_REQUESTS_CA_BUNDLE():
+    """Certs file path in mounted volume on Host."""
     return os.path.join(HOST_DIR(), "certs")
 
 
@@ -513,9 +533,11 @@ def init_constants():
         sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
 
     if REQUESTS_CA_BUNDLE() is not None:
-        if REQUESTS_CA_BUNDLE_DIR() != MOUNTED_REQUESTS_CA_BUNDLE():
+        # check if certs not in mounted folder
+        if REQUESTS_CA_BUNDLE_DIR() != MOUNTED_REQUESTS_CA_BUNDLE_DIR():
             filename = sly.fs.get_file_name_with_ext(REQUESTS_CA_BUNDLE())
-            sly.fs.mkdir(MOUNTED_REQUESTS_CA_BUNDLE())
+            sly.fs.mkdir(MOUNTED_REQUESTS_CA_BUNDLE_DIR())
             sly.fs.copy_file(
-                REQUESTS_CA_BUNDLE(), os.path.join(MOUNTED_REQUESTS_CA_BUNDLE(), filename)
+                REQUESTS_CA_BUNDLE(),
+                os.path.join(MOUNTED_REQUESTS_CA_BUNDLE_DIR(), filename),
             )
