@@ -292,15 +292,9 @@ class TaskApp(TaskDockerized):
 
         if constants.REQUESTS_CA_BUNDLE() is not None:
             res[constants.MOUNTED_HOST_REQUESTS_CA_BUNDLE()] = {
-                "bind": constants.REQUESTS_CA_BUNDLE(),
+                "bind": constants.REQUESTS_CA_BUNDLE_DIR(),
                 "mode": "ro",
             }
-
-        # if constants.HOST_REQUESTS_CA_BUNDLE() is not None: # "${AGENT_HOST_DIR}"/certs
-        #     res[constants.HOST_REQUESTS_CA_BUNDLE()] = {
-        #         "bind": constants.REQUESTS_CA_BUNDLE(),  # /sly_agent/certs
-        #         "mode": "ro",
-        #     }
 
         if constants.SUPERVISELY_AGENT_FILES() is not None:
             relative_app_data_dir = os.path.join(

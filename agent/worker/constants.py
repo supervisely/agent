@@ -397,6 +397,11 @@ def APP_DEBUG_DOCKER_IMAGE():
 def REQUESTS_CA_BUNDLE():
     return read_optional_setting(_REQUESTS_CA_BUNDLE)
 
+def REQUESTS_CA_BUNDLE_DIR():
+    if REQUESTS_CA_BUNDLE() is not None:
+        return os.path.dirname(REQUESTS_CA_BUNDLE())
+    return None
+
 
 def MOUNTED_REQUESTS_CA_BUNDLE():
     return os.path.join(AGENT_ROOT_DIR(), "certs")
@@ -508,7 +513,7 @@ def init_constants():
         sly.fs.mkdir(SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
 
     if REQUESTS_CA_BUNDLE() is not None:
-        if os.path.dirname(REQUESTS_CA_BUNDLE()) != MOUNTED_REQUESTS_CA_BUNDLE():
+        if REQUESTS_CA_BUNDLE_DIR() != MOUNTED_REQUESTS_CA_BUNDLE():
             filename = sly.fs.get_file_name_with_ext(REQUESTS_CA_BUNDLE())
             sly.fs.mkdir(MOUNTED_REQUESTS_CA_BUNDLE())
             sly.fs.copy_file(
