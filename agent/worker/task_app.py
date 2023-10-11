@@ -338,7 +338,7 @@ class TaskApp(TaskDockerized):
             self.logger.warn(
                 (
                     "SUPERVISELY_AGENT_FILES is not defined inside agent container."
-                    "If this your production agent, please contact support."
+                    "If this is your production agent, please contact support."
                 )
             )
 
