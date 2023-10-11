@@ -91,6 +91,7 @@ class TaskApp(TaskDockerized):
         self._need_sync_pip_cache = False
         self._requirements_path_relative = None
         self.host_data_dir = None
+        self.data_dir = None
         self.agent_id = None
         self._gpu_config: Optional[GPUFlag] = None
 
@@ -332,6 +333,13 @@ class TaskApp(TaskDockerized):
                 {},
                 agent_storage_folder=constants.SUPERVISELY_AGENT_FILES(),
                 relative_app_dir=relative_app_data_dir,
+            )
+        else:
+            self.logger.warn(
+                (
+                    "SUPERVISELY_AGENT_FILES is not defined inside agent container."
+                    "If this is your production agent, please contact support."
+                )
             )
 
         mount_settings = self.info.get("folderToMount", None)
