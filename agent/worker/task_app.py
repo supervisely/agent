@@ -91,6 +91,7 @@ class TaskApp(TaskDockerized):
         self._need_sync_pip_cache = False
         self._requirements_path_relative = None
         self.host_data_dir = None
+        self.data_dir = None
         self.agent_id = None
         self._gpu_config: Optional[GPUFlag] = None
 
