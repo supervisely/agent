@@ -1,7 +1,6 @@
 # coding: utf-8
 
 import time
-from typing import Dict
 import docker
 import json
 import threading
@@ -9,7 +8,11 @@ import subprocess
 import os
 import uuid
 import warnings
+from docker.models.containers import Container
+from docker.models.images import ImageCollection
+from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
+from typing import Dict
 from pathlib import Path
 
 import supervisely_lib as sly
@@ -83,11 +86,12 @@ class Agent:
 
         dc = docker.from_env()
         try:
-            olg_agent = dc.containers.get(container_id)
+            old_agent: Container = dc.containers.get(container_id)
         except docker.errors.NotFound:
             return
 
-        olg_agent.remove(force=True)
+        old_agent.remove(force=True)
+        self._update_net_client(dc)
 
         agent_same_token = []
         for cont in dc.containers.list():
@@ -99,6 +103,67 @@ class Agent:
                 "Several agents with the same token are running. Please, kill them or contact support."
             )
         agent_same_token[0].rename("supervisely-agent-{}".format(constants.TOKEN()))
+
+    def _update_net_client(self, dc: docker.DockerClient):
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_container = None
+
+        for container in dc.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+
+        if sly_net_container is None:
+            self.logger.warn(
+                "Something goes wrong: can't find sly-net-client attached to this agent"
+            )
+            return
+
+        ic = ImageCollection(dc)
+        sly_net_hub_name = "supervisely/sly-net-client:latest"
+        docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
+
+        if sly_net_container.attrs.get("Image", None) == docker_hub_image_info.id:
+            self.logger.info("sly-net-client is already updated")
+            return
+        else:
+            self.logger.info("Found new version of sly-net-client. Updating current container.")
+            sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, self.logger)
+
+        network = "supervisely-net-{}".format(constants.TOKEN())
+        command = sly_net_container.attrs.get("Args")
+        volumes = sly_net_container.attrs["HostConfig"]["Binds"]
+        cap_add = sly_net_container.attrs["HostConfig"]["CapAdd"]
+        privileged = sly_net_container.attrs["HostConfig"]["Privileged"]
+        restart_policy = sly_net_container.attrs["HostConfig"]["RestartPolicy"]
+        envs = sly_net_container.attrs["Config"]["Env"]
+
+        log_config_dct = sly_net_container.attrs["HostConfig"]["LogConfig"]
+        log_config = LogConfig(type=log_config_dct["Type"], config=log_config_dct["Config"])
+
+        devices = []
+        for dev in sly_net_container.attrs["HostConfig"]["Devices"]:
+            host = dev.get("PathOnHost", None)
+            cont = dev.get("PathInContainer", None)
+            perm = dev.get("CgroupPermissions", "rwm")
+            if host is not None and perm is not None:
+                devices.append(f"{host}:{cont}:{perm}")
+
+        sly_net_container.remove(force=True)
+        dc.containers.run(
+            image=sly_net_hub_name,
+            name=net_container_name,
+            command=command,
+            network=network,
+            cap_add=cap_add,
+            volumes=volumes,
+            privileged=privileged,
+            restart_policy=restart_policy,
+            environment=envs,
+            log_config=log_config,
+            devices=devices,
+            detach=True,
+        )
 
     def _validate_duplicated_agents(self):
         dc = docker.from_env()
