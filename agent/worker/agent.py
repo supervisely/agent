@@ -94,15 +94,16 @@ class Agent:
         self._update_net_client(dc)
 
         agent_same_token = []
+        agent_name_start = "supervisely-agent-{}".format(constants.TOKEN())
         for cont in dc.containers.list():
-            if constants.TOKEN() in cont.name:
+            if cont.name.startswith(agent_name_start):
                 agent_same_token.append(cont)
 
         if len(agent_same_token) > 1:
             raise RuntimeError(
                 "Several agents with the same token are running. Please, kill them or contact support."
             )
-        agent_same_token[0].rename("supervisely-agent-{}".format(constants.TOKEN()))
+        agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
