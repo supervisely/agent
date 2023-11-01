@@ -573,7 +573,6 @@ class TaskApp(TaskDockerized):
                 self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
-
             self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
             self.process_logs()
             self.logger.info("Requirements are installed")
@@ -701,6 +700,8 @@ class TaskApp(TaskDockerized):
                 lvl_int = lvl_description.int
             else:
                 lvl_int = sly.LOGGING_LEVELS["INFO"].int
+            if "Requirement already satisfied" in msg:
+                lvl_int = sly.LOGGING_LEVELS["DEBUG"].int
             self.logger.log(lvl_int, msg, extra=res_log)
             self._process_report(msg)
 
