@@ -37,6 +37,11 @@ from supervisely_lib.io.fs import (
 from supervisely_lib.io.exception_handlers import handle_exceptions
 
 from worker import constants
+from worker.agent_utils import (
+    filter_log_line,
+    pip_req_satisfied_filter,
+    post_get_request_filter,
+)
 
 _ISOLATE = "isolate"
 _LINUX_DEFAULT_PIP_CACHE_DIR = "/root/.cache/pip"
@@ -94,6 +99,7 @@ class TaskApp(TaskDockerized):
         self.data_dir = None
         self.agent_id = None
         self._gpu_config: Optional[GPUFlag] = None
+        self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
         super().__init__(*args, **kwargs)
 
@@ -573,7 +579,6 @@ class TaskApp(TaskDockerized):
                 self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
-
             self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
             self.process_logs()
             self.logger.info("Requirements are installed")
@@ -694,6 +699,7 @@ class TaskApp(TaskDockerized):
         def _process_line(log_line):
             # log_line = log_line.decode("utf-8")
             msg, res_log, lvl = self.parse_log_line(log_line)
+            self._process_report(msg)
             output = self.call_event_function(res_log)
 
             lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
@@ -701,8 +707,10 @@ class TaskApp(TaskDockerized):
                 lvl_int = lvl_description.int
             else:
                 lvl_int = sly.LOGGING_LEVELS["INFO"].int
-            self.logger.log(lvl_int, msg, extra=res_log)
-            self._process_report(msg)
+
+            lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
+            if lvl_int != -1:
+                self.logger.log(lvl_int, msg, extra=res_log)
 
         # @TODO: parse multiline logs correctly (including exceptions)
         log_line = ""

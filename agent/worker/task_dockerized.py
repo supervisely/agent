@@ -8,9 +8,14 @@ import copy
 import docker
 import supervisely_lib as sly
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 
-from worker.agent_utils import TaskDirCleaner
+from worker.agent_utils import (
+    TaskDirCleaner,
+    filter_log_line,
+    pip_req_satisfied_filter,
+    post_get_request_filter,
+)
 from worker import constants
 from worker.task_sly import TaskSly
 
@@ -59,6 +64,7 @@ class TaskDockerized(TaskSly):
         self.docker_pulled = False  # in task
         self._container_name = None
         self._task_reports: List[ErrorReport] = []
+        self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
     def init_docker_image(self):
         self.docker_image_name = self.info.get("docker_image", None)
@@ -310,10 +316,17 @@ class TaskDockerized(TaskSly):
             self._process_report(msg)
 
             lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
+
             if lvl_description is not None:
                 lvl_int = lvl_description.int
             else:
                 lvl_int = sly.LOGGING_LEVELS["INFO"].int
+
+            lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
+
+            # skip msg
+            if lvl_int == -1:
+                continue
 
             self.logger.log(lvl_int, msg, extra={**res_log, **output})
 

@@ -5,11 +5,12 @@ import os.path as osp
 import shutil
 import queue
 import json
+import re
 
 import supervisely_lib as sly
 
 from logging import Logger
-from typing import List, Optional, Union, Container
+from typing import Callable, List, Optional, Union, Container
 from datetime import datetime, timedelta
 from pathlib import Path
 from worker import constants
@@ -337,3 +338,46 @@ def add_creds_to_git_url(git_url):
         return res
     else:
         return git_url
+
+
+def filter_log_line(
+    msg: str,
+    cur_log_level: int,
+    line_filters: Optional[List[Callable[[str, int], int]]] = None,
+) -> int:
+    """Change log level using providet filters.
+
+    :param msg: log message
+    :type msg: str
+    :param cur_log_level: current log level code (sly.LOGGING_LEVELS)
+    :type cur_log_level: int
+    :param line_filters: function receiving a message and current logging level
+        as input and returns a new logging level for current msg;
+        if `-1` is returned, the line will be skipped; defaults to None
+    :type line_filters: Optional[List[Callable[[str], int]]], optional
+    :return: new logging level
+    :rtype: int
+    """
+    if line_filters is None:
+        return cur_log_level
+
+    new_level = cur_log_level
+    for line_filter in line_filters:
+        new_level = line_filter(msg, new_level)
+        if cur_log_level != new_level:
+            return new_level
+
+    return cur_log_level
+
+
+def pip_req_satisfied_filter(msg: str, cur_level: int) -> int:
+    if "Requirement already satisfied" in msg:
+        return sly.LOGGING_LEVELS["DEBUG"].int
+    return cur_level
+
+
+def post_get_request_filter(msg: str, cur_level: int) -> int:
+    pattern = r".*?(GET|POST).*?(200 OK)"
+    if re.match(pattern, msg) is not None:
+        return sly.LOGGING_LEVELS["DEBUG"].int
+    return cur_level
