@@ -99,7 +99,7 @@ class TaskApp(TaskDockerized):
         self.data_dir = None
         self.agent_id = None
         self._gpu_config: Optional[GPUFlag] = None
-        self._log_filters = [pip_req_satisfied_filter, post_get_request_filter]
+        self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
         super().__init__(*args, **kwargs)
 
