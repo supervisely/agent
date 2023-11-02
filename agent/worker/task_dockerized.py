@@ -64,7 +64,7 @@ class TaskDockerized(TaskSly):
         self.docker_pulled = False  # in task
         self._container_name = None
         self._task_reports: List[ErrorReport] = []
-        self._log_filters = [pip_req_satisfied_filter, post_get_request_filter]
+        self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
     def init_docker_image(self):
         self.docker_image_name = self.info.get("docker_image", None)
