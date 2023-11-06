@@ -222,7 +222,11 @@ class Agent:
 
     def get_new_task(self):
         for task in self.api.get_endless_stream(
-            "GetNewTask", sly.api_proto.Task, sly.api_proto.Empty()
+            "GetNewTask",
+            sly.api_proto.Task,
+            sly.api_proto.Empty(),
+            server_fail_limit=200,
+            wait_server_sec=5,
         ):
             task_msg = json.loads(task.data)
             task_msg["agent_info"] = self.agent_info
@@ -233,7 +237,11 @@ class Agent:
 
     def get_stop_task(self):
         for task in self.api.get_endless_stream(
-            "GetStopTask", sly.api_proto.Id, sly.api_proto.Empty()
+            "GetStopTask",
+            sly.api_proto.Id,
+            sly.api_proto.Empty(),
+            server_fail_limit=200,
+            wait_server_sec=5,
         ):
             stop_task_id = task.id
             self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
