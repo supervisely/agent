@@ -238,6 +238,7 @@ class TaskDockerized(TaskSly):
                 memswap_limit=constants.MEM_LIMIT(),
                 network=constants.DOCKER_NET(),
                 ipc_mode=ipc_mode,
+                security_opt=constants.SECURITY_OPT(),
             )
             self._container.reload()
             self.logger.debug(

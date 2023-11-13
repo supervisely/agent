@@ -41,6 +41,9 @@ _CPU_QUOTA = "CPU_QUOTA"
 _MEM_LIMIT = "MEM_LIMIT"
 _SHM_SIZE = "SHM_SIZE"
 
+# security settings (only for custom environments)
+_SECURITY_OPT = "SECURITY_OPT"
+
 _PULL_POLICY = "PULL_POLICY"
 
 _GIT_LOGIN = "GIT_LOGIN"
@@ -111,6 +114,7 @@ _OPTIONAL_DEFAULTS = {
     _AGENT_FILES_IN_APP_CONTAINER: "/agent-storage",
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
+    _SECURITY_OPT: None,
 }
 
 
@@ -511,6 +515,15 @@ def OFFLINE_MODE():
 
 def DEFAULT_APP_DOCKER_IMAGE():
     return read_optional_setting(_DEFAULT_APP_DOCKER_IMAGE)
+
+
+def SECURITY_OPT():
+    value = read_optional_setting(_SECURITY_OPT)
+    if value is not None:
+        value = list(filter(len, value.split(",")))
+        if len(value) > 0:
+            return value
+    return None
 
 
 def init_constants():
