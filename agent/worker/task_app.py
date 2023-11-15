@@ -73,12 +73,12 @@ class GPUFlag(Enum):
 
     @classmethod
     def from_str(cls, config_val: Optional[str]) -> GPUFlag:
-        if config_val == "preferred":
-            return GPUFlag.preferred
-        elif config_val == "required":
-            return GPUFlag.required
-        elif config_val is None:
+        if config_val is None or config_val.lower() == "no":
             return GPUFlag.skipped
+        elif config_val.lower() == "preferred":
+            return GPUFlag.preferred
+        elif config_val.lower() == "required":
+            return GPUFlag.required
         raise ValueError(f"Unknown gpu flag found in config: {config_val}")
 
 
