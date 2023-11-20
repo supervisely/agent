@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from logging import Logger
 import os
 import json
 import supervisely_lib as sly
@@ -61,9 +62,11 @@ class TaskUpdate(TaskSly):
                 new_envs.append(val)
         cur_envs = new_envs
         cur_envs.append("REMOVE_OLD_AGENT={}".format(cur_container_id))
+        cur_envs.append("AGNET_CHECKED_SLY_NET=1")
 
         # Pull net-client if needed
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_hub_name = "supervisely/sly-net-client:latest"
         sly_net_container = None
 
         for container in self._docker_api.containers.list():
@@ -76,15 +79,8 @@ class TaskUpdate(TaskSly):
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
         else:
-            ic = ImageCollection(self._docker_api)
-            sly_net_hub_name = "supervisely/sly-net-client:latest"
-            docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
-
-            if sly_net_container.attrs.get("Image", None) == docker_hub_image_info.id:
-                self.logger.info("sly-net-client is already updated")
-            else:
-                self.logger.info("Found new version of sly-net-client. Pulling...")
-                sly.docker_utils._docker_pull_progress(self._docker_api, sly_net_hub_name, self.logger)
+            cur_id = sly_net_container.attrs.get("Image", None)
+            check_and_pull_sly_net(self._docker_api, cur_id, self.logger, sly_net_hub_name)
 
         # start new agent
         container = self._docker_api.containers.run(
@@ -119,3 +115,19 @@ def run_shell_command(cmd, print_output=False):
         if print_output:
             print(clean_line)
     return res
+
+
+def check_and_pull_sly_net(
+    dc: docker.DockerClient,
+    cur_id: str,
+    logger: Logger,
+    sly_net_hub_name: str = "supervisely/sly-net-client:latest",
+):
+    ic = ImageCollection(dc)
+    docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
+
+    if cur_id == docker_hub_image_info.id:
+        logger.info("sly-net-client is already updated")
+    else:
+        logger.info("Found new version of sly-net-client. Pulling...")
+        sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, logger)
