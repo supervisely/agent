@@ -5,6 +5,9 @@ import json
 import supervisely_lib as sly
 from .task_dockerized import TaskSly
 import subprocess
+import docker
+from docker.models.containers import Container
+from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
 
@@ -15,7 +18,7 @@ class TaskUpdate(TaskSly):
         return self._docker_api
 
     @docker_api.setter
-    def docker_api(self, val):
+    def docker_api(self, val: docker.DockerClient):
         self._docker_api = val
 
     def task_main_func(self):
@@ -59,6 +62,31 @@ class TaskUpdate(TaskSly):
         cur_envs = new_envs
         cur_envs.append("REMOVE_OLD_AGENT={}".format(cur_container_id))
 
+        # Pull net-client if needed
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_container = None
+
+        for container in self._docker_api.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+
+        if sly_net_container is None:
+            self.logger.warn(
+                "Something goes wrong: can't find sly-net-client attached to this agent"
+            )
+        else:
+            ic = ImageCollection(self._docker_api)
+            sly_net_hub_name = "supervisely/sly-net-client:latest"
+            docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
+
+            if sly_net_container.attrs.get("Image", None) == docker_hub_image_info.id:
+                self.logger.info("sly-net-client is already updated")
+            else:
+                self.logger.info("Found new version of sly-net-client. Pulling...")
+                sly.docker_utils._docker_pull_progress(self._docker_api, sly_net_hub_name, self.logger)
+
+        # start new agent
         container = self._docker_api.containers.run(
             self.info["docker_image"],
             runtime=self.info["config"]["docker_runtime"],

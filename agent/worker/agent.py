@@ -107,6 +107,7 @@ class Agent:
 
     def _update_net_client(self, dc: docker.DockerClient):
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_hub_name = "supervisely/sly-net-client:latest"
         sly_net_container = None
 
         for container in dc.containers.list():
@@ -118,18 +119,13 @@ class Agent:
             self.logger.warn(
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
+            self.logger.warn(
+                (
+                    "Probably you should reastart agent manually using instructions:"
+                    "https://developer.supervisely.com/getting-started/connect-your-computer"
+                )
+            )
             return
-
-        ic = ImageCollection(dc)
-        sly_net_hub_name = "supervisely/sly-net-client:latest"
-        docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
-
-        if sly_net_container.attrs.get("Image", None) == docker_hub_image_info.id:
-            self.logger.info("sly-net-client is already updated")
-            return
-        else:
-            self.logger.info("Found new version of sly-net-client. Updating current container.")
-            sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, self.logger)
 
         network = "supervisely-net-{}".format(constants.TOKEN())
         command = sly_net_container.attrs.get("Args")
