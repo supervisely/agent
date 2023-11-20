@@ -130,9 +130,8 @@ class Agent:
         else:
             # pull if update to old agent
             agnet_checked_sly_net = os.getenv("AGNET_CHECKED_SLY_NET", None)
-            cur_id = sly_net_container.attrs.get("Image", None)
             if agnet_checked_sly_net is None:
-                check_and_pull_sly_net(dc, cur_id, self.logger, sly_net_hub_name)
+                check_and_pull_sly_net(dc, sly_net_container, self.logger, sly_net_hub_name)
 
         network = "supervisely-net-{}".format(constants.TOKEN())
         command = sly_net_container.attrs.get("Args")

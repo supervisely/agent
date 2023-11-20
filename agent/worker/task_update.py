@@ -79,8 +79,9 @@ class TaskUpdate(TaskSly):
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
         else:
-            cur_id = sly_net_container.attrs.get("Image", None)
-            check_and_pull_sly_net(self._docker_api, cur_id, self.logger, sly_net_hub_name)
+            check_and_pull_sly_net(
+                self._docker_api, sly_net_container, self.logger, sly_net_hub_name
+            )
 
         # start new agent
         container = self._docker_api.containers.run(
@@ -119,17 +120,16 @@ def run_shell_command(cmd, print_output=False):
 
 def check_and_pull_sly_net(
     dc: docker.DockerClient,
-    cur_id: str,
+    cur_container: Container,
     logger: Logger,
     sly_net_hub_name: str = "supervisely/sly-net-client:latest",
 ):
     ic = ImageCollection(dc)
     docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
+    name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
 
-    if cur_id == docker_hub_image_info.id:
+    if name_with_digest.endswith(docker_hub_image_info.id):
         logger.info("sly-net-client is already updated")
     else:
         logger.info("Found new version of sly-net-client. Pulling...")
-        logger.info(f"Current ID: `{cur_id}`")
-        logger.info(f"New id: `{docker_hub_image_info.id}`")
         sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, logger)
