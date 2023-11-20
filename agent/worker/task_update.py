@@ -130,4 +130,6 @@ def check_and_pull_sly_net(
         logger.info("sly-net-client is already updated")
     else:
         logger.info("Found new version of sly-net-client. Pulling...")
+        logger.info(f"Current ID: `{cur_id}`")
+        logger.info(f"New id: `{docker_hub_image_info.id}`")
         sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, logger)
