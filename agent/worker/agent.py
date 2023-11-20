@@ -18,7 +18,7 @@ from pathlib import Path
 import supervisely_lib as sly
 
 from worker.agent_utils import TaskDirCleaner, AppDirCleaner
-from worker.task_update import check_and_pull_sly_net
+from worker.task_update import check_and_pull_sly_net_if_needed
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
@@ -107,6 +107,10 @@ class Agent:
         agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
+        need_update_env = os.getenv("UPDATE_SLY_NET_AFTER_RESTART", None)
+        if need_update_env == "0":
+            return
+
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
         sly_net_hub_name = "supervisely/sly-net-client:latest"
         sly_net_container = None
@@ -128,10 +132,14 @@ class Agent:
             )
             return
         else:
-            # pull if update to old agent
-            agnet_checked_sly_net = os.getenv("AGNET_CHECKED_SLY_NET", None)
-            if agnet_checked_sly_net is None:
-                check_and_pull_sly_net(dc, sly_net_container, self.logger, sly_net_hub_name)
+            # pull if update too old agent
+            if need_update_env is None:
+                need_update = check_and_pull_sly_net_if_needed(
+                    dc, sly_net_container, self.logger, sly_net_hub_name
+                )
+
+        if need_update is False:
+            return
 
         network = "supervisely-net-{}".format(constants.TOKEN())
         command = sly_net_container.attrs.get("Args")

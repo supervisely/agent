@@ -62,7 +62,6 @@ class TaskUpdate(TaskSly):
                 new_envs.append(val)
         cur_envs = new_envs
         cur_envs.append("REMOVE_OLD_AGENT={}".format(cur_container_id))
-        cur_envs.append("AGNET_CHECKED_SLY_NET=1")
 
         # Pull net-client if needed
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
@@ -79,9 +78,13 @@ class TaskUpdate(TaskSly):
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
         else:
-            check_and_pull_sly_net(
+            need_update = check_and_pull_sly_net_if_needed(
                 self._docker_api, sly_net_container, self.logger, sly_net_hub_name
             )
+            if need_update is True:
+                cur_envs.append("UPDATE_SLY_NET_AFTER_RESTART=1")
+            else:
+                cur_envs.append("UPDATE_SLY_NET_AFTER_RESTART=0")
 
         # start new agent
         container = self._docker_api.containers.run(
@@ -118,18 +121,20 @@ def run_shell_command(cmd, print_output=False):
     return res
 
 
-def check_and_pull_sly_net(
+def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
     logger: Logger,
     sly_net_hub_name: str = "supervisely/sly-net-client:latest",
-):
+) -> bool:
     ic = ImageCollection(dc)
     docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
     name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
 
     if name_with_digest.endswith(docker_hub_image_info.id):
         logger.info("sly-net-client is already updated")
+        return False
     else:
         logger.info("Found new version of sly-net-client. Pulling...")
         sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, logger)
+        return True
