@@ -538,7 +538,6 @@ class TaskApp(TaskDockerized):
                 "SERVER_ADDRESS": self.info["server_address"],
                 "API_TOKEN": self.info["api_token"],
                 "AGENT_TOKEN": constants.TOKEN(),
-                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE_CONTAINER(),
                 "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             },
@@ -683,6 +682,9 @@ class TaskApp(TaskDockerized):
 
         if constants.SUPERVISELY_AGENT_FILES() is not None:
             envs["AGENT_STORAGE"] = constants.AGENT_FILES_IN_APP_CONTAINER()
+
+        if constants.REQUESTS_CA_BUNDLE() is not None:
+            envs[constants._REQUESTS_CA_BUNDLE] = constants.REQUESTS_CA_BUNDLE_CONTAINER()
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)
