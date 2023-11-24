@@ -131,7 +131,7 @@ class TaskDockerized(TaskSly):
                 envs[env_key] = env_val
 
         if constants.REQUESTS_CA_BUNDLE() is not None:
-            envs["REQUESTS_CA_BUNDLE"] = constants.REQUESTS_CA_BUNDLE_IN_CONTAINER()
+            envs[constants._REQUESTS_CA_BUNDLE] = constants.REQUESTS_CA_BUNDLE_CONTAINER()
 
         return envs
 
@@ -199,7 +199,6 @@ class TaskDockerized(TaskSly):
                 constants._HTTP_PROXY.lower(): constants.HTTP_PROXY(),
                 constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
                 constants._NO_PROXY.lower(): constants.NO_PROXY(),
-                constants._REQUESTS_CA_BUNDLE: constants.REQUESTS_CA_BUNDLE_CONTAINER(),
                 "PIP_ROOT_USER_ACTION": "ignore",
                 **add_envs,
             }
@@ -238,6 +237,7 @@ class TaskDockerized(TaskSly):
                 memswap_limit=constants.MEM_LIMIT(),
                 network=constants.DOCKER_NET(),
                 ipc_mode=ipc_mode,
+                security_opt=constants.SECURITY_OPT(),
             )
             self._container.reload()
             self.logger.debug(
