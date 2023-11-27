@@ -1,18 +1,19 @@
 # coding: utf-8
 
+import json
 import os
 import os.path as osp
-import shutil
 import queue
-import json
 import re
+import shutil
+from datetime import datetime, timedelta
+from docker import DockerClient
+from docker.errors import APIError
+from logging import Logger
+from pathlib import Path
+from typing import Callable, Container, List, Optional, Union
 
 import supervisely_lib as sly
-
-from logging import Logger
-from typing import Callable, List, Optional, Union, Container
-from datetime import datetime, timedelta
-from pathlib import Path
 from worker import constants
 
 
@@ -304,6 +305,77 @@ class AppDirCleaner:
 
         if len(allow_for_cleaner) > 0:
             self.logger.info(f"Files for this session can be manually removed: {allow_for_cleaner}")
+
+
+class DockerImagesCleaner:
+    def __init__(self, docker_api: DockerClient, logger: Logger) -> None:
+        self._days_before_delete = timedelta(days=constants.REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS())
+        self.logger = logger
+        self.path_to_history = constants.CROSS_AGENT_TMP_DIR()
+        self.docker_api = docker_api
+
+    def remove_idle_images(self):
+        all_hists = sly.fs.list_files(self.path_to_history, filter_fn=self._is_history)
+        lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
+
+        if lock_file in all_hists:
+            self.logger.info(
+                "Skip DockerImagesCleaner task: another agent is already working on this task"
+            )
+            return
+
+        self.logger.info("DockerImagesCleaner is started: old images will be removed.")
+        sly.fs.touch(lock_file)
+
+        try:
+            # check all
+            to_remove = self._parse_all_hists(all_hists, lock_file)
+            for image in to_remove:
+                try:
+                    self.docker_api.api.remove_image(image)
+                    self.logger.info(f"Image {image} has been successfully removed.")
+                except APIError as exc:
+                    reason = exc.response.json().get("message")
+                    self.logger.info(f"Skip {image}: {reason}")
+        finally:
+            sly.fs.silent_remove(lock_file)
+
+    def _is_history(filename: str) -> bool:
+        is_hist = filename.startswith("docker-images-history-")
+        is_lock = filename.startswith("docker-images-lock")
+        return is_hist or is_lock
+
+    def _parse_all_hists(self, hist_paths: List[str], lock_file: str) -> List[str]:
+        to_remove = {}
+        for hist in hist_paths:
+            if hist == lock_file:
+                continue
+            to_remove = self._parse_and_update_history(hist, to_remove)
+        return list(to_remove.keys())
+
+    def _parse_and_update_history(self, hist_path: str, to_remove: dict):
+        with open(hist_path, "r") as json_file:
+            images_data: dict = json.load(json_file)
+
+        rest_images = {}
+        for image, last_date in images_data.items():
+            if self._is_outdated(last_date):
+                to_remove[image] = last_date
+            else:
+                rest_images[image] = last_date
+                if image in to_remove:
+                    del to_remove[image]
+
+        with open(hist_path, "w") as json_file:
+            json.dump(rest_images, json_file, indent=4)
+
+        return to_remove
+
+    def _is_outdated(self, last_date: Union[str, datetime]):
+        last_date_ts = last_date
+        if isinstance(last_date, str):
+            last_date_ts = datetime.strptime(last_date, "%Y-%m-%dT%H:%M")
+        return datetime.now() - last_date_ts > self._days_before_delete
 
 
 # @TODO: remove this method or refactor it in future (dict_name - WTF??)
