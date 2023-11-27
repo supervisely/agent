@@ -218,6 +218,16 @@ def AGENT_TMP_DIR():
     return os.path.join(AGENT_ROOT_DIR(), "tmp")
 
 
+def CROSS_AGENT_TMP_DIR_HOST():
+    """default path on host: /tmp/supervisely-agents/"""
+    return "/tmp/supervisely-agents/"
+
+
+def CROSS_AGENT_TMP_DIR():
+    # TODO: naming?
+    return "/shared_data"
+
+
 def AGENT_IMPORT_DIR():
     """default: /sly_agent/import"""
     return os.path.join(AGENT_ROOT_DIR(), "import")

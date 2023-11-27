@@ -1,22 +1,24 @@
 # coding: utf-8
 
-from enum import Enum
-from threading import Lock
+import copy
 import json
 import os
-import copy
-import docker
-import supervisely_lib as sly
 from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from threading import Lock
 from typing import Callable, List, Optional
 
+import docker
+import supervisely_lib as sly
+from worker import constants
 from worker.agent_utils import (
     TaskDirCleaner,
     filter_log_line,
     pip_req_satisfied_filter,
     post_get_request_filter,
 )
-from worker import constants
 from worker.task_sly import TaskSly
 
 
@@ -70,6 +72,7 @@ class TaskDockerized(TaskSly):
         self.docker_image_name = self.info.get("docker_image", None)
         if self.docker_image_name is not None and ":" not in self.docker_image_name:
             self.docker_image_name += ":latest"
+        self.update_image_history(self.docker_image_name)
 
     @property
     def docker_api(self):
@@ -354,3 +357,19 @@ class TaskDockerized(TaskSly):
                     self.logger.warn("Found message without title.")
             except IndexError:
                 pass
+
+    def update_image_history(self, image_name):
+        log_folder = Path(constants.CROSS_AGENT_TMP_DIR())
+        history_file = log_folder / f"docker-images-history-{constants.TOKEN()}.json"
+        cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
+
+        if sly.fs.file_exists(history_file):
+            with open(history_file, "r") as json_file:
+                images_stat = json.load(json_file)
+        else:
+            images_stat = {}
+
+        images_stat[image_name] = cur_date
+
+        with open(log_folder / history_file, "w") as json_file:
+            json.dump(images_stat, json_file, indent=4)
