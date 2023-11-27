@@ -318,7 +318,7 @@ class DockerImagesCleaner:
         all_hists = sly.fs.list_files(self.path_to_history, filter_fn=self._is_history)
         lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
 
-        if lock_file in all_hists:
+        if sly.fs.file_exists(lock_file):
             self.logger.info(
                 "Skip DockerImagesCleaner task: another agent is already working on this task"
             )
@@ -329,7 +329,7 @@ class DockerImagesCleaner:
 
         try:
             # check all
-            to_remove = self._parse_all_hists(all_hists, lock_file)
+            to_remove = self._parse_all_hists(all_hists)
             for image in to_remove:
                 try:
                     self.docker_api.api.remove_image(image)
@@ -340,16 +340,12 @@ class DockerImagesCleaner:
         finally:
             sly.fs.silent_remove(lock_file)
 
-    def _is_history(filename: str) -> bool:
-        is_hist = filename.startswith("docker-images-history-")
-        is_lock = filename.startswith("docker-images-lock")
-        return is_hist or is_lock
+    def _is_history(self, filename: str) -> bool:
+        return "docker-images-history-" in filename
 
-    def _parse_all_hists(self, hist_paths: List[str], lock_file: str) -> List[str]:
+    def _parse_all_hists(self, hist_paths: List[str]) -> List[str]:
         to_remove = {}
         for hist in hist_paths:
-            if hist == lock_file:
-                continue
             to_remove = self._parse_and_update_history(hist, to_remove)
         return list(to_remove.keys())
 

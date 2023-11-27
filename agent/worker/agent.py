@@ -17,7 +17,7 @@ from pathlib import Path
 
 import supervisely_lib as sly
 
-from worker.agent_utils import TaskDirCleaner, AppDirCleaner
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner, DockerImagesCleaner
 from worker.task_update import check_and_pull_sly_net_if_needed
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
@@ -532,6 +532,8 @@ class Agent:
     def task_clear_old_data(self):
         day = 60 * 60 * 24
         cleaner = AppDirCleaner(self.logger)
+        image_cleaner = DockerImagesCleaner(self.docker_api, self.logger)
+
         while True:
             with self.task_pool_lock:
                 all_tasks = set(self.task_pool.keys())
@@ -542,5 +544,5 @@ class Agent:
                 self.logger.exception(e)
                 # raise or not?
                 # raise e
-
+            image_cleaner.remove_idle_images()
             time.sleep(day)
