@@ -316,7 +316,13 @@ class DockerImagesCleaner:
         self.docker_api = docker_api
 
     def remove_idle_images(self):
-        all_hists = sly.fs.list_files(self.path_to_history, filter_fn=self._is_history)
+        if self.path_to_history is None:
+            self.logger.debug(
+                "CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed"
+            )
+            return
+
+        all_hists = sly.fs.list_files(self.path_to_history, filter_fn=self._is_history, valid_extensions=".json")
         lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
 
         if sly.fs.file_exists(lock_file):
