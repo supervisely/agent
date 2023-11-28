@@ -12,6 +12,7 @@ from docker.errors import APIError, ImageNotFound
 from logging import Logger
 from pathlib import Path
 from typing import Callable, Container, List, Optional, Union
+from filelock import FileLock
 
 import supervisely_lib as sly
 from worker import constants
@@ -351,24 +352,27 @@ class DockerImagesCleaner:
         return list(to_remove.keys())
 
     def _parse_and_update_history(self, hist_path: str, to_remove: dict):
-        with open(hist_path, "r") as json_file:
-            images_data: dict = json.load(json_file)
+        hist_lock = FileLock(f"{hist_path}.lock")
 
-        rest_images = {}
-        for image, last_date in images_data.items():
-            if self._is_outdated(last_date):
-                to_remove[image] = last_date
-            else:
-                rest_images[image] = last_date
-                if image in to_remove:
-                    del to_remove[image]
+        with hist_lock:
+            with open(hist_path, "r") as json_file:
+                images_data: dict = json.load(json_file)
 
-        with open(hist_path, "w") as json_file:
-            json.dump(rest_images, json_file, indent=4)
+            rest_images = {}
+            for image, last_date in images_data.items():
+                if self._is_outdated(last_date):
+                    to_remove[image] = last_date
+                else:
+                    rest_images[image] = last_date
+                    if image in to_remove:
+                        del to_remove[image]
+
+            with open(hist_path, "w") as json_file:
+                json.dump(rest_images, json_file, indent=4)
 
         return to_remove
 
-    def _is_outdated(self, last_date: Union[str, datetime]):
+    def _is_outdated(self, last_date: Union[str, datetime]) -> bool:
         last_date_ts = last_date
         if isinstance(last_date, str):
             last_date_ts = datetime.strptime(last_date, "%Y-%m-%dT%H:%M")
