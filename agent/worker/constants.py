@@ -467,6 +467,7 @@ def DISABLE_TELEMETRY():
 def REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS():
     return read_optional_setting(_REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS)
 
+
 def AGENT_ID():
     try:
         host_dir = SUPERVISELY_AGENT_FILES()
@@ -566,3 +567,6 @@ def init_constants():
                 REQUESTS_CA_BUNDLE(),
                 os.path.join(MOUNTED_REQUESTS_CA_BUNDLE_DIR(), filename),
             )
+    
+    if CROSS_AGENT_TMP_DIR() is not None and not sly.fs.dir_exists(CROSS_AGENT_TMP_DIR()):
+        sly.fs.mkdir(CROSS_AGENT_TMP_DIR())
