@@ -8,7 +8,7 @@ import re
 import shutil
 from datetime import datetime, timedelta
 from docker import DockerClient
-from docker.errors import APIError
+from docker.errors import APIError, ImageNotFound
 from logging import Logger
 from pathlib import Path
 from typing import Callable, Container, List, Optional, Union
@@ -334,7 +334,7 @@ class DockerImagesCleaner:
                 try:
                     self.docker_api.api.remove_image(image)
                     self.logger.info(f"Image {image} has been successfully removed.")
-                except APIError as exc:
+                except (APIError, ImageNotFound) as exc:
                     reason = exc.response.json().get("message")
                     self.logger.info(f"Skip {image}: {reason}")
         finally:
