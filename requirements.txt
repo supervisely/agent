@@ -7,7 +7,7 @@ grpcio-tools==1.47.0
 # py3exiv2==0.9.3
 packaging==21.3
 version-parser==1.0.1
-supervisely==6.72.198
+supervisely==6.72.203
 docker==3.3.0
 black
 python-slugify==6.1.2
