@@ -324,7 +324,7 @@ class DockerImagesCleaner:
             )
             return
 
-        self.logger.info("DockerImagesCleaner is started: old images will be removed.")
+        self.logger.info("DockerImagesCleaner started: old images will be removed.")
         sly.fs.touch(lock_file)
 
         try:
@@ -339,6 +339,7 @@ class DockerImagesCleaner:
                     self.logger.info(f"Skip {image}: {reason}")
         finally:
             sly.fs.silent_remove(lock_file)
+            self.logger.info("DockerImagesCleaner finished.")
 
     def _is_history(self, filename: str) -> bool:
         return "docker-images-history-" in filename
