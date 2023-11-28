@@ -9,6 +9,7 @@ from enum import Enum
 from pathlib import Path
 from threading import Lock
 from typing import Callable, List, Optional
+from multiprocessing import Lock as ProcessLock
 
 import docker
 import supervisely_lib as sly
@@ -67,12 +68,17 @@ class TaskDockerized(TaskSly):
         self._container_name = None
         self._task_reports: List[ErrorReport] = []
         self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
+        self._process_lock = ProcessLock()
 
     def init_docker_image(self):
         self.docker_image_name = self.info.get("docker_image", None)
         if self.docker_image_name is not None and ":" not in self.docker_image_name:
             self.docker_image_name += ":latest"
-        self.update_image_history(self.docker_image_name)
+        
+        if constants.CROSS_AGENT_TMP_DIR() is None:
+            self.logger.debug("CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed")
+        else:
+            self.update_image_history(self.docker_image_name)
 
     @property
     def docker_api(self):
@@ -359,17 +365,19 @@ class TaskDockerized(TaskSly):
                 pass
 
     def update_image_history(self, image_name):
-        log_folder = Path(constants.CROSS_AGENT_TMP_DIR())
-        history_file = log_folder / f"docker-images-history-{constants.TOKEN()}.json"
+        log_folder = constants.CROSS_AGENT_TMP_DIR()
+
+        history_file = os.path.join(log_folder, f"docker-images-history-{constants.TOKEN()}.json")
         cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
+        
+        with self._process_lock:
+            if sly.fs.file_exists(history_file):
+                with open(history_file, "r") as json_file:
+                    images_stat = json.load(json_file)
+            else:
+                images_stat = {}
 
-        if sly.fs.file_exists(history_file):
-            with open(history_file, "r") as json_file:
-                images_stat = json.load(json_file)
-        else:
-            images_stat = {}
+            images_stat[image_name] = cur_date
 
-        images_stat[image_name] = cur_date
-
-        with open(log_folder / history_file, "w") as json_file:
-            json.dump(images_stat, json_file, indent=4)
+            with open(history_file, "w") as json_file:
+                json.dump(images_stat, json_file, indent=4)
