@@ -77,6 +77,7 @@ _DOCKER_NET = "DOCKER_NET"
 _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
 _SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
+_CROSS_AGENT_TMP_DIR = "CROSS_AGENT_TMP_DIR"
 _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS = "REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS"
 
 
@@ -116,6 +117,7 @@ _OPTIONAL_DEFAULTS = {
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
+    _CROSS_AGENT_TMP_DIR: None,
     _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS: 14,
 }
 
@@ -220,14 +222,9 @@ def AGENT_TMP_DIR():
     return os.path.join(AGENT_ROOT_DIR(), "tmp")
 
 
-def CROSS_AGENT_TMP_DIR_HOST():
-    """default path on host: /tmp/supervisely-agents/"""
-    return "/tmp/supervisely-agents/"
-
-
 def CROSS_AGENT_TMP_DIR():
-    # TODO: naming?
-    return "/shared_data"
+    """default: None; usually /tmp/supervisely-agents"""
+    return read_optional_setting(_CROSS_AGENT_TMP_DIR)
 
 
 def AGENT_IMPORT_DIR():
