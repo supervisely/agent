@@ -60,8 +60,8 @@ RUN pip install requests-toolbelt>=1.0.0
 
 RUN pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
 
-RUN pip install supervisely==6.72.203
 RUN pip install filelock==3.13.1
+RUN pip install supervisely==6.72.203
 # for development
 # RUN pip install git+https://github.com/supervisely/supervisely.git@dev-branch
 
