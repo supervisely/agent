@@ -488,6 +488,11 @@ class Agent:
                 sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
             )
         )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.update_base_layers, self.logger
+            )
+        )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -546,3 +551,14 @@ class Agent:
                 # raise e
             image_cleaner.remove_idle_images()
             time.sleep(day)
+
+    def update_base_layers(self):
+        self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
+        sly.docker_utils.docker_pull_if_needed(
+            self.docker_api,
+            "supervisely/base-py-sdk:latest",
+            policy=sly.docker_utils.PullPolicy.ALWAYS,
+            logger=self.logger,
+            progress=False,
+        )
+        self.logger.info("Background task finished: `supervisely/base-py-sdk:latest` has been pulled.")
