@@ -227,6 +227,10 @@ def CROSS_AGENT_TMP_DIR():
     return read_optional_setting(_CROSS_AGENT_TMP_DIR)
 
 
+def CROSS_AGENT_VOLUME_NAME():
+    return "supervisely_agents_volume"
+
+
 def AGENT_IMPORT_DIR():
     """default: /sly_agent/import"""
     return os.path.join(AGENT_ROOT_DIR(), "import")
