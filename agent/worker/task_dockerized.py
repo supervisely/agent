@@ -81,12 +81,7 @@ class TaskDockerized(TaskSly):
         if self.docker_image_name is not None and ":" not in self.docker_image_name:
             self.docker_image_name += ":latest"
 
-        if constants.CROSS_AGENT_TMP_DIR() is None:
-            self.logger.debug(
-                "CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed"
-            )
-        else:
-            self.update_image_history(self.docker_image_name)
+        self.update_image_history(self.docker_image_name)
 
     @property
     def docker_api(self):
@@ -373,6 +368,12 @@ class TaskDockerized(TaskSly):
                 pass
 
     def update_image_history(self, image_name):
+        if self._history_file is None:
+            self.logger.debug(
+                "CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed"
+            )
+            return
+
         cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
 
         with self._history_file_lock:
