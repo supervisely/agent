@@ -266,6 +266,14 @@ class TaskApp(TaskDockerized):
                     )
                 )
                 self.info["docker_image"] = constants.APP_DEBUG_DOCKER_IMAGE()
+            if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+                self.logger.info(
+                    "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced to {!r}".format(
+                        self.info["docker_image"], f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}"
+                    )
+                )
+                self.info["docker_image"] = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}"
+            
         except KeyError as e:
             requirements_path = self.get_requirements_path()
             version = "latest"
