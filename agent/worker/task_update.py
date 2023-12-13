@@ -124,7 +124,7 @@ def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
     logger: Logger,
-    sly_net_client_image_name,
+    sly_net_client_image_name = None,
 ) -> bool:
     ic = ImageCollection(dc)
 
