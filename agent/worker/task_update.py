@@ -65,7 +65,6 @@ class TaskUpdate(TaskSly):
 
         # Pull net-client if needed
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
-        sly_net_hub_name = "supervisely/sly-net-client:latest"
         sly_net_container = None
 
         for container in self._docker_api.containers.list():
@@ -79,7 +78,7 @@ class TaskUpdate(TaskSly):
             )
         else:
             need_update = check_and_pull_sly_net_if_needed(
-                self._docker_api, sly_net_container, self.logger, sly_net_hub_name
+                self._docker_api, sly_net_container, self.logger
             )
             if need_update is True:
                 cur_envs.append("UPDATE_SLY_NET_AFTER_RESTART=1")
@@ -125,10 +124,10 @@ def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
     logger: Logger,
-    sly_net_hub_name: str = "supervisely/sly-net-client:latest",
+    sly_net_hub_name: str,
 ) -> bool:
     ic = ImageCollection(dc)
-    docker_hub_image_info = ic.get_registry_data(sly_net_hub_name)
+    docker_hub_image_info = ic.get_registry_data(cur_container.image.tags[0])
     name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
 
     if name_with_digest.endswith(docker_hub_image_info.id):

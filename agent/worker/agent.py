@@ -112,7 +112,6 @@ class Agent:
             return
 
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
-        sly_net_hub_name = "supervisely/sly-net-client:latest"
         sly_net_container = None
 
         for container in dc.containers.list():
@@ -135,7 +134,7 @@ class Agent:
             # pull if update too old agent
             if need_update_env is None:
                 need_update = check_and_pull_sly_net_if_needed(
-                    dc, sly_net_container, self.logger, sly_net_hub_name
+                    dc, sly_net_container, self.logger
                 )
 
         if need_update is False:
