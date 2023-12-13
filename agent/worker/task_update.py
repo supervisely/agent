@@ -123,8 +123,8 @@ def run_shell_command(cmd, print_output=False):
 def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
-    sly_net_client_image_name,
     logger: Logger,
+    sly_net_client_image_name,
 ) -> bool:
     ic = ImageCollection(dc)
 
