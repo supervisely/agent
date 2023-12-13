@@ -141,6 +141,7 @@ class Agent:
             return
 
         network = "supervisely-net-{}".format(constants.TOKEN())
+        sly_net_client_image_name = sly_net_container.image.tags[0]
         command = sly_net_container.attrs.get("Args")
         volumes = sly_net_container.attrs["HostConfig"]["Binds"]
         cap_add = sly_net_container.attrs["HostConfig"]["CapAdd"]
@@ -161,7 +162,7 @@ class Agent:
 
         sly_net_container.remove(force=True)
         dc.containers.run(
-            image=sly_net_hub_name,
+            image=sly_net_client_image_name,
             name=net_container_name,
             command=command,
             network=network,

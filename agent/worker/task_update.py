@@ -123,11 +123,15 @@ def run_shell_command(cmd, print_output=False):
 def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
+    sly_net_client_image_name,
     logger: Logger,
-    sly_net_hub_name: str,
 ) -> bool:
     ic = ImageCollection(dc)
-    docker_hub_image_info = ic.get_registry_data(cur_container.image.tags[0])
+
+    if sly_net_client_image_name is None:
+        sly_net_client_image_name = cur_container.image.tags[0]
+
+    docker_hub_image_info = ic.get_registry_data(sly_net_client_image_name)
     name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
 
     if name_with_digest.endswith(docker_hub_image_info.id):
@@ -135,5 +139,5 @@ def check_and_pull_sly_net_if_needed(
         return False
     else:
         logger.info("Found new version of sly-net-client. Pulling...")
-        sly.docker_utils._docker_pull_progress(dc, sly_net_hub_name, logger)
+        sly.docker_utils._docker_pull_progress(dc, sly_net_client_image_name, logger)
         return True
