@@ -125,7 +125,7 @@ class Agent:
             )
             self.logger.warn(
                 (
-                    "Probably you should reastart agent manually using instructions:"
+                    "Probably you should restart agent manually using instructions:"
                     "https://developer.supervisely.com/getting-started/connect-your-computer"
                 )
             )
