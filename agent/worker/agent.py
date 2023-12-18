@@ -25,18 +25,71 @@ warnings.filterwarnings(action="ignore", category=UserWarning)
 import torch
 
 from worker import constants
+from worker import agent_utils
 from worker.task_sly import TaskSly
 from worker.task_factory import create_task, is_task_type
 from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
-from worker.system_info import get_hw_info, get_self_docker_image_digest, get_gpu_info
+from worker.system_info import (
+    get_hw_info,
+    get_self_docker_image_digest,
+    get_gpu_info,
+    _get_self_container_idx,
+)
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
 from supervisely_lib._utils import _remove_sensitive_information
 
 
+class AgentRestarted(Exception):
+    pass
+
+
 class Agent:
     def __init__(self):
+        # ? Delete volumes that are not in updated volumes?
+        new_envs, new_volumes = agent_utils.updated_agent_env_params()
+        envs_changes = self._envs_changes(new_envs)
+        volumes_changes = self._volumes_changes(new_volumes)
+        if envs_changes or volumes_changes:
+            container_info = self._container_info()
+            envs = container_info.get("Config", {}).get("Env", [])
+            envs = agent_utils.envs_list_to_dict(envs)
+            envs.update(envs_changes)
+            envs = agent_utils.envs_dict_to_list(envs)
+            volumes = container_info.get("HostConfig", {}).get("Binds", [])
+            volumes = agent_utils.binds_to_volumes_dict(volumes)
+            volumes.update(new_volumes)
+            volumes = agent_utils.volumes_dict_to_binds(volumes)
+            sly.logger.info(
+                "Agent is restarting due to envs or volumes change",
+                extra={
+                    "envs_changes": {
+                        k: "hidden" if k in constants.SENSITIVE_SETTINGS else v
+                        for k, v in envs_changes.items()
+                    },
+                    "volumes_changes": volumes_changes,
+                },
+            )
+            self._restart(envs, volumes)
+            raise AgentRestarted("Agent is restarting due to envs or volumes change")
+        sly.logger.debug("No envs or volumes changes")
+
+        constants.init_constants()  # Set up the directories.
+        sly.add_default_logging_into_file(sly.logger, constants.AGENT_LOG_DIR())
+
+        sly.logger.info(f"Agent storage [host]: {constants.SUPERVISELY_AGENT_FILES()}")
+        sly.logger.info(
+            f"Agent storage [container]: {constants.SUPERVISELY_AGENT_FILES_CONTAINER()}"
+        )
+        sly.logger.info(f"Agent storage app data [host]: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
+        sly.logger.info(
+            f"Agent storage app data [container]: {constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()}"
+        )
+
+        sly.logger.info("Remove empty directories in agent storage...")
+        agent_utils.remove_empty_folders(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
+
         self.logger = sly.get_task_logger("agent")
         sly.change_formatters_default_values(self.logger, "service_type", sly.ServiceType.AGENT)
         sly.change_formatters_default_values(self.logger, "event_type", sly.EventType.LOGJ)
@@ -79,6 +132,101 @@ class Agent:
         )
         self.agent_connect_initially()
         self.logger.info("Agent connected to server.")
+
+    def _get_self_continer(self) -> Container:
+        container_id = _get_self_container_idx()
+        dc = docker.from_env()
+        return dc.containers.get(container_id)
+
+    def _container_info(self):
+        docker_inspect_cmd = "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/$(hostname)/json"
+        docker_img_info = subprocess.Popen(
+            [docker_inspect_cmd], shell=True, executable="/bin/bash", stdout=subprocess.PIPE
+        ).communicate()[0]
+        return json.loads(docker_img_info)
+
+    def _envs_changes(self, envs: dict) -> dict:
+        container_info = self._container_info()
+        container_envs = container_info.get("Config", {}).get("Env", [])
+        container_envs = agent_utils.envs_list_to_dict(container_envs)
+        changes = {}
+        for key, value in envs.items():
+            if key not in container_envs:
+                changes[key] = value
+            elif container_envs[key] != str(value):
+                changes[key] = value
+        return changes
+
+    def _volumes_changes(self, volumes) -> list:
+        container_info = self._container_info()
+        container_volumes = container_info.get("HostConfig", {}).get("Binds", [])
+        container_volumes = agent_utils.binds_to_volumes_dict(container_volumes)
+        changes = {}
+        for key, value in volumes.items():
+            if key not in container_volumes:
+                changes[key] = value
+            elif container_volumes[key]["bind"] != value["bind"]:
+                changes[key] = value
+        return changes
+
+    def _restart(self, envs: list = None, volumes: list = None):
+        docker_api = docker.from_env()
+        container_info = self._container_info()
+        if envs is None:
+            envs = container_info.get("Config", {}).get("Env", [])
+        if volumes is None:
+            volumes = container_info.get("HostConfig", {}).get("Binds", [])
+        cur_container_id = container_info["Id"]
+        envs.append(f"REMOVE_OLD_AGENT={cur_container_id}")
+        if "AGENT_RESTARTED=1" in envs:
+            raise (
+                RuntimeError(
+                    "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
+                )
+            )
+        envs.append("AGENT_RESTARTED=1")
+
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_container = None
+        for container in docker_api.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+
+        if sly_net_container is None:
+            sly.logger.warn(
+                "Something goes wrong: can't find sly-net-client attached to this agent"
+            )
+        else:
+            need_update = check_and_pull_sly_net_if_needed(
+                docker_api, sly_net_container, self.logger
+            )
+            if need_update is True:
+                envs.append("UPDATE_SLY_NET_AFTER_RESTART=1")
+            else:
+                envs.append("UPDATE_SLY_NET_AFTER_RESTART=0")
+
+        image = container_info["Config"]["Image"]
+        runtime = container_info["HostConfig"]["Runtime"]
+
+        container = docker_api.containers.run(
+            image,
+            runtime=runtime,
+            detach=True,
+            name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
+            remove=False,
+            restart_policy={"Name": "unless-stopped"},
+            volumes=volumes,
+            environment=envs,
+            stdin_open=False,
+            tty=False,
+        )
+        container.reload()
+        sly.logger.debug("After spawning. Container status: {}".format(str(container.status)))
+        sly.logger.info(
+            "Docker container is spawned",
+            extra={"container_id": container.id, "container_name": container.name},
+        )
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
@@ -133,9 +281,7 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update = check_and_pull_sly_net_if_needed(
-                    dc, sly_net_container, self.logger
-                )
+                need_update = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger)
 
         if need_update is False:
             return

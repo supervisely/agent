@@ -6,14 +6,35 @@ import shutil
 import queue
 import json
 import re
+import requests
 
 import supervisely_lib as sly
 
 from logging import Logger
-from typing import Callable, List, Optional, Union, Container
+from typing import Callable, List, Optional, Tuple, Union, Container
 from datetime import datetime, timedelta
 from pathlib import Path
 from worker import constants
+
+
+class AgentOptionsJsonFields:
+    AGENT_HOST_DIR = "agentDataHostDir"
+    DELETE_TASK_DIR_ON_FAILURE = "deleteTaskDirOnFailure"
+    DELETE_TASK_DIR_ON_FINISH = "deleteTaskDirOnFinish"
+    DOCKER_CREDS = "dockerCreds"
+    DOCKER_LOGIN = "login"
+    DOCKER_PASSWORD = "password"
+    DOCKER_REGISTRY = "registry"
+    SERVER_ADDRESS = "serverAddress"
+    SERVER_ADDRESS_INTERNAL = "serverAddressInternal"
+    SERVER_ADDRESS_EXTERNAL = "externalServerAddress"
+    OFFLINE_MODE = "offlineMode"
+    PULL_POLICY = "pullPolicy"
+    SUPERVISELY_AGENT_FILES = "slyAppsDataHostDir"
+    NO_PROXY = "noProxy"
+    MEM_LIMIT = "memLimit"
+    HTTP_PROXY = "httpProxy"
+    SECURITY_OPT = "securityOpts"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -381,3 +402,155 @@ def post_get_request_filter(msg: str, cur_level: int) -> int:
     if re.match(pattern, msg) is not None:
         return sly.LOGGING_LEVELS["DEBUG"].int
     return cur_level
+
+
+def envs_list_to_dict(envs_list: List[str]) -> dict:
+    envs_dict = {}
+    for env in envs_list:
+        env_name, env_value = env.split("=", maxsplit=1)
+        envs_dict[env_name] = env_value
+    return envs_dict
+
+
+def envs_dict_to_list(envs_dict: dict) -> List[str]:
+    envs_list = []
+    for env_name, env_value in envs_dict.items():
+        envs_list.append(f"{env_name}={env_value}")
+    return envs_list
+
+
+def binds_to_volumes_dict(binds: List[str]) -> dict:
+    volumes = {}
+    for bind in binds:
+        src, dst = bind.split(":")
+        volumes[src] = {"bind": dst, "mode": "rw"}
+    return volumes
+
+
+def volumes_dict_to_binds(volumes: dict) -> List[str]:
+    binds = []
+    for src, dst in volumes.items():
+        binds.append(f"{src}:{dst['bind']}")
+    return binds
+
+
+def get_agent_options(server_address=None, token=None, timeout=None) -> dict:
+    if server_address is None:
+        server_address = constants.SERVER_ADDRESS()
+    if token is None:
+        token = constants.TOKEN()
+    api_method = "agents.options.info"
+    url = os.path.join(server_address, "public", "api", "v3", api_method)
+    resp = requests.post(url=url, json={"token": token}, timeout=timeout)
+    if resp.status_code != requests.codes.ok:
+        try:
+            text = resp.text
+        except:
+            text = None
+        msg = f"Can't get agent options from server {server_address}."
+        if text is not None:
+            msg += f" Response: {text}"
+        raise RuntimeError(msg)
+    return resp.json()
+
+
+def remove_empty_folders(path):
+    if path is None:
+        return
+    if not os.path.isdir(path):
+        return
+
+    # remove empty subfolders
+    files = os.listdir(path)
+    if len(files):
+        for f in files:
+            fullpath = os.path.join(path, f)
+            if os.path.isdir(fullpath):
+                remove_empty_folders(fullpath)
+
+    # if folder empty, delete it
+    files = os.listdir(path)
+    if len(files) == 0 and os.path.normpath(path) != os.path.normpath(
+        constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()
+    ):
+        sly.logger.info(f"Removing empty folder: {path}")
+        os.rmdir(path)
+
+
+def updated_agent_env_params() -> Tuple[dict, int]:
+    env = {}
+
+    def maybe_update_env_param(name, value):
+        if not (value is None or value == ""):
+            env[name] = value
+
+    params = get_agent_options()
+    options: dict = params["options"]
+    ca_cert = params["caCert"]
+
+    maybe_update_env_param(
+        constants._AGENT_HOST_DIR, options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    )
+    maybe_update_env_param(
+        constants._DELETE_TASK_DIR_ON_FAILURE,
+        options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, None),
+    )
+    maybe_update_env_param(
+        constants._DELETE_TASK_DIR_ON_FINISH,
+        options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, None),
+    )
+
+    docker_cr = options.get(AgentOptionsJsonFields.DOCKER_CREDS, [])
+    docker_login = ",".join([cr[AgentOptionsJsonFields.DOCKER_LOGIN] for cr in docker_cr])
+    docker_pass = ",".join([cr[AgentOptionsJsonFields.DOCKER_PASSWORD] for cr in docker_cr])
+    docker_reg = ",".join([cr[AgentOptionsJsonFields.DOCKER_REGISTRY] for cr in docker_cr])
+    maybe_update_env_param(
+        constants._DOCKER_LOGIN,
+        docker_login,
+    )
+    maybe_update_env_param(constants._DOCKER_PASSWORD, docker_pass)
+    maybe_update_env_param(constants._DOCKER_REGISTRY, docker_reg)
+
+    # TODO: save all server addresses
+    server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS, None)
+    if server_address is None or server_address == "":
+        server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_INTERNAL, None)
+        try:
+            get_agent_options(server_address=server_address, timeout=4)
+        except:
+            server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_EXTERNAL, None)
+    maybe_update_env_param(constants._SERVER_ADDRESS, server_address)
+
+    maybe_update_env_param(
+        constants._OFFLINE_MODE, options.get(AgentOptionsJsonFields.OFFLINE_MODE, None)
+    )
+    maybe_update_env_param(
+        constants._PULL_POLICY, options.get(AgentOptionsJsonFields.PULL_POLICY, None)
+    )
+    maybe_update_env_param(constants._NO_PROXY, options.get(AgentOptionsJsonFields.NO_PROXY, None))
+    maybe_update_env_param(
+        constants._MEM_LIMIT, options.get(AgentOptionsJsonFields.MEM_LIMIT, None)
+    )
+    maybe_update_env_param(
+        constants._HTTP_PROXY, options.get(AgentOptionsJsonFields.HTTP_PROXY, None)
+    )
+    maybe_update_env_param(
+        constants._SECURITY_OPT, options.get(AgentOptionsJsonFields.SECURITY_OPT, None)
+    )
+    # DOCKER_IMAGE
+    # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
+
+    volumes = {}
+
+    def add_volume(src: str, dst: str) -> dict:
+        volumes[src] = {"bind": dst, "mode": "rw"}
+
+    add_volume("/var/run/docker.sock", "/var/run/docker.sock")
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    if agent_host_dir is not None and agent_host_dir != "":
+        add_volume(agent_host_dir, constants.AGENT_ROOT_DIR())
+    agent_files = options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None)
+    if agent_files is not None and agent_files != "":
+        add_volume(agent_files, constants.SUPERVISELY_AGENT_FILES_CONTAINER())
+
+    return env, volumes
