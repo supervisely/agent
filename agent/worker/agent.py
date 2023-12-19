@@ -152,14 +152,10 @@ class Agent:
         return json.loads(docker_img_info)
 
     def _envs_changes(self, envs: dict) -> dict:
-        container_info = self._container_info()
-        container_envs = container_info.get("Config", {}).get("Env", [])
-        container_envs = agent_utils.envs_list_to_dict(container_envs)
         changes = {}
         for key, value in envs.items():
-            if key not in container_envs:
-                changes[key] = value
-            elif container_envs[key] != str(value):
+            cur_value = os.environ.get(key, None)
+            if cur_value is None or cur_value != str(value):
                 changes[key] = value
         return changes
 
