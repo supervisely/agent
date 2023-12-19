@@ -35,6 +35,7 @@ from worker.system_info import (
     get_self_docker_image_digest,
     get_gpu_info,
     _get_self_container_idx,
+    print_nvsmi_devlist,
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
@@ -48,10 +49,11 @@ class AgentRestarted(Exception):
 class Agent:
     def __init__(self):
         # ? Delete volumes that are not in updated volumes?
+        restart_with_nvidia_runtime = self._nvidia_runtime_check()
         new_envs, new_volumes = agent_utils.updated_agent_env_params()
         envs_changes = self._envs_changes(new_envs)
         volumes_changes = self._volumes_changes(new_volumes)
-        if envs_changes or volumes_changes:
+        if envs_changes or volumes_changes or restart_with_nvidia_runtime:
             container_info = self._container_info()
             envs = container_info.get("Config", {}).get("Env", [])
             envs = agent_utils.envs_list_to_dict(envs)
@@ -61,19 +63,23 @@ class Agent:
             volumes = agent_utils.binds_to_volumes_dict(volumes)
             volumes.update(new_volumes)
             volumes = agent_utils.volumes_dict_to_binds(volumes)
+            runtime = (
+                "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
+            )
+
             sly.logger.info(
-                "Agent is restarting due to envs or volumes change",
+                "Agent is restarting due to envs, volumes or runtime change",
                 extra={
                     "envs_changes": {
                         k: "hidden" if k in constants.SENSITIVE_SETTINGS else v
                         for k, v in envs_changes.items()
                     },
                     "volumes_changes": volumes_changes,
+                    "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime},
                 },
             )
-            self._restart(envs, volumes)
-            raise AgentRestarted("Agent is restarting due to envs or volumes change")
-        sly.logger.debug("No envs or volumes changes")
+            self._restart(envs, volumes, runtime)
+            raise AgentRestarted("Agent is restarting due to envs, volumes or runtime change")
 
         constants.init_constants()  # Set up the directories.
         sly.add_default_logging_into_file(sly.logger, constants.AGENT_LOG_DIR())
@@ -169,7 +175,28 @@ class Agent:
                 changes[key] = value
         return changes
 
-    def _restart(self, envs: list = None, volumes: list = None):
+    def _nvidia_runtime_check(self):
+        container_info = self._container_info()
+        runtime = container_info["HostConfig"]["Runtime"]
+        if runtime == "nvidia":
+            return False
+        sly.logger.info("NVIDIA runtime is not enabled. Checking if it can be enabled...")
+        docker_api = docker.from_env()
+        image = constants.DEFAULT_APP_DOCKER_IMAGE()
+        try:
+            docker_api.containers.run(
+                image,
+                command="nvidia-smi",
+                runtime="nvidia",
+                remove=True,
+            )
+            sly.logger.info("NVIDIA runtime is available. Will restart Agent with NVIDIA runtime.")
+            return True
+        except Exception as e:
+            sly.logger.info("NVIDIA runtime is not available.")
+            return False
+
+    def _restart(self, envs: list = None, volumes: list = None, runtime: str = None):
         docker_api = docker.from_env()
         container_info = self._container_info()
         if envs is None:
@@ -207,7 +234,8 @@ class Agent:
                 envs.append("UPDATE_SLY_NET_AFTER_RESTART=0")
 
         image = container_info["Config"]["Image"]
-        runtime = container_info["HostConfig"]["Runtime"]
+        if runtime is None:
+            runtime = container_info["HostConfig"]["Runtime"]
 
         container = docker_api.containers.run(
             image,
