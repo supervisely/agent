@@ -454,29 +454,6 @@ def get_agent_options(server_address=None, token=None, timeout=None) -> dict:
     return resp.json()
 
 
-def remove_empty_folders(path):
-    if path is None:
-        return
-    if not os.path.isdir(path):
-        return
-
-    # remove empty subfolders
-    files = os.listdir(path)
-    if len(files):
-        for f in files:
-            fullpath = os.path.join(path, f)
-            if os.path.isdir(fullpath):
-                remove_empty_folders(fullpath)
-
-    # if folder empty, delete it
-    files = os.listdir(path)
-    if len(files) == 0 and os.path.normpath(path) != os.path.normpath(
-        constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()
-    ):
-        sly.logger.info(f"Removing empty folder: {path}")
-        os.rmdir(path)
-
-
 def updated_agent_options() -> Tuple[dict, int]:
     env = {}
 
@@ -485,8 +462,10 @@ def updated_agent_options() -> Tuple[dict, int]:
             env[name] = value
 
     params = get_agent_options()
-    options: dict = params["options"]
+    options: dict = params["agentOptions"]
     ca_cert = params["caCert"]
+    http_proxy = params.get("httpProxy", None)
+    no_proxy = params.get("noProxy", None)
 
     maybe_update_env_param(
         constants._AGENT_HOST_DIR, options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
@@ -527,16 +506,14 @@ def updated_agent_options() -> Tuple[dict, int]:
     maybe_update_env_param(
         constants._PULL_POLICY, options.get(AgentOptionsJsonFields.PULL_POLICY, None)
     )
-    maybe_update_env_param(constants._NO_PROXY, options.get(AgentOptionsJsonFields.NO_PROXY, None))
     maybe_update_env_param(
         constants._MEM_LIMIT, options.get(AgentOptionsJsonFields.MEM_LIMIT, None)
     )
     maybe_update_env_param(
-        constants._HTTP_PROXY, options.get(AgentOptionsJsonFields.HTTP_PROXY, None)
-    )
-    maybe_update_env_param(
         constants._SECURITY_OPT, options.get(AgentOptionsJsonFields.SECURITY_OPT, None)
     )
+    maybe_update_env_param(constants._HTTP_PROXY, http_proxy)
+    maybe_update_env_param(constants._NO_PROXY, no_proxy)
     # DOCKER_IMAGE
     # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
 

@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import json
 import os.path as osp
 import platform
 import subprocess
@@ -164,6 +165,16 @@ def _get_self_container_idx():
     #         if len(docker_split) == 2:
     #             return docker_split[1]
     # return ""
+
+
+def get_container_info():
+    docker_inspect_cmd = (
+        "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/$(hostname)/json"
+    )
+    docker_img_info = subprocess.Popen(
+        [docker_inspect_cmd], shell=True, executable="/bin/bash", stdout=subprocess.PIPE
+    ).communicate()[0]
+    return json.loads(docker_img_info)
 
 
 def _get_self_docker_image_digest():
