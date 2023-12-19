@@ -77,7 +77,7 @@ _DOCKER_NET = "DOCKER_NET"
 _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
 _SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
-_CROSS_AGENT_TMP_DIR = "CROSS_AGENT_TMP_DIR"
+_CROSS_AGENT_VOLUME_NAME = "CROSS_AGENT_VOLUME_NAME"
 _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS = "REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS"
 
 
@@ -117,7 +117,7 @@ _OPTIONAL_DEFAULTS = {
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
-    _CROSS_AGENT_TMP_DIR: None,
+    _CROSS_AGENT_VOLUME_NAME: "/tmp/supervisely-agents",
     _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS: 14,
 }
 
@@ -223,12 +223,13 @@ def AGENT_TMP_DIR():
 
 
 def CROSS_AGENT_TMP_DIR():
-    """default: None; usually /tmp/supervisely-agents"""
-    return read_optional_setting(_CROSS_AGENT_TMP_DIR)
+    """default: /tmp/supervisely-agents"""
+    return read_optional_setting(_CROSS_AGENT_VOLUME_NAME)
 
 
 def CROSS_AGENT_VOLUME_NAME():
-    return "supervisely_agents_volume"
+    """default: none, usually supervisely_agents_volume"""
+    return read_optional_setting(_CROSS_AGENT_VOLUME_NAME)
 
 
 def AGENT_IMPORT_DIR():
@@ -571,6 +572,6 @@ def init_constants():
                 REQUESTS_CA_BUNDLE(),
                 os.path.join(MOUNTED_REQUESTS_CA_BUNDLE_DIR(), filename),
             )
-    
+
     if CROSS_AGENT_TMP_DIR() is not None and not sly.fs.dir_exists(CROSS_AGENT_TMP_DIR()):
         sly.fs.mkdir(CROSS_AGENT_TMP_DIR())
