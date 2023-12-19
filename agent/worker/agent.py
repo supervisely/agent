@@ -109,6 +109,8 @@ class Agent:
         self.executor_log = ThreadPoolExecutor(max_workers=1)
         self.future_log = None
 
+        self._start_net_client()
+
         self.logger.info("Agent comes back...")
 
         self.task_pool_lock = threading.Lock()
@@ -297,6 +299,66 @@ class Agent:
             f.write(ca_cert)
         os.environ["SLY_EXTRA_CA_CERTS"] = cert_path
         return True
+
+    def _start_net_client(self, docker_api=None):
+        if docker_api is None:
+            docker_api = docker.from_env()
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_container = None
+
+        for container in docker_api.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+        if sly_net_container is None:
+            try:
+                network = "supervisely-net-{}".format(constants.TOKEN())
+                image = "supervisely/sly-net-client:latest"
+                command = [
+                    constants.TOKEN(),
+                    f"{constants.SERVER_ADDRESS().rstrip('/')}/net/",
+                    "dev.supervisely.com:51822",  # ?
+                ]
+                envs = ["SLY_NET_CLIENT_PING_INTERVAL=60", "TRUST_DOWNSTREAM_PROXY=true"]
+                volumes = [
+                    "/var/run/docker.sock:/var/run/docker.sock",
+                    f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
+                    f"{constants.SUPERVISELY_AGENT_FILES()}:{constants.SUPERVISELY_AGENT_FILES_CONTAINER()}",
+                ]
+                log_config = LogConfig(
+                    type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
+                )
+
+                if len(docker_api.networks.list(names=[network])):
+                    try:
+                        docker_api.networks.get(network).remove()
+                    except:
+                        sly.logger.debug("Can not remove network", exc_info=True)
+                docker_api.networks.create(network)
+                docker_api.containers.run(
+                    image=image,
+                    name=net_container_name,
+                    command=command,
+                    network=network,
+                    cap_add="NET_ADMIN",
+                    volumes=volumes,
+                    privileged=True,
+                    restart_policy={"Name": "always", "MaximumRetryCount": 0},
+                    environment=envs,
+                    log_config=log_config,
+                    devices=["/dev/net/tun:/dev/net/tun"],
+                    detach=True,
+                )
+                self.logger.info("Sly-net-client is started")
+            except:
+                self.logger.debug("Sly-net-client is not started", exc_info=True)
+                self.logger.warn("Something goes wrong: can not start sly-net-client")
+                self.logger.warn(
+                    (
+                        "Probably you should restart agent manually using instructions:"
+                        "https://developer.supervisely.com/getting-started/connect-your-computer"
+                    )
+                )
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = os.getenv("UPDATE_SLY_NET_AFTER_RESTART", None)
