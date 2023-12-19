@@ -39,7 +39,7 @@ from worker.system_info import (
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
-from supervisely_lib._utils import _remove_sensitive_information
+from supervisely_lib._utils import _remove_sensitive_information, setup_certificates
 
 
 class AgentRestarted(Exception):
@@ -50,10 +50,11 @@ class Agent:
     def __init__(self):
         # ? Delete volumes that are not in updated volumes?
         restart_with_nvidia_runtime = self._nvidia_runtime_check()
-        new_envs, new_volumes = agent_utils.updated_agent_env_params()
+        new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
+        ca_cert_changed = self._ca_cert_changed(ca_cert)
         envs_changes = self._envs_changes(new_envs)
         volumes_changes = self._volumes_changes(new_volumes)
-        if envs_changes or volumes_changes or restart_with_nvidia_runtime:
+        if envs_changes or volumes_changes or restart_with_nvidia_runtime or ca_cert_changed:
             container_info = self._container_info()
             envs = container_info.get("Config", {}).get("Env", [])
             envs = agent_utils.envs_list_to_dict(envs)
@@ -68,7 +69,7 @@ class Agent:
             )
 
             sly.logger.info(
-                "Agent is restarting due to envs, volumes or runtime change",
+                "Agent is restarting options change",
                 extra={
                     "envs_changes": {
                         k: "hidden" if k in constants.SENSITIVE_SETTINGS else v
@@ -76,10 +77,11 @@ class Agent:
                     },
                     "volumes_changes": volumes_changes,
                     "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime},
+                    "ca_cert_changed": ca_cert_changed,
                 },
             )
             self._restart(envs, volumes, runtime)
-            raise AgentRestarted("Agent is restarting due to envs, volumes or runtime change")
+            raise AgentRestarted("Agent is restarting due to options change")
 
         constants.init_constants()  # Set up the directories.
         sly.add_default_logging_into_file(sly.logger, constants.AGENT_LOG_DIR())
@@ -201,13 +203,18 @@ class Agent:
             volumes = container_info.get("HostConfig", {}).get("Binds", [])
         cur_container_id = container_info["Id"]
         envs.append(f"REMOVE_OLD_AGENT={cur_container_id}")
-        if "AGENT_RESTARTED=1" in envs:
+        restart_n = 0
+        for env in envs:
+            if env.startswith("AGENT_RESTARTED="):
+                restart_n = int(env.split("=")[1])
+                break
+        if restart_n >= 3:
             raise (
                 RuntimeError(
                     "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
                 )
             )
-        envs.append("AGENT_RESTARTED=1")
+        envs.append(f"AGENT_RESTARTED={restart_n + 1}")
 
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
         sly_net_container = None
@@ -277,6 +284,19 @@ class Agent:
                 "Several agents with the same token are running. Please, kill them or contact support."
             )
         agent_same_token[0].rename(agent_name_start)
+
+    def _ca_cert_changed(self, ca_cert):
+        if ca_cert is None:
+            return False
+        cert_path = os.path.join(constants.HOST_DIR(), "certs", "instance_ca_chain.crt")
+        with open(cert_path, "r") as f:
+            cur_cert = f.read()
+            if cur_cert == ca_cert:
+                return False
+        with open(cert_path, "w") as f:
+            f.write(ca_cert)
+        os.environ["SLY_EXTRA_CA_CERTS"] = cert_path
+        return True
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = os.getenv("UPDATE_SLY_NET_AFTER_RESTART", None)

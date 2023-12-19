@@ -477,7 +477,7 @@ def remove_empty_folders(path):
         os.rmdir(path)
 
 
-def updated_agent_env_params() -> Tuple[dict, int]:
+def updated_agent_options() -> Tuple[dict, int]:
     env = {}
 
     def maybe_update_env_param(name, value):
@@ -553,4 +553,4 @@ def updated_agent_env_params() -> Tuple[dict, int]:
     if agent_files is not None and agent_files != "":
         add_volume(agent_files, constants.SUPERVISELY_AGENT_FILES_CONTAINER())
 
-    return env, volumes
+    return env, volumes, ca_cert
