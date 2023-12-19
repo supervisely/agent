@@ -18,6 +18,7 @@ from worker import constants
 
 
 class AgentOptionsJsonFields:
+    AGENT_OPTIONS = "agentOptions"
     AGENT_HOST_DIR = "agentDataHostDir"
     DELETE_TASK_DIR_ON_FAILURE = "deleteTaskDirOnFailure"
     DELETE_TASK_DIR_ON_FINISH = "deleteTaskDirOnFinish"
@@ -35,6 +36,9 @@ class AgentOptionsJsonFields:
     MEM_LIMIT = "memLimit"
     HTTP_PROXY = "httpProxy"
     SECURITY_OPT = "securityOpts"
+    NET_OPTIONS = "netClientOptions"
+    NET_CLIENT_DOCKER_IMAGE = "dockerImage"
+    NET_SERVER_PORT = "netServerPort"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -462,7 +466,8 @@ def updated_agent_options() -> Tuple[dict, int]:
             env[name] = value
 
     params = get_agent_options()
-    options: dict = params["agentOptions"]
+    options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
+    net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
     ca_cert = params["caCert"]
     http_proxy = params.get("httpProxy", None)
     no_proxy = params.get("noProxy", None)
@@ -516,6 +521,14 @@ def updated_agent_options() -> Tuple[dict, int]:
     maybe_update_env_param(constants._NO_PROXY, no_proxy)
     # DOCKER_IMAGE
     # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
+
+    maybe_update_env_param(
+        constants._NET_CLIENT_DOCKER_IMAGE,
+        net_options.get(AgentOptionsJsonFields.NET_CLIENT_DOCKER_IMAGE, None),
+    )
+    maybe_update_env_param(
+        constants._NET_SERVER_PORT, net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None)
+    )
 
     volumes = {}
 

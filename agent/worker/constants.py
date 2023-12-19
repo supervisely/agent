@@ -79,6 +79,8 @@ _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
 _SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
 
+_NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
+_NET_SERVER_PORT = "NET_SERVER_PORT"
 
 _OPTIONAL_DEFAULTS = {
     _WITH_LOCAL_STORAGE: "true",
@@ -117,6 +119,7 @@ _OPTIONAL_DEFAULTS = {
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
+    _NET_CLIENT_DOCKER_IMAGE: "supervisely/sly-net-client:latest",
 }
 
 
@@ -533,6 +536,15 @@ def SECURITY_OPT():
 
 def SLY_APPS_DOCKER_REGISTRY():
     return read_optional_setting(_SLY_APPS_DOCKER_REGISTRY)
+
+
+def NET_CLIENT_DOCKER_IMAGE():
+    """defaul: supervisely/sly-net-client:latest"""
+    return read_optional_setting(_NET_CLIENT_DOCKER_IMAGE)
+
+
+def NET_SERVER_PORT():
+    return os.environ.get(_NET_SERVER_PORT, None)
 
 
 def init_constants():

@@ -62,31 +62,6 @@ def remove_empty_folders(path):
         os.rmdir(path)
 
 
-def main(args):
-    sly.logger.info(
-        "ENVS",
-        extra={
-            key: "hidden" if key in constants.SENSITIVE_SETTINGS else value
-            for key, value in args.items()
-        },
-    )
-
-    sly.logger.info(f"Agent storage [host]: {constants.SUPERVISELY_AGENT_FILES()}")
-    sly.logger.info(f"Agent storage [container]: {constants.SUPERVISELY_AGENT_FILES_CONTAINER()}")
-    sly.logger.info(f"Agent storage app data [host]: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
-    sly.logger.info(
-        f"Agent storage app data [container]: {constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()}"
-    )
-
-    sly.logger.info("Remove empty directories in agent storage...")
-    remove_empty_folders(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
-
-    _start_net_client()
-    agent = Agent()
-    agent.inf_loop()
-    agent.wait_all()
-
-
 def _start_net_client(docker_api=None):
     if docker_api is None:
         docker_api = docker.from_env()
@@ -101,11 +76,14 @@ def _start_net_client(docker_api=None):
         try:
             sly.logger.info("Starting sly-net-client...")
             network = "supervisely-net-{}".format(constants.TOKEN())
-            image = "supervisely/sly-net-client:latest"
+            image = constants.NET_CLIENT_DOCKER_IMAGE()
+            net_server_port = constants.NET_SERVER_PORT()
+            if net_server_port is None:
+                raise RuntimeError("NET_SERVER_PORT is not defined")
             command = [
                 constants.TOKEN(),
-                f"{constants.SERVER_ADDRESS().rstrip('/')}/net/",
-                "dev.supervisely.com:51822",  # ?
+                os.path.join(constants.SERVER_ADDRESS(), "net/"),
+                f"{constants.SERVER_ADDRESS().rstrip('/').lstrip('https://').lstrip('http://')}:{net_server_port}",
             ]
             envs = ["SLY_NET_CLIENT_PING_INTERVAL=60", "TRUST_DOWNSTREAM_PROXY=true"]
             volumes = [
@@ -205,6 +183,31 @@ def _ca_cert_changed(ca_cert):
         f.write(ca_cert)
     os.environ["SLY_EXTRA_CA_CERTS"] = cert_path
     return True
+
+
+def main(args):
+    sly.logger.info(
+        "ENVS",
+        extra={
+            key: "hidden" if key in constants.SENSITIVE_SETTINGS else value
+            for key, value in args.items()
+        },
+    )
+
+    sly.logger.info(f"Agent storage [host]: {constants.SUPERVISELY_AGENT_FILES()}")
+    sly.logger.info(f"Agent storage [container]: {constants.SUPERVISELY_AGENT_FILES_CONTAINER()}")
+    sly.logger.info(f"Agent storage app data [host]: {constants.SUPERVISELY_SYNCED_APP_DATA()}")
+    sly.logger.info(
+        f"Agent storage app data [container]: {constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()}"
+    )
+
+    sly.logger.info("Remove empty directories in agent storage...")
+    remove_empty_folders(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
+
+    _start_net_client()
+    agent = Agent()
+    agent.inf_loop()
+    agent.wait_all()
 
 
 def init_envs():
