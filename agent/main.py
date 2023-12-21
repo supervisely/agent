@@ -95,12 +95,8 @@ def _start_net_client(docker_api=None):
                 type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
             )
 
-            if len(docker_api.networks.list(names=[network])):
-                try:
-                    docker_api.networks.get(network).remove()
-                except:
-                    sly.logger.debug("Can not remove network", exc_info=True)
-            docker_api.networks.create(network)
+            if len(docker_api.networks.list(names=[network])) == 0:
+                docker_api.networks.create(network)
             docker_api.containers.run(
                 image=image,
                 name=net_container_name,
@@ -173,16 +169,17 @@ def _nvidia_runtime_check():
 
 def _ca_cert_changed(ca_cert):
     if ca_cert is None:
-        return False
+        return None
     cert_path = os.path.join(constants.HOST_DIR(), "certs", "instance_ca_chain.crt")
-    with open(cert_path, "r") as f:
-        cur_cert = f.read()
-        if cur_cert == ca_cert:
-            return False
+    cur_path = os.environ.get("SLY_CA_CERT_PATH", None)
+    if cert_path == cur_path:
+        if os.path.exists(cert_path):
+            with open(cert_path, "r") as f:
+                if f.read() == ca_cert:
+                    return None
     with open(cert_path, "w") as f:
         f.write(ca_cert)
-    os.environ["SLY_EXTRA_CA_CERTS"] = cert_path
-    return True
+    return cert_path
 
 
 def main(args):
@@ -218,14 +215,16 @@ def init_envs():
         sly.logger.warn("Can not update agent options. Agent will be started with current options")
         return
     restart_with_nvidia_runtime = _nvidia_runtime_check()
-    ca_cert_changed = _ca_cert_changed(ca_cert)
+    new_ca_cert_path = _ca_cert_changed(ca_cert)
     envs_changes = _envs_changes(new_envs)
     volumes_changes = _volumes_changes(new_volumes)
-    if envs_changes or volumes_changes or restart_with_nvidia_runtime or ca_cert_changed:
+    if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
         container_info = get_container_info()
         envs = container_info.get("Config", {}).get("Env", [])
         envs = agent_utils.envs_list_to_dict(envs)
-        envs.update(envs_changes)
+        envs.update(new_envs)
+        if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
+            envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
         envs = agent_utils.envs_dict_to_list(envs)
         volumes = agent_utils.volumes_dict_to_binds(new_volumes)
         runtime = (
@@ -241,12 +240,14 @@ def init_envs():
                 },
                 "volumes_changes": volumes_changes,
                 "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime},
-                "ca_cert_changed": ca_cert_changed,
+                "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        Agent._restart(envs, volumes, runtime)
-    for key, val in envs_changes.items():
-        os.environ[key] = str(val)
+        success = Agent._restart(envs, volumes, runtime)
+        if success:
+            sly.logger.info("Agent is restarted successfully. This container will be removed.")
+        else:
+            sly.logger.warn("Could not restart agent. Agent will be started with current options")
 
 
 if __name__ == "__main__":

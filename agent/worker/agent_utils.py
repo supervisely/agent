@@ -461,39 +461,49 @@ def get_agent_options(server_address=None, token=None, timeout=None) -> dict:
 def updated_agent_options() -> Tuple[dict, int]:
     env = {}
 
-    def maybe_update_env_param(name, value):
-        if not (value is None or value == ""):
-            env[name] = value
+    def update_env_param(name, value, default=None):
+        if value is None or value == "":
+            if name in constants.get_required_settings():
+                raise RuntimeError(f'Required option "{name}" is empty.')
+            value = default
+        env[name] = value
 
     params = get_agent_options()
     options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
     net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
     ca_cert = params["caCert"]
     http_proxy = params.get("httpProxy", None)
-    no_proxy = params.get("noProxy", None)
+    no_proxy = params.get("noProxy", constants.NO_PROXY())
 
-    maybe_update_env_param(
-        constants._AGENT_HOST_DIR, options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    update_env_param(
+        constants._AGENT_HOST_DIR,
+        agent_host_dir,
     )
-    maybe_update_env_param(
+    update_env_param(
         constants._DELETE_TASK_DIR_ON_FAILURE,
         options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, None),
+        constants.DELETE_TASK_DIR_ON_FAILURE(),
     )
-    maybe_update_env_param(
+    update_env_param(
         constants._DELETE_TASK_DIR_ON_FINISH,
         options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, None),
+        constants.DELETE_TASK_DIR_ON_FINISH(),
     )
 
     docker_cr = options.get(AgentOptionsJsonFields.DOCKER_CREDS, [])
     docker_login = ",".join([cr[AgentOptionsJsonFields.DOCKER_LOGIN] for cr in docker_cr])
     docker_pass = ",".join([cr[AgentOptionsJsonFields.DOCKER_PASSWORD] for cr in docker_cr])
     docker_reg = ",".join([cr[AgentOptionsJsonFields.DOCKER_REGISTRY] for cr in docker_cr])
-    maybe_update_env_param(
+    update_env_param(
         constants._DOCKER_LOGIN,
         docker_login,
     )
-    maybe_update_env_param(constants._DOCKER_PASSWORD, docker_pass)
-    maybe_update_env_param(constants._DOCKER_REGISTRY, docker_reg)
+    update_env_param(
+        constants._DOCKER_PASSWORD,
+        docker_pass,
+    )
+    update_env_param(constants._DOCKER_REGISTRY, docker_reg)
 
     # TODO: save all server addresses
     server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS, None)
@@ -503,31 +513,46 @@ def updated_agent_options() -> Tuple[dict, int]:
             get_agent_options(server_address=server_address, timeout=4)
         except:
             server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_EXTERNAL, None)
-    maybe_update_env_param(constants._SERVER_ADDRESS, server_address)
+    update_env_param(
+        constants._SERVER_ADDRESS,
+        server_address,
+    )
 
-    maybe_update_env_param(
-        constants._OFFLINE_MODE, options.get(AgentOptionsJsonFields.OFFLINE_MODE, None)
+    update_env_param(
+        constants._OFFLINE_MODE,
+        options.get(AgentOptionsJsonFields.OFFLINE_MODE, None),
+        constants.OFFLINE_MODE(),
     )
-    maybe_update_env_param(
-        constants._PULL_POLICY, options.get(AgentOptionsJsonFields.PULL_POLICY, None)
+    update_env_param(
+        constants._PULL_POLICY,
+        options.get(AgentOptionsJsonFields.PULL_POLICY, None),
+        constants.PULL_POLICY(),
     )
-    maybe_update_env_param(
-        constants._MEM_LIMIT, options.get(AgentOptionsJsonFields.MEM_LIMIT, None)
+    update_env_param(
+        constants._MEM_LIMIT,
+        options.get(AgentOptionsJsonFields.MEM_LIMIT, None),
+        constants.MEM_LIMIT(),
     )
-    maybe_update_env_param(
-        constants._SECURITY_OPT, options.get(AgentOptionsJsonFields.SECURITY_OPT, None)
+    update_env_param(
+        constants._SECURITY_OPT,
+        options.get(AgentOptionsJsonFields.SECURITY_OPT, None),
+        constants.SECURITY_OPT(),
     )
-    maybe_update_env_param(constants._HTTP_PROXY, http_proxy)
-    maybe_update_env_param(constants._NO_PROXY, no_proxy)
+    update_env_param(constants._HTTP_PROXY, http_proxy, constants.HTTP_PROXY())
+    update_env_param(constants._HTTPS_PROXY, http_proxy, constants.HTTPS_PROXY())
+    update_env_param(constants._NO_PROXY, no_proxy, constants.NO_PROXY())
     # DOCKER_IMAGE
     # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
 
-    maybe_update_env_param(
+    update_env_param(
         constants._NET_CLIENT_DOCKER_IMAGE,
         net_options.get(AgentOptionsJsonFields.NET_CLIENT_DOCKER_IMAGE, None),
+        constants.NET_CLIENT_DOCKER_IMAGE(),
     )
-    maybe_update_env_param(
-        constants._NET_SERVER_PORT, net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None)
+    update_env_param(
+        constants._NET_SERVER_PORT,
+        net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None),
+        None,
     )
 
     volumes = {}
@@ -536,11 +561,9 @@ def updated_agent_options() -> Tuple[dict, int]:
         volumes[src] = {"bind": dst, "mode": "rw"}
 
     add_volume("/var/run/docker.sock", "/var/run/docker.sock")
-    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
-    if agent_host_dir is not None and agent_host_dir != "":
-        add_volume(agent_host_dir, constants.AGENT_ROOT_DIR())
-    agent_files = options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None)
-    if agent_files is not None and agent_files != "":
-        add_volume(agent_files, constants.SUPERVISELY_AGENT_FILES_CONTAINER())
+    add_volume(env[constants._AGENT_HOST_DIR], constants.AGENT_ROOT_DIR())
+    add_volume(
+        env[constants._SUPERVISELY_AGENT_FILES], constants.SUPERVISELY_AGENT_FILES_CONTAINER()
+    )
 
     return env, volumes, ca_cert
