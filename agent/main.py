@@ -127,7 +127,7 @@ def _envs_changes(envs: dict) -> dict:
     changes = {}
     for key, value in envs.items():
         cur_value = os.environ.get(key, None)
-        if cur_value is None or cur_value != str(value):
+        if cur_value is None or cur_value != agent_utils.value_to_str(value):
             changes[key] = value
     return changes
 
@@ -220,12 +220,9 @@ def init_envs():
     volumes_changes = _volumes_changes(new_volumes)
     if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
         container_info = get_container_info()
-        envs = container_info.get("Config", {}).get("Env", [])
-        envs = agent_utils.envs_list_to_dict(envs)
-        envs.update(new_envs)
         if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
-            envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
-        envs = agent_utils.envs_dict_to_list(envs)
+            new_envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
+        envs = agent_utils.envs_dict_to_list(new_envs)
         volumes = agent_utils.volumes_dict_to_binds(new_volumes)
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]

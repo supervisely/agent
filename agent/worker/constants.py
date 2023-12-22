@@ -78,7 +78,6 @@ _DOCKER_NET = "DOCKER_NET"
 _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
 _SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
-_AGENT_STARTED = "AGENT_STARTED"
 
 _NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
 _NET_SERVER_PORT = "NET_SERVER_PORT"
@@ -121,7 +120,6 @@ _OPTIONAL_DEFAULTS = {
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
     _NET_CLIENT_DOCKER_IMAGE: "supervisely/sly-net-client:latest",
-    _AGENT_STARTED: 0,
 }
 
 
@@ -141,7 +139,7 @@ def read_optional_setting(name):
 
 
 def HOST_DIR():
-    """{agent root host dir}; default '~/.supervisely-agent'"""
+    """{agent root host dir}; can be a named volume; default (named volume): 'supervisely-agent-###'"""
     return os.environ[_AGENT_HOST_DIR]
 
 
@@ -549,12 +547,7 @@ def NET_SERVER_PORT():
     return os.environ.get(_NET_SERVER_PORT, None)
 
 
-def AGENT_STARTED():
-    return int(read_optional_setting(_AGENT_STARTED))
-
-
 def init_constants():
-    os.environ[_AGENT_STARTED] = "0"
     sly.fs.mkdir(AGENT_LOG_DIR())
     sly.fs.mkdir(AGENT_TASKS_DIR())
     sly.fs.mkdir(AGENT_TASK_SHARED_DIR())

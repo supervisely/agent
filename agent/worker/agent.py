@@ -88,7 +88,7 @@ class Agent:
         self._started()
 
     def _started(self):
-        with open(os.path.join(constants.AGENT_TMP_DIR(), "state"), "w") as f:
+        with open(os.path.join(constants.AGENT_TMP_DIR(), "state.txt"), "w") as f:
             f.write("1")
 
     @classmethod
@@ -160,14 +160,16 @@ class Agent:
         for _ in range(wait_time):
             container.reload()
             if container.status == "running":
-                status_code, started = container.exec_run(f"cat ${os.path.join(constants.AGENT_TMP_DIR(), 'state')}")
+                status_code, started = container.exec_run(
+                    f"cat ${os.path.join(constants.AGENT_TMP_DIR(), 'state')}"
+                )
                 if status_code and started.decode("utf-8") == "1":
                     return True
             time.sleep(1)
         sly.logger.info(f"Could not start agent in {wait_time} seconds. Restart unsuccessful.")
         sly.logger.info("Killing container...")
         container.stop()
-        container.remove()
+        container.remove(force=True)
         return False
 
     def _remove_old_agent(self):

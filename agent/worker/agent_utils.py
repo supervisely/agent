@@ -7,6 +7,7 @@ import queue
 import json
 import re
 import requests
+import docker
 
 import supervisely_lib as sly
 
@@ -27,7 +28,7 @@ class AgentOptionsJsonFields:
     DOCKER_PASSWORD = "password"
     DOCKER_REGISTRY = "registry"
     SERVER_ADDRESS = "serverAddress"
-    SERVER_ADDRESS_INTERNAL = "serverAddressInternal"
+    SERVER_ADDRESS_INTERNAL = "internalServerAddress"
     SERVER_ADDRESS_EXTERNAL = "externalServerAddress"
     OFFLINE_MODE = "offlineMode"
     PULL_POLICY = "pullPolicy"
@@ -408,18 +409,40 @@ def post_get_request_filter(msg: str, cur_level: int) -> int:
     return cur_level
 
 
+def value_to_str(value):
+    if isinstance(value, list):
+        return ",".join(value)
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
+def str_to_value(value_str):
+    if value_str == "":
+        return None
+    if value_str == "true":
+        return True
+    if value_str == "false":
+        return False
+    if "," in value_str:
+        return value_str.split(",")
+    return value_str
+
+
 def envs_list_to_dict(envs_list: List[str]) -> dict:
     envs_dict = {}
     for env in envs_list:
         env_name, env_value = env.split("=", maxsplit=1)
-        envs_dict[env_name] = env_value
+        envs_dict[env_name] = str_to_value(env_value)
     return envs_dict
 
 
 def envs_dict_to_list(envs_dict: dict) -> List[str]:
     envs_list = []
     for env_name, env_value in envs_dict.items():
-        envs_list.append(f"{env_name}={env_value}")
+        envs_list.append(f"{env_name}={value_to_str(env_value)}")
     return envs_list
 
 
@@ -475,10 +498,11 @@ def updated_agent_options() -> Tuple[dict, int]:
     http_proxy = params.get("httpProxy", None)
     no_proxy = params.get("noProxy", constants.NO_PROXY())
 
-    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    update_env_param(constants._ACCESS_TOKEN, constants.TOKEN())
     update_env_param(
-        constants._AGENT_HOST_DIR,
-        agent_host_dir,
+        constants._SUPERVISELY_AGENT_FILES,
+        options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None),
+        constants.SUPERVISELY_AGENT_FILES(),
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FAILURE,
@@ -508,10 +532,10 @@ def updated_agent_options() -> Tuple[dict, int]:
     # TODO: save all server addresses
     server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS, None)
     if server_address is None or server_address == "":
-        server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_INTERNAL, None)
+        server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_INTERNAL, "")
         try:
             get_agent_options(server_address=server_address, timeout=4)
-        except:
+        except Exception as e:
             server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_EXTERNAL, None)
     update_env_param(
         constants._SERVER_ADDRESS,
@@ -555,13 +579,20 @@ def updated_agent_options() -> Tuple[dict, int]:
         None,
     )
 
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    if agent_host_dir is None or agent_host_dir == "":
+        agent_host_dir = f"supervisely-agent-{constants.TOKEN()}"
+        docker_api = docker.from_env()
+        docker_api.volumes.create(agent_host_dir)
+    update_env_param(constants._AGENT_HOST_DIR, agent_host_dir, None)
+
     volumes = {}
 
     def add_volume(src: str, dst: str) -> dict:
         volumes[src] = {"bind": dst, "mode": "rw"}
 
+    add_volume(agent_host_dir, constants.AGENT_ROOT_DIR())
     add_volume("/var/run/docker.sock", "/var/run/docker.sock")
-    add_volume(env[constants._AGENT_HOST_DIR], constants.AGENT_ROOT_DIR())
     add_volume(
         env[constants._SUPERVISELY_AGENT_FILES], constants.SUPERVISELY_AGENT_FILES_CONTAINER()
     )
