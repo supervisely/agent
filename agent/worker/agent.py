@@ -85,11 +85,6 @@ class Agent:
         )
         self.agent_connect_initially()
         self.logger.info("Agent connected to server.")
-        self._started()
-
-    def _started(self):
-        with open(os.path.join(constants.AGENT_TMP_DIR(), "state.txt"), "w") as f:
-            f.write("1")
 
     @classmethod
     def _restart(cls, envs: list = None, volumes: list = None, runtime: str = None):
@@ -156,20 +151,7 @@ class Agent:
             "Docker container is spawned",
             extra={"container_id": container.id, "container_name": container.name},
         )
-        wait_time = 30
-        for _ in range(wait_time):
-            container.reload()
-            if container.status == "running":
-                status_code, started = container.exec_run(
-                    f"cat ${os.path.join(constants.AGENT_TMP_DIR(), 'state')}"
-                )
-                if status_code and started.decode("utf-8") == "1":
-                    return True
-            time.sleep(1)
-        sly.logger.info(f"Could not start agent in {wait_time} seconds. Restart unsuccessful.")
-        sly.logger.info("Killing container...")
-        container.stop()
-        container.remove(force=True)
+        os.environ["RESTARTED_AGENT_ID"] = container.id
         return False
 
     def _remove_old_agent(self):
@@ -178,12 +160,6 @@ class Agent:
             return
 
         dc = docker.from_env()
-        try:
-            old_agent: Container = dc.containers.get(container_id)
-        except docker.errors.NotFound:
-            return
-
-        old_agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
@@ -271,7 +247,8 @@ class Agent:
         agent_same_token = []
         for cont in dc.containers.list():
             if "supervisely-agent-{}".format(constants.TOKEN()) in cont.name:
-                agent_same_token.append(cont)
+                if cont.id != os.getenv("RESTARTED_AGENT_ID", None):
+                    agent_same_token.append(cont)
         if len(agent_same_token) > 1:
             raise RuntimeError("Agent with the same token already exists.")
 
