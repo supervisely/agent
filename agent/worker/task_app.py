@@ -344,29 +344,14 @@ class TaskApp(TaskDockerized):
                 "mode": "rw",
             }
 
-            # ! DEBUG SECTION!
-
-            self.logger.info("Printing info...")
-            for key, value in self.info.items():
-                self.logger.info(f"{key}: {value}")
-            self.logger.info("Finished printing info")
-
             context = self.info.get("context", {})
-            spawn_api_token = context.get("spawnApiToken")
-            self.logger.info(f"spawn_api_key: {spawn_api_token}")
-
-            if spawn_api_token is not None:
-                api_token = spawn_api_token
-                self.logger.info(
-                    "Spawn api token is found in env variables, will be used to update meta"
-                )
-            else:
-                api_token = self.info["api_token"]
-                self.logger.info(
-                    "Spawn api token is not found in env variables, using default api token"
-                )
-
-            # ! END DEBUG SECTION!
+            # spawnApiToken - is a token of user, that spawned application.
+            # apiToken - is a token of user for which application was spawned.
+            # It's important to use spawnApiToken, because the application can be spawned
+            # by user with higher permissions, than current user (e.g. annotator).
+            # For example, if we'lll use annotator's token, we'll get 403 error, when
+            # trying to update task meta, since the annotator doesn't have enough permissions.
+            api_token = context.get("spawnApiToken") or self.info["api_token"]
 
             api = sly.Api(self.info["server_address"], api_token)
             api.task.update_meta(
