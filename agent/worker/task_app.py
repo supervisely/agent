@@ -346,11 +346,12 @@ class TaskApp(TaskDockerized):
 
             # ! DEBUG SECTION!
 
-            self.logger.info("Printing env variables...")
-            for key, value in os.environ.items():
+            self.logger.info("Printing info...")
+            for key, value in self.info.items():
                 self.logger.info(f"{key}: {value}")
+            self.logger.info("Finished printing info")
 
-            spawn_api_token = os.environ.get("context.spawnApiToken")
+            spawn_api_token = self.info.get("context.spawnApiToken")
             self.logger.info(f"spawn_api_key: {spawn_api_token}")
 
             if spawn_api_token is not None:
