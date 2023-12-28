@@ -351,7 +351,8 @@ class TaskApp(TaskDockerized):
                 self.logger.info(f"{key}: {value}")
             self.logger.info("Finished printing info")
 
-            spawn_api_token = self.info.get("context.spawnApiToken")
+            context = self.info.get("context", {})
+            spawn_api_token = context.get("spawnApiToken")
             self.logger.info(f"spawn_api_key: {spawn_api_token}")
 
             if spawn_api_token is not None:
