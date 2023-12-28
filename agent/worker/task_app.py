@@ -344,7 +344,29 @@ class TaskApp(TaskDockerized):
                 "mode": "rw",
             }
 
-            api = sly.Api(self.info["server_address"], self.info["api_token"])
+            # ! DEBUG SECTION!
+
+            self.logger.info("Printing env variables...")
+            for key, value in os.environ.items():
+                self.logger.info(f"{key}: {value}")
+
+            spawn_api_token = os.environ.get("context.spawnApiToken")
+            self.logger.info(f"spawn_api_key: {spawn_api_token}")
+
+            if spawn_api_token is not None:
+                api_token = spawn_api_token
+                self.logger.info(
+                    "Spawn api token is found in env variables, will be used to update meta"
+                )
+            else:
+                api_token = self.info["api_token"]
+                self.logger.info(
+                    "Spawn api token is not found in env variables, using default api token"
+                )
+
+            # ! END DEBUG SECTION!
+
+            api = sly.Api(self.info["server_address"], api_token)
             api.task.update_meta(
                 int(self.info["task_id"]),
                 {},
