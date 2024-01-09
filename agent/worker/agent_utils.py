@@ -461,7 +461,7 @@ def volumes_dict_to_binds(volumes: dict) -> List[str]:
     return binds
 
 
-def get_agent_options(server_address=None, token=None, timeout=None) -> dict:
+def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
     if token is None:
@@ -479,6 +479,25 @@ def get_agent_options(server_address=None, token=None, timeout=None) -> dict:
             msg += f" Response: {text}"
         raise RuntimeError(msg)
     return resp.json()
+
+
+def get_instance_version(server_address=None, token=None, timeout=60):
+    if server_address is None:
+        server_address = constants.SERVER_ADDRESS()
+    if token is None:
+        token = constants.TOKEN()
+    url = os.path.join(server_address, "public", "api", "v3", "instance.version")
+    resp = requests.get(url=url, headers={"token": token}, timeout=timeout)
+    if resp.status_code != requests.codes.ok:
+        try:
+            text = resp.text
+        except:
+            text = None
+        msg = f"Can't get instance version from server {server_address}."
+        if text is not None:
+            msg += f" Response: {text}"
+        raise RuntimeError(msg)
+    return resp.text
 
 
 def updated_agent_options() -> Tuple[dict, int]:

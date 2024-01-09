@@ -207,8 +207,35 @@ def main(args):
     agent.wait_all()
 
 
+def compare_semver(first, second):
+    if first == second:
+        return 0
+    first = first.split(".")
+    second = second.split(".")
+    if len(first) != len(second):
+        first = [*first, *["0"] * max(0, len(second) - len(first))]
+        second = [*second, *["0"] * max(0, len(first) - len(second))]
+    for i in range(3):
+        if int(first[i]) > int(second[i]):
+            return 1
+        elif int(first[i]) < int(second[i]):
+            return -1
+    return 0
+
+
+def check_instance_version():
+    MIN_INSTANCE_VERSION = "6.8.64"
+    instance_version = agent_utils.get_instance_version()
+    sly.logger.debug(instance_version)
+    if compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
+        raise RuntimeError(
+            f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
+        )
+
+
 def init_envs():
     try:
+        check_instance_version()
         new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
     except:
         sly.logger.debug("Can not update agent options", exc_info=True)
@@ -240,11 +267,8 @@ def init_envs():
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        success = Agent._restart(envs, volumes, runtime)
-        if success:
-            sly.logger.info("Agent is restarted successfully. This container will be removed.")
-        else:
-            sly.logger.warn("Could not restart agent. Agent will be started with current options")
+        Agent._restart(envs, volumes, runtime)
+        sly.logger.info("Agent is restarted. This container should be removed.")
 
 
 if __name__ == "__main__":

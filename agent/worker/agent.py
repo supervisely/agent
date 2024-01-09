@@ -152,7 +152,6 @@ class Agent:
             extra={"container_id": container.id, "container_name": container.name},
         )
         os.environ["RESTARTED_AGENT_ID"] = container.id
-        return False
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
