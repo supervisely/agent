@@ -5,7 +5,6 @@ import os
 import json
 import supervisely_lib as sly
 
-from agent.worker import agent_utils
 from .task_dockerized import TaskSly
 import subprocess
 import docker
@@ -13,6 +12,7 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
+from worker import agent_utils
 
 
 class TaskUpdate(TaskSly):
