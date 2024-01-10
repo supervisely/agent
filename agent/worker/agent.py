@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import re
 import time
 import docker
 import json
@@ -12,6 +13,7 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
+
 from typing import Dict
 from pathlib import Path
 
@@ -554,6 +556,11 @@ class Agent:
                 sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
             )
         )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.task_stream_net_client_logs, self.logger
+            )
+        )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -610,3 +617,32 @@ class Agent:
                 # raise e
 
             time.sleep(day)
+
+    def task_stream_net_client_logs(self):
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        sly_net_container = None
+
+        for container in self.docker_api.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+
+        if sly_net_container is None:
+            return
+
+        self.net_logger = sly.get_task_logger("net_client")
+        sly.change_formatters_default_values(self.net_logger, "service_type", "NET CLIENT")
+        sly.change_formatters_default_values(self.net_logger, "event_type", sly.EventType.LOGJ)
+
+        add_task_handler(self.net_logger, self.log_queue)
+        sly.add_default_logging_into_file(self.net_logger, constants.AGENT_LOG_DIR())
+
+        log_buffer = ""
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        for chunk in sly_net_container.logs(stdout=True, stderr=True, follow=True, stream=True):
+            decoded_chunk = chunk.decode("utf-8")
+            log_buffer += decoded_chunk
+            if log_buffer.endswith("\n"):
+                log_buffer = ansi_escape.sub("", log_buffer)
+                self.net_logger.info(log_buffer.strip())
+                log_buffer = ""
