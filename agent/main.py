@@ -224,9 +224,8 @@ def compare_semver(first, second):
 
 
 def check_instance_version():
-    MIN_INSTANCE_VERSION = "6.8.64"
+    MIN_INSTANCE_VERSION = "6.8.68"
     instance_version = agent_utils.get_instance_version()
-    sly.logger.debug(instance_version)
     if compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
         raise RuntimeError(
             f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
