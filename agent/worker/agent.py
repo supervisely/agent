@@ -159,6 +159,12 @@ class Agent:
             return
 
         dc = docker.from_env()
+        try:
+            old_agent: Container = dc.containers.get(container_id)
+        except docker.errors.NotFound:
+            return
+
+        old_agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
