@@ -49,6 +49,11 @@ class TaskUpdate(TaskSly):
             self._docker_api, self.info["docker_image"], self.logger
         )
 
+        # cross-agents volume creation
+        volumes = [vol.name for vol in self._docker_api.volumes.list()]
+        if constants.CROSS_AGENT_VOLUME_NAME() not in volumes:
+            self._docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME())
+
         new_volumes = {}
         for vol in cur_volumes:
             parts = vol.split(":")

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import supervisely_lib as sly
 
-from worker.agent_utils import TaskDirCleaner, AppDirCleaner
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner, DockerImagesCleaner
 from worker.task_update import check_and_pull_sly_net_if_needed
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
@@ -561,6 +561,11 @@ class Agent:
                 sly.function_wrapper_external_logger, self.task_stream_net_client_logs, self.logger
             )
         )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.update_base_layers, self.logger
+            )
+        )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -605,6 +610,8 @@ class Agent:
     def task_clear_old_data(self):
         day = 60 * 60 * 24
         cleaner = AppDirCleaner(self.logger)
+        image_cleaner = DockerImagesCleaner(self.docker_api, self.logger)
+
         while True:
             with self.task_pool_lock:
                 all_tasks = set(self.task_pool.keys())
@@ -615,7 +622,7 @@ class Agent:
                 self.logger.exception(e)
                 # raise or not?
                 # raise e
-
+            image_cleaner.remove_idle_images()
             time.sleep(day)
 
     def task_stream_net_client_logs(self):
@@ -646,3 +653,16 @@ class Agent:
                 log_buffer = ansi_escape.sub("", log_buffer)
                 self.net_logger.info(log_buffer.strip())
                 log_buffer = ""
+
+    def update_base_layers(self):
+        self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
+        sly.docker_utils.docker_pull_if_needed(
+            self.docker_api,
+            "supervisely/base-py-sdk:latest",
+            policy=sly.docker_utils.PullPolicy.ALWAYS,
+            logger=self.logger,
+            progress=False,
+        )
+        self.logger.info(
+            "Background task finished: `supervisely/base-py-sdk:latest` has been pulled."
+        )
