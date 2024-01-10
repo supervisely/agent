@@ -495,7 +495,7 @@ def get_instance_version(server_address=None, timeout=60):
         if text is not None:
             msg += f" Response: {text}"
         raise RuntimeError(msg)
-    return resp.text
+    return resp.json()["version"]
 
 
 def updated_agent_options() -> Tuple[dict, int]:
