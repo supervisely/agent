@@ -13,8 +13,7 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
-
-from typing import Dict
+from typing import Dict, List
 from pathlib import Path
 
 import supervisely_lib as sly
@@ -92,25 +91,35 @@ class Agent:
     def _restart(cls, envs: list = None, volumes: list = None, runtime: str = None):
         docker_api = docker.from_env()
         container_info = get_container_info()
+        current_envs = container_info.get("Config", {}).get("Env", [])
         if envs is None:
-            envs = container_info.get("Config", {}).get("Env", [])
+            envs = current_envs
         if volumes is None:
             volumes = container_info.get("HostConfig", {}).get("Binds", [])
         cur_container_id = container_info["Id"]
-        envs.append(f"REMOVE_OLD_AGENT={cur_container_id}")
-        restart_n = 0
-        for env in envs:
-            if env.startswith("AGENT_RESTARTED="):
-                restart_n = int(env.split("=")[1])
-                break
-        if restart_n >= 3:
+
+        current_envs_dict = agent_utils.envs_list_to_dict(current_envs)
+        envs_dict = agent_utils.envs_list_to_dict(envs)
+
+        # remove old agent
+        if "REMOVE_OLD_AGENT" in current_envs_dict:
+            envs_dict[
+                "REMOVE_OLD_AGENT"
+            ] = f"{current_envs_dict['REMOVE_OLD_AGENT']},{cur_container_id}"
+        else:
+            envs_dict["REMOVE_OLD_AGENT"] = cur_container_id
+
+        # recursion stopper
+        restart_n = int(envs_dict.get("AGENT_RESTARTED", "0"))
+        if restart_n >= 1:
             raise (
                 RuntimeError(
                     "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
                 )
             )
-        envs.append(f"AGENT_RESTARTED={restart_n + 1}")
+        envs_dict["AGENT_RESTARTED"] = restart_n + 1
 
+        # Pull net-client if needed
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
         sly_net_container = None
         for container in docker_api.containers.list():
@@ -126,10 +135,7 @@ class Agent:
             need_update = check_and_pull_sly_net_if_needed(
                 docker_api, sly_net_container, sly.logger
             )
-            if need_update is True:
-                envs.append("UPDATE_SLY_NET_AFTER_RESTART=1")
-            else:
-                envs.append("UPDATE_SLY_NET_AFTER_RESTART=0")
+            envs_dict["UPDATE_SLY_NET_AFTER_RESTART"] = 1 if need_update else 0
 
         image = container_info["Config"]["Image"]
         if runtime is None:
@@ -143,7 +149,7 @@ class Agent:
             remove=False,
             restart_policy={"Name": "unless-stopped"},
             volumes=volumes,
-            environment=envs,
+            environment=agent_utils.envs_dict_to_list(envs_dict),
             stdin_open=False,
             tty=False,
         )
@@ -156,17 +162,21 @@ class Agent:
         os.environ["RESTARTED_AGENT_ID"] = container.id
 
     def _remove_old_agent(self):
-        container_id = os.getenv("REMOVE_OLD_AGENT", None)
-        if container_id is None:
+        container_ids = os.getenv("REMOVE_OLD_AGENT", None)
+        if container_ids is None:
             return
 
         dc = docker.from_env()
-        try:
-            old_agent: Container = dc.containers.get(container_id)
-        except docker.errors.NotFound:
-            return
+        container_ids = container_ids.split(",")
+        old_agents: List[Container] = []
+        for c_id in container_ids:
+            try:
+                old_agents.append(dc.containers.get(c_id))
+            except docker.errors.NotFound:
+                pass
 
-        old_agent.remove(force=True)
+        for agent in old_agents:
+            agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
