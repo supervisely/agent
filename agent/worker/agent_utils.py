@@ -564,13 +564,11 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
     return resp.json()
 
 
-def get_instance_version(server_address=None, token=None, timeout=60):
+def get_instance_version(server_address=None, timeout=60):
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
-    if token is None:
-        token = constants.TOKEN()
     url = os.path.join(server_address, "public", "api", "v3", "instance.version")
-    resp = requests.get(url=url, headers={"token": token}, timeout=timeout)
+    resp = requests.get(url=url, timeout=timeout)
     if resp.status_code != requests.codes.ok:
         try:
             text = resp.text
