@@ -245,14 +245,26 @@ def init_envs():
     envs_changes = _envs_changes(new_envs)
     volumes_changes = _volumes_changes(new_volumes)
     if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
+        docker_api = docker.from_env()
         container_info = get_container_info()
         if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
             new_envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
-        envs = agent_utils.envs_dict_to_list(new_envs)
-        volumes = agent_utils.volumes_dict_to_binds(new_volumes)
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
         )
+
+        # add remove old agent env if needed (in case of update)
+        remove_old_agent = os.environ.get("REMOVE_OLD_AGENT", None)
+        if remove_old_agent is not None:
+            new_envs["REMOVE_OLD_AGENT"] = remove_old_agent
+
+        # add update net client env if needed (in case of update)
+        update_net_client_after_restart = os.environ.get("UPDATE_SLY_NET_AFTER_RESTART", None)
+        if update_net_client_after_restart is not None:
+            new_envs["UPDATE_SLY_NET_AFTER_RESTART"] = update_net_client_after_restart
+
+        envs = agent_utils.envs_dict_to_list(new_envs)
+        volumes = agent_utils.volumes_dict_to_binds(new_volumes)
 
         sly.logger.info(
             "Agent is restarting due to options change",
@@ -267,7 +279,8 @@ def init_envs():
             },
         )
         Agent._restart(envs, volumes, runtime)
-        sly.logger.info("Agent is restarted. This container should be removed.")
+        sly.logger.info("Agent is restarted. This container will be removed")
+        docker_api.containers.get(container_info["Id"]).remove(force=True)
 
 
 if __name__ == "__main__":
