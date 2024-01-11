@@ -127,7 +127,7 @@ _OPTIONAL_DEFAULTS = {
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
     _NET_CLIENT_DOCKER_IMAGE: "supervisely/sly-net-client:latest",
-    _CROSS_AGENT_VOLUME_NAME: "/tmp/supervisely-agents",
+    _CROSS_AGENT_VOLUME_NAME: "supervisely-cross-agent-volume",
     _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS: 14,
     _SLY_EXTRA_CA_CERTS: None,
     _SLY_NET_CLIENT_PING_INTERVAL: 60,
