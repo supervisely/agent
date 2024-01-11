@@ -581,7 +581,7 @@ def get_instance_version(server_address=None, timeout=60):
     return resp.json()["version"]
 
 
-def updated_agent_options() -> Tuple[dict, int]:
+def updated_agent_options() -> Tuple[dict, dict, str]:
     env = {}
 
     def update_env_param(name, value, default=None):

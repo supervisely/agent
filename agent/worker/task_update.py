@@ -67,6 +67,17 @@ class TaskUpdate(TaskSly):
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
 
+        volumes = agent_utils.binds_to_volumes_dict(cur_volumes)
+        # add cross agent volume
+        try:
+            self._docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
+        except:
+            pass
+        volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
+            "bind": constants.CROSS_AGENT_TMP_DIR(),
+            "mode": "rw",
+        }
+
         # start new agent
         container = self._docker_api.containers.run(
             self.info["docker_image"],
@@ -75,7 +86,7 @@ class TaskUpdate(TaskSly):
             name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
             remove=False,
             restart_policy={"Name": "unless-stopped"},
-            volumes=agent_utils.binds_to_volumes_dict(cur_volumes),
+            volumes=volumes,
             environment=envs,
             stdin_open=False,
             tty=False,

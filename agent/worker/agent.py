@@ -94,7 +94,7 @@ class Agent:
         if envs is None:
             envs = container_info.get("Config", {}).get("Env", [])
         if volumes is None:
-            volumes = container_info.get("HostConfig", {}).get("Binds", [])
+            volumes = agent_utils.binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
 
         envs_dict = agent_utils.envs_list_to_dict(envs)
 

@@ -132,7 +132,7 @@ def _envs_changes(envs: dict) -> dict:
     return changes
 
 
-def _volumes_changes(volumes) -> list:
+def _volumes_changes(volumes) -> dict:
     container_info = get_container_info()
     container_volumes = container_info.get("HostConfig", {}).get("Binds", [])
     container_volumes = agent_utils.binds_to_volumes_dict(container_volumes)
@@ -264,7 +264,16 @@ def init_envs():
             new_envs["UPDATE_SLY_NET_AFTER_RESTART"] = update_net_client_after_restart
 
         envs = agent_utils.envs_dict_to_list(new_envs)
-        volumes = agent_utils.volumes_dict_to_binds(new_volumes)
+
+        # add cross agent volume
+        try:
+            docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
+        except:
+            pass
+        new_volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
+            "bind": constants.CROSS_AGENT_TMP_DIR(),
+            "mode": "rw",
+        }
 
         sly.logger.info(
             "Agent is restarting due to options change",
@@ -278,7 +287,7 @@ def init_envs():
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        Agent._restart(envs, volumes, runtime)
+        Agent._restart(envs, new_volumes, runtime)
         sly.logger.info("Agent is restarted. This container will be removed")
         docker_api.containers.get(container_info["Id"]).remove(force=True)
 
