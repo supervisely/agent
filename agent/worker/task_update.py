@@ -38,8 +38,8 @@ class TaskUpdate(TaskSly):
             agent_utils.check_instance_version()
             envs, volumes, ca_cert = agent_utils.updated_agent_options()
             _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
-            if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
-                envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
+            if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
+                envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
             envs = agent_utils.envs_dict_to_list(envs)
         except:
             envs = docker_img_info["Config"]["Env"]
@@ -76,7 +76,6 @@ class TaskUpdate(TaskSly):
                 "Something goes wrong: can't find sly-net-client attached to this agent"
             )
 
-        volumes = agent_utils.binds_to_volumes_dict(cur_volumes)
         # add cross agent volume
         try:
             self._docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
