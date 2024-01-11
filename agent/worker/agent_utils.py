@@ -532,15 +532,19 @@ def envs_dict_to_list(envs_dict: dict) -> List[str]:
 def binds_to_volumes_dict(binds: List[str]) -> dict:
     volumes = {}
     for bind in binds:
-        src, dst = bind.split(":")
-        volumes[src] = {"bind": dst, "mode": "rw"}
+        split = bind.split(":")
+        src = split[0]
+        dst = split[1]
+        mode = split[2] if len(split) == 3 else "rw"
+        volumes[src] = {"bind": dst, "mode": mode}
     return volumes
 
 
 def volumes_dict_to_binds(volumes: dict) -> List[str]:
     binds = []
     for src, dst in volumes.items():
-        binds.append(f"{src}:{dst['bind']}")
+        bind = f"{src}:{dst['bind']}:{dst['mode']}" if "mode" in dst else f"{src}:{dst['bind']}"
+        binds.append(bind)
     return binds
 
 
