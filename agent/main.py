@@ -221,7 +221,7 @@ def init_envs():
         except:
             pass
         new_volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
-            "bind": constants.CROSS_AGENT_TMP_DIR(),
+            "bind": constants.CROSS_AGENT_DATA_DIR(),
             "mode": "rw",
         }
 

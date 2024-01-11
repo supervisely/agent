@@ -341,13 +341,13 @@ class DockerImagesCleaner:
     def __init__(self, docker_api: DockerClient, logger: Logger) -> None:
         self._days_before_delete = timedelta(days=constants.REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS())
         self.logger = logger
-        self.path_to_history = constants.CROSS_AGENT_TMP_DIR()
+        self.path_to_history = constants.CROSS_AGENT_DATA_DIR()
         self.docker_api = docker_api
 
     def remove_idle_images(self):
         if self.path_to_history is None:
             self.logger.debug(
-                "CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed"
+                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker will not be executed"
             )
             return
 

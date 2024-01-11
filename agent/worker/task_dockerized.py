@@ -70,9 +70,9 @@ class TaskDockerized(TaskSly):
         self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
         self._history_file = None
-        if constants.CROSS_AGENT_TMP_DIR() is not None:
+        if constants.CROSS_AGENT_DATA_DIR() is not None:
             self._history_file = os.path.join(
-                constants.CROSS_AGENT_TMP_DIR(), f"docker-images-history-{constants.TOKEN()}.json"
+                constants.CROSS_AGENT_DATA_DIR(), f"docker-images-history-{constants.TOKEN()}.json"
             )
             self._history_file_lock = FileLock(f"{self._history_file}.lock")
 
@@ -370,7 +370,7 @@ class TaskDockerized(TaskSly):
     def update_image_history(self, image_name):
         if self._history_file is None:
             self.logger.debug(
-                "CROSS_AGENT_TMP_DIR has not been set; the process of removing unused Docker will not be executed"
+                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker will not be executed"
             )
             return
 
