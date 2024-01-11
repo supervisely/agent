@@ -54,6 +54,19 @@ class TaskUpdate(TaskSly):
         envs = [val for val in envs if not val.startswith("REMOVE_OLD_AGENT")]
         envs.append("REMOVE_OLD_AGENT={}".format(cur_container_id))
 
+        # Pull net-client if needed
+        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        try:
+            sly_net_container = self._docker_api.containers.get(net_container_name)
+            need_update = check_and_pull_sly_net_if_needed(
+                self._docker_api, sly_net_container, self.logger
+            )
+            envs.append(f"UPDATE_SLY_NET_AFTER_RESTART={1 if need_update else 0}")
+        except docker.errors.NotFound:
+            self.logger.warn(
+                "Something goes wrong: can't find sly-net-client attached to this agent"
+            )
+
         # start new agent
         container = self._docker_api.containers.run(
             self.info["docker_image"],

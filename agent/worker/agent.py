@@ -91,23 +91,12 @@ class Agent:
     def _restart(cls, envs: list = None, volumes: list = None, runtime: str = None):
         docker_api = docker.from_env()
         container_info = get_container_info()
-        current_envs = container_info.get("Config", {}).get("Env", [])
         if envs is None:
-            envs = current_envs
+            envs = container_info.get("Config", {}).get("Env", [])
         if volumes is None:
             volumes = container_info.get("HostConfig", {}).get("Binds", [])
-        cur_container_id = container_info["Id"]
 
-        current_envs_dict = agent_utils.envs_list_to_dict(current_envs)
         envs_dict = agent_utils.envs_list_to_dict(envs)
-
-        # remove old agent
-        if "REMOVE_OLD_AGENT" in current_envs_dict:
-            envs_dict[
-                "REMOVE_OLD_AGENT"
-            ] = f"{current_envs_dict['REMOVE_OLD_AGENT']},{cur_container_id}"
-        else:
-            envs_dict["REMOVE_OLD_AGENT"] = cur_container_id
 
         # recursion stopper
         restart_n = int(envs_dict.get("AGENT_RESTARTED", "0"))
@@ -118,24 +107,6 @@ class Agent:
                 )
             )
         envs_dict["AGENT_RESTARTED"] = restart_n + 1
-
-        # Pull net-client if needed
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
-        sly_net_container = None
-        for container in docker_api.containers.list():
-            if container.name == net_container_name:
-                sly_net_container: Container = container
-                break
-
-        if sly_net_container is None:
-            sly.logger.warn(
-                "Something goes wrong: can't find sly-net-client attached to this agent"
-            )
-        else:
-            need_update = check_and_pull_sly_net_if_needed(
-                docker_api, sly_net_container, sly.logger
-            )
-            envs_dict["UPDATE_SLY_NET_AFTER_RESTART"] = 1 if need_update else 0
 
         image = container_info["Config"]["Image"]
         if runtime is None:
@@ -159,7 +130,6 @@ class Agent:
             "Docker container is spawned",
             extra={"container_id": container.id, "container_name": container.name},
         )
-        os.environ["RESTARTED_AGENT_ID"] = container.id
 
     def _remove_old_agent(self):
         container_ids = os.getenv("REMOVE_OLD_AGENT", None)
@@ -264,8 +234,7 @@ class Agent:
         agent_same_token = []
         for cont in dc.containers.list():
             if "supervisely-agent-{}".format(constants.TOKEN()) in cont.name:
-                if cont.id != os.getenv("RESTARTED_AGENT_ID", None):
-                    agent_same_token.append(cont)
+                agent_same_token.append(cont)
         if len(agent_same_token) > 1:
             raise RuntimeError("Agent with the same token already exists.")
 
