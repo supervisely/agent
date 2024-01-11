@@ -123,28 +123,6 @@ def _start_net_client(docker_api=None):
             )
 
 
-def _envs_changes(envs: dict) -> dict:
-    changes = {}
-    for key, value in envs.items():
-        cur_value = os.environ.get(key, None)
-        if cur_value is None or cur_value != agent_utils.value_to_str(value):
-            changes[key] = value
-    return changes
-
-
-def _volumes_changes(volumes) -> list:
-    container_info = get_container_info()
-    container_volumes = container_info.get("HostConfig", {}).get("Binds", [])
-    container_volumes = agent_utils.binds_to_volumes_dict(container_volumes)
-    changes = {}
-    for key, value in volumes.items():
-        if key not in container_volumes:
-            changes[key] = value
-        elif container_volumes[key]["bind"] != value["bind"]:
-            changes[key] = value
-    return changes
-
-
 def _nvidia_runtime_check():
     container_info = get_container_info()
     runtime = container_info["HostConfig"]["Runtime"]
@@ -165,21 +143,6 @@ def _nvidia_runtime_check():
     except Exception as e:
         sly.logger.info("NVIDIA runtime is not available.")
         return False
-
-
-def _ca_cert_changed(ca_cert):
-    if ca_cert is None:
-        return None
-    cert_path = os.path.join(constants.HOST_DIR(), "certs", "instance_ca_chain.crt")
-    cur_path = os.environ.get("SLY_CA_CERT_PATH", None)
-    if cert_path == cur_path:
-        if os.path.exists(cert_path):
-            with open(cert_path, "r") as f:
-                if f.read() == ca_cert:
-                    return None
-    with open(cert_path, "w") as f:
-        f.write(ca_cert)
-    return cert_path
 
 
 def main(args):
@@ -207,43 +170,18 @@ def main(args):
     agent.wait_all()
 
 
-def compare_semver(first, second):
-    if first == second:
-        return 0
-    first = first.split(".")
-    second = second.split(".")
-    if len(first) != len(second):
-        first = [*first, *["0"] * max(0, len(second) - len(first))]
-        second = [*second, *["0"] * max(0, len(first) - len(second))]
-    for i in range(3):
-        if int(first[i]) > int(second[i]):
-            return 1
-        elif int(first[i]) < int(second[i]):
-            return -1
-    return 0
-
-
-def check_instance_version():
-    MIN_INSTANCE_VERSION = "6.8.68"
-    instance_version = agent_utils.get_instance_version()
-    if compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
-        raise RuntimeError(
-            f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
-        )
-
-
 def init_envs():
     try:
-        check_instance_version()
+        agent_utils.check_instance_version()
         new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
     except:
         sly.logger.debug("Can not update agent options", exc_info=True)
         sly.logger.warn("Can not update agent options. Agent will be started with current options")
         return
     restart_with_nvidia_runtime = _nvidia_runtime_check()
-    new_ca_cert_path = _ca_cert_changed(ca_cert)
-    envs_changes = _envs_changes(new_envs)
-    volumes_changes = _volumes_changes(new_volumes)
+    envs_changes, volumes_changes, new_ca_cert_path = agent_utils.get_options_changes(
+        new_envs, new_volumes, ca_cert
+    )
     if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
         docker_api = docker.from_env()
         container_info = get_container_info()

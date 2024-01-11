@@ -16,6 +16,7 @@ from typing import Callable, List, Optional, Tuple, Union, Container
 from datetime import datetime, timedelta
 from pathlib import Path
 from worker import constants
+from worker.system_info import get_container_info
 
 
 class AgentOptionsJsonFields:
@@ -615,3 +616,69 @@ def updated_agent_options() -> Tuple[dict, int]:
     )
 
     return env, volumes, ca_cert
+
+
+def compare_semver(first, second):
+    if first == second:
+        return 0
+    first = first.split(".")
+    second = second.split(".")
+    if len(first) != len(second):
+        first = [*first, *["0"] * max(0, len(second) - len(first))]
+        second = [*second, *["0"] * max(0, len(first) - len(second))]
+    for i in range(3):
+        if int(first[i]) > int(second[i]):
+            return 1
+        elif int(first[i]) < int(second[i]):
+            return -1
+    return 0
+
+
+def check_instance_version():
+    MIN_INSTANCE_VERSION = "6.8.68"
+    instance_version = get_instance_version()
+    if compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
+        raise RuntimeError(
+            f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
+        )
+
+
+def _envs_changes(envs: dict) -> dict:
+    changes = {}
+    for key, value in envs.items():
+        cur_value = os.environ.get(key, None)
+        if cur_value is None or cur_value != value_to_str(value):
+            changes[key] = value
+    return changes
+
+
+def _volumes_changes(volumes) -> dict:
+    container_info = get_container_info()
+    container_volumes = container_info.get("HostConfig", {}).get("Binds", [])
+    container_volumes = binds_to_volumes_dict(container_volumes)
+    changes = {}
+    for key, value in volumes.items():
+        if key not in container_volumes:
+            changes[key] = value
+        elif container_volumes[key]["bind"] != value["bind"]:
+            changes[key] = value
+    return changes
+
+
+def _ca_cert_changed(ca_cert) -> str:
+    if ca_cert is None:
+        return None
+    cert_path = os.path.join(constants.HOST_DIR(), "certs", "instance_ca_chain.crt")
+    cur_path = os.environ.get("SLY_CA_CERT_PATH", None)
+    if cert_path == cur_path:
+        if os.path.exists(cert_path):
+            with open(cert_path, "r") as f:
+                if f.read() == ca_cert:
+                    return None
+    with open(cert_path, "w") as f:
+        f.write(ca_cert)
+    return cert_path
+
+
+def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
+    return _envs_changes(envs), _volumes_changes(volumes), _ca_cert_changed(ca_cert)
