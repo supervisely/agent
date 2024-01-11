@@ -668,7 +668,7 @@ def _volumes_changes(volumes) -> dict:
 def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
         return None
-    cert_path = os.path.join(constants.HOST_DIR(), "certs", "instance_ca_chain.crt")
+    cert_path = os.path.join(constants.AGENT_ROOT_DIR(), "certs", "instance_ca_chain.crt")
     cur_path = os.environ.get("SLY_CA_CERT_PATH", None)
     if cert_path == cur_path:
         if os.path.exists(cert_path):
