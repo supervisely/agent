@@ -79,13 +79,24 @@ def _start_net_client(docker_api=None):
             image = constants.NET_CLIENT_DOCKER_IMAGE()
             net_server_port = constants.NET_SERVER_PORT()
             if net_server_port is None:
-                raise RuntimeError("NET_SERVER_PORT is not defined")
+                raise RuntimeError(f"{constants._NET_SERVER_PORT} is not defined")
             command = [
                 constants.TOKEN(),
                 os.path.join(constants.SERVER_ADDRESS(), "net/"),
                 f"{constants.SERVER_ADDRESS().rstrip('/').lstrip('https://').lstrip('http://')}:{net_server_port}",
             ]
-            envs = ["SLY_NET_CLIENT_PING_INTERVAL=60", "TRUST_DOWNSTREAM_PROXY=true"]
+            envs = [
+                f"{constants._SLY_NET_CLIENT_PING_INTERVAL}={constants.SLY_NET_CLIENT_PING_INTERVAL()}",
+                f"{constants._TRUST_DOWNSTREAM_PROXY}={constants.TRUST_DOWNSTREAM_PROXY()}",
+            ]
+            if constants.HTTP_PROXY():
+                envs.append(f"{constants._HTTP_PROXY}={constants.HTTP_PROXY()}")
+            if constants.HTTPS_PROXY():
+                envs.append(f"{constants._HTTPS_PROXY}={constants.HTTPS_PROXY()}")
+            if constants.NO_PROXY():
+                envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
+            if constants.SLY_EXTRA_CA_CERTS():
+                envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
             volumes = [
                 "/var/run/docker.sock:/tmp/docker.sock:ro",
                 f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
@@ -185,21 +196,22 @@ def init_envs():
     if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
         docker_api = docker.from_env()
         container_info = get_container_info()
-        if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
-            new_envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
+        if (
+            new_ca_cert_path
+            and os.environ.get(constants.SLY_EXTRA_CA_CERTS(), None) != new_ca_cert_path
+        ):
+            new_envs[constants.SLY_EXTRA_CA_CERTS()] = new_ca_cert_path
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
         )
 
         # add remove old agent env if needed (in case of update)
-        remove_old_agent = os.environ.get("REMOVE_OLD_AGENT", None)
+        remove_old_agent = constants.REMOVE_OLD_AGENT()
         if remove_old_agent is not None:
-            new_envs["REMOVE_OLD_AGENT"] = remove_old_agent
+            new_envs[constants._REMOVE_OLD_AGENT] = remove_old_agent
 
         # add update net client env if needed (in case of update)
-        update_net_client_after_restart = os.environ.get("UPDATE_SLY_NET_AFTER_RESTART", None)
-        if update_net_client_after_restart is not None:
-            new_envs["UPDATE_SLY_NET_AFTER_RESTART"] = update_net_client_after_restart
+        new_envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = constants.UPDATE_SLY_NET_AFTER_RESTART()
 
         envs = agent_utils.envs_dict_to_list(new_envs)
         volumes = agent_utils.volumes_dict_to_binds(new_volumes)
