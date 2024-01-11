@@ -132,7 +132,7 @@ class Agent:
         )
 
     def _remove_old_agent(self):
-        container_ids = os.getenv("REMOVE_OLD_AGENT", None)
+        container_ids = constants.REMOVE_OLD_AGENT()
         if container_ids is None:
             return
 
@@ -162,7 +162,7 @@ class Agent:
         agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
-        need_update_env = os.getenv("UPDATE_SLY_NET_AFTER_RESTART", None)
+        need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
         if need_update_env == "0":
             return
 
