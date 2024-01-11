@@ -196,11 +196,8 @@ def init_envs():
     if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
         docker_api = docker.from_env()
         container_info = get_container_info()
-        if (
-            new_ca_cert_path
-            and os.environ.get(constants.SLY_EXTRA_CA_CERTS(), None) != new_ca_cert_path
-        ):
-            new_envs[constants.SLY_EXTRA_CA_CERTS()] = new_ca_cert_path
+        if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
+            new_envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
         )
