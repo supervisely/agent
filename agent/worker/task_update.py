@@ -86,10 +86,12 @@ class TaskUpdate(TaskSly):
             "mode": "rw",
         }
 
+        runtime = docker_img_info["HostConfig"]["Runtime"]
+
         # start new agent
         container = self._docker_api.containers.run(
             self.info["docker_image"],
-            runtime=self.info["config"]["docker_runtime"],
+            runtime=runtime,
             detach=True,
             name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
             remove=False,
