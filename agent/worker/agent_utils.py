@@ -45,6 +45,7 @@ class AgentOptionsJsonFields:
     NET_OPTIONS = "netClientOptions"
     NET_CLIENT_DOCKER_IMAGE = "dockerImage"
     NET_SERVER_PORT = "netServerPort"
+    DOCKER_IMAGE = "dockerImage"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -682,6 +683,9 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         constants._NET_SERVER_PORT,
         net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None),
         None,
+    )
+    update_env_param(
+        constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
     )
 
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)

@@ -56,12 +56,17 @@ class TaskUpdate(TaskSly):
             )
             return
 
-        sly.docker_utils._docker_pull_progress(
-            self._docker_api, self.info["docker_image"], self.logger
-        )
-
         envs = [val for val in envs if not val.startswith(constants._REMOVE_OLD_AGENT)]
         envs.append(f"{constants._REMOVE_OLD_AGENT}={cur_container_id}")
+
+        image = docker_img_info["Config"]["Image"]
+        if self.info.get("docker_image", None):
+            image = self.info["docker_image"]
+        for env in envs:
+            if env.startswith(constants._DOCKER_IMAGE):
+                image = env.split("=")[1]
+                break
+        sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed
         net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
@@ -90,7 +95,7 @@ class TaskUpdate(TaskSly):
 
         # start new agent
         container = self._docker_api.containers.run(
-            self.info["docker_image"],
+            image,
             runtime=runtime,
             detach=True,
             name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
