@@ -34,9 +34,18 @@ class TaskUpdate(TaskSly):
         ).communicate()[0]
         docker_img_info = json.loads(docker_img_info)
 
+        try:
+            agent_utils.check_instance_version()
+            envs, volumes, ca_cert = agent_utils.updated_agent_options()
+            _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
+            if new_ca_cert_path and os.environ.get("SLY_CA_CERT_PATH", None) != new_ca_cert_path:
+                envs["SLY_CA_CERT_PATH"] = new_ca_cert_path
+            envs = agent_utils.envs_dict_to_list(envs)
+        except:
+            envs = docker_img_info["Config"]["Env"]
+            volumes = agent_utils.binds_to_volumes_dict(docker_img_info["HostConfig"]["Binds"])
+
         cur_container_id = docker_img_info["Config"]["Hostname"]
-        cur_volumes = docker_img_info["HostConfig"]["Binds"]
-        envs = docker_img_info["Config"]["Env"]
 
         if (
             docker_img_info["Config"]["Labels"].get("com.docker.compose.project", None)
