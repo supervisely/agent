@@ -56,7 +56,12 @@ class TaskUpdate(TaskSly):
             )
             return
 
-        envs = [val for val in envs if not val.startswith(constants._REMOVE_OLD_AGENT)]
+        envs = [
+            val
+            for val in envs
+            if not val.startswith(constants._REMOVE_OLD_AGENT)
+            and not val.startswith(constants._UPDATE_SLY_NET_AFTER_RESTART)
+        ]
         envs.append(f"{constants._REMOVE_OLD_AGENT}={cur_container_id}")
 
         image = docker_img_info["Config"]["Image"]
