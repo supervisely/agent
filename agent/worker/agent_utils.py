@@ -762,6 +762,7 @@ def _ca_cert_changed(ca_cert) -> str:
             with open(cert_path, "r") as f:
                 if f.read() == ca_cert:
                     return None
+    Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
     with open(cert_path, "w") as f:
         f.write(ca_cert)
     return cert_path
