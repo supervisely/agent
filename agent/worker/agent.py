@@ -463,12 +463,16 @@ class Agent:
 
         for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
             if registry:
-                doc_login = self.docker_api.login(
-                    username=login, password=password, registry=registry
-                )
-                self.logger.info(
-                    "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
-                )
+                try:
+                    doc_login = self.docker_api.login(
+                        username=login, password=password, registry=registry
+                    )
+                    self.logger.info(
+                        "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
+                    )
+                except Exception as e:
+                    if not constants.OFFLINE_MODE():
+                        raise e
 
     def submit_log(self):
         while True:
