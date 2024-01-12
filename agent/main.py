@@ -107,7 +107,9 @@ def _start_net_client(docker_api=None):
                 type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
             )
 
-            if len(docker_api.networks.list(names=[network])) == 0:
+            try:
+                docker_api.networks.get(network)
+            except:
                 docker_api.networks.create(network)
             docker_api.containers.run(
                 image=image,
