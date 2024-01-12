@@ -72,7 +72,8 @@ class TaskDockerized(TaskSly):
         self._history_file = None
         if constants.CROSS_AGENT_DATA_DIR() is not None:
             self._history_file = os.path.join(
-                constants.CROSS_AGENT_DATA_DIR(), f"docker-images-history-{constants.TOKEN()}.json"
+                constants.CROSS_AGENT_DATA_DIR(),
+                f"docker-images-history-{constants.TOKEN()[:8]}.json",
             )
             self._history_file_lock = FileLock(f"{self._history_file}.lock")
 

@@ -74,13 +74,15 @@ class TaskUpdate(TaskSly):
         sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         try:
             sly_net_container = self._docker_api.containers.get(net_container_name)
             need_update = check_and_pull_sly_net_if_needed(
                 self._docker_api, sly_net_container, self.logger
             )
-            envs.append(f"{constants._UPDATE_SLY_NET_AFTER_RESTART}={1 if need_update else 0}")
+            envs.append(
+                f"{constants._UPDATE_SLY_NET_AFTER_RESTART}={'true' if need_update else 'false'}"
+            )
         except docker.errors.NotFound:
             self.logger.warn(
                 "Something goes wrong: can't find sly-net-client attached to this agent"
@@ -103,7 +105,7 @@ class TaskUpdate(TaskSly):
             image,
             runtime=runtime,
             detach=True,
-            name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
+            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
             remove=False,
             restart_policy={"Name": "unless-stopped"},
             volumes=volumes,

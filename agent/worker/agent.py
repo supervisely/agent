@@ -94,7 +94,9 @@ class Agent:
         if envs is None:
             envs = container_info.get("Config", {}).get("Env", [])
         if volumes is None:
-            volumes = agent_utils.binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+            volumes = agent_utils.binds_to_volumes_dict(
+                container_info.get("HostConfig", {}).get("Binds", [])
+            )
 
         envs_dict = agent_utils.envs_list_to_dict(envs)
 
@@ -116,7 +118,7 @@ class Agent:
             image,
             runtime=runtime,
             detach=True,
-            name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
+            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
             remove=False,
             restart_policy={"Name": "unless-stopped"},
             volumes=volumes,
@@ -150,7 +152,7 @@ class Agent:
         self._update_net_client(dc)
 
         agent_same_token = []
-        agent_name_start = "supervisely-agent-{}".format(constants.TOKEN())
+        agent_name_start = constants.CONTAINER_NAME()
         for cont in dc.containers.list():
             if cont.name.startswith(agent_name_start):
                 agent_same_token.append(cont)
@@ -163,10 +165,10 @@ class Agent:
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
-        if need_update_env == "0":
+        if not need_update_env:
             return
 
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         sly_net_container = None
 
         for container in dc.containers.list():
@@ -193,7 +195,7 @@ class Agent:
         if need_update is False:
             return
 
-        network = "supervisely-net-{}".format(constants.TOKEN())
+        network = constants.NET_CLIENT_NETWORK()
         sly_net_client_image_name = sly_net_container.image.tags[0]
         command = sly_net_container.attrs.get("Args")
         volumes = sly_net_container.attrs["HostConfig"]["Binds"]
@@ -233,7 +235,7 @@ class Agent:
         dc = docker.from_env()
         agent_same_token = []
         for cont in dc.containers.list():
-            if "supervisely-agent-{}".format(constants.TOKEN()) in cont.name:
+            if constants.CONTAINER_NAME() in cont.name:
                 agent_same_token.append(cont)
         if len(agent_same_token) > 1:
             raise RuntimeError("Agent with the same token already exists.")
@@ -611,7 +613,7 @@ class Agent:
             time.sleep(day)
 
     def task_stream_net_client_logs(self):
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         sly_net_container = None
 
         for container in self.docker_api.containers.list():

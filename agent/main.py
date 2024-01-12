@@ -65,7 +65,7 @@ def remove_empty_folders(path):
 def _start_net_client(docker_api=None):
     if docker_api is None:
         docker_api = docker.from_env()
-    net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
+    net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
     sly_net_container = None
 
     for container in docker_api.containers.list():
@@ -75,7 +75,7 @@ def _start_net_client(docker_api=None):
     if sly_net_container is None:
         try:
             sly.logger.info("Starting sly-net-client...")
-            network = "supervisely-net-{}".format(constants.TOKEN())
+            network = constants.NET_CLIENT_NETWORK()
             image = constants.NET_CLIENT_DOCKER_IMAGE()
             net_server_port = constants.NET_SERVER_PORT()
             if net_server_port is None:

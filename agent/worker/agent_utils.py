@@ -614,12 +614,12 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FAILURE,
-        options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, None),
+        str(options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, "")).lower(),
         optional_defaults[constants._DELETE_TASK_DIR_ON_FAILURE],
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FINISH,
-        options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, None),
+        str(options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, "")).lower(),
         optional_defaults[constants._DELETE_TASK_DIR_ON_FINISH],
     )
 
