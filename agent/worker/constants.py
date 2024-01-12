@@ -9,13 +9,18 @@ import re
 from supervisely_lib.io.docker_utils import PullPolicy
 
 
-_AGENT_HOST_DIR = "AGENT_HOST_DIR"
 _SERVER_ADDRESS = "SERVER_ADDRESS"
 _ACCESS_TOKEN = "ACCESS_TOKEN"
 _DOCKER_LOGIN = "DOCKER_LOGIN"
 _DOCKER_PASSWORD = "DOCKER_PASSWORD"
 _DOCKER_REGISTRY = "DOCKER_REGISTRY"
 
+
+def TOKEN():
+    return os.environ[_ACCESS_TOKEN]
+
+
+_AGENT_HOST_DIR = "AGENT_HOST_DIR"
 _WITH_LOCAL_STORAGE = "WITH_LOCAL_STORAGE"
 _UPLOAD_RESULT_IMAGES = "UPLOAD_RESULT_IMAGES"
 _PULL_ALWAYS = "PULL_ALWAYS"
@@ -92,6 +97,7 @@ _SLY_NET_CLIENT_PING_INTERVAL = "SLY_NET_CLIENT_PING_INTERVAL"
 _TRUST_DOWNSTREAM_PROXY = "TRUST_DOWNSTREAM_PROXY"
 
 _OPTIONAL_DEFAULTS = {
+    _AGENT_HOST_DIR: f"supervisely-agent-{TOKEN()[:8]}",
     _WITH_LOCAL_STORAGE: "true",
     _UPLOAD_RESULT_IMAGES: "true",
     _PULL_ALWAYS: None,
@@ -120,7 +126,7 @@ _OPTIONAL_DEFAULTS = {
     _DOCKER_NET: None,  # or string value 'supervisely-vpn'
     _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
-    _SUPERVISELY_AGENT_FILES: None,
+    _SUPERVISELY_AGENT_FILES: f"supervisely-agent-files-{TOKEN()[:8]}",
     _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
@@ -138,6 +144,7 @@ _OPTIONAL_DEFAULTS = {
     _REMOVE_OLD_AGENT: None,
     _UPDATE_SLY_NET_AFTER_RESTART: "0",
     _DOCKER_IMAGE: None,
+    _NET_SERVER_PORT: None,
 }
 
 
@@ -158,7 +165,7 @@ def read_optional_setting(name):
 
 def HOST_DIR():
     """{agent root host dir}; can be a named volume; default (named volume): 'supervisely-agent-###'"""
-    return os.environ[_AGENT_HOST_DIR]
+    return read_optional_setting(_AGENT_HOST_DIR)
 
 
 def AGENT_ROOT_DIR():
@@ -177,10 +184,6 @@ def SERVER_ADDRESS():
     parsed_uri = urlparse(str_url)
     server_address = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
     return server_address
-
-
-def TOKEN():
-    return os.environ[_ACCESS_TOKEN]
 
 
 def TASKS_DOCKER_LABEL():
@@ -511,7 +514,7 @@ def AGENT_ID():
 def SUPERVISELY_AGENT_FILES():
     # /root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
     # /root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
-    """{agent files host dir}; default `~/supervisely/agent-###`"""
+    """{agent files host dir}; default `supervisely-agent-###`"""
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
@@ -576,7 +579,7 @@ def NET_CLIENT_DOCKER_IMAGE():
 
 
 def NET_SERVER_PORT():
-    return os.environ.get(_NET_SERVER_PORT, None)
+    return read_optional_setting(_NET_SERVER_PORT)
 
 
 def SLY_EXTRA_CA_CERTS():

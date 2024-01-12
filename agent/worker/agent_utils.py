@@ -604,21 +604,23 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     http_proxy = params.get("httpProxy", None)
     no_proxy = params.get("noProxy", constants.NO_PROXY())
 
+    optional_defaults = constants.get_optional_defaults()
+
     update_env_param(constants._ACCESS_TOKEN, constants.TOKEN())
     update_env_param(
         constants._SUPERVISELY_AGENT_FILES,
         options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None),
-        constants.SUPERVISELY_AGENT_FILES(),
+        optional_defaults[constants._SUPERVISELY_AGENT_FILES],
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FAILURE,
         options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, None),
-        constants.DELETE_TASK_DIR_ON_FAILURE(),
+        optional_defaults[constants._DELETE_TASK_DIR_ON_FAILURE],
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FINISH,
         options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, None),
-        constants.DELETE_TASK_DIR_ON_FINISH(),
+        optional_defaults[constants._DELETE_TASK_DIR_ON_FINISH],
     )
 
     docker_cr = options.get(AgentOptionsJsonFields.DOCKER_CREDS, [])
@@ -643,57 +645,56 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
             get_agent_options(server_address=server_address, timeout=4)
         except Exception as e:
             server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_EXTERNAL, None)
-    update_env_param(
-        constants._SERVER_ADDRESS,
-        server_address,
-    )
+    update_env_param(constants._SERVER_ADDRESS, server_address, constants.SERVER_ADDRESS())
 
     update_env_param(
         constants._OFFLINE_MODE,
         options.get(AgentOptionsJsonFields.OFFLINE_MODE, None),
-        constants.OFFLINE_MODE(),
+        optional_defaults[constants._OFFLINE_MODE],
     )
     update_env_param(
         constants._PULL_POLICY,
         options.get(AgentOptionsJsonFields.PULL_POLICY, None),
-        constants.PULL_POLICY(),
+        optional_defaults[constants._PULL_POLICY],
     )
     update_env_param(
         constants._MEM_LIMIT,
         options.get(AgentOptionsJsonFields.MEM_LIMIT, None),
-        constants.MEM_LIMIT(),
+        optional_defaults[constants._MEM_LIMIT],
     )
     update_env_param(
         constants._SECURITY_OPT,
         options.get(AgentOptionsJsonFields.SECURITY_OPT, None),
-        constants.SECURITY_OPT(),
+        optional_defaults[constants._SECURITY_OPT],
     )
-    update_env_param(constants._HTTP_PROXY, http_proxy, constants.HTTP_PROXY())
-    update_env_param(constants._HTTPS_PROXY, http_proxy, constants.HTTPS_PROXY())
-    update_env_param(constants._NO_PROXY, no_proxy, constants.NO_PROXY())
+    update_env_param(
+        constants._HTTP_PROXY,
+        http_proxy,
+        optional_defaults[constants._HTTP_PROXY],
+    )
+    update_env_param(constants._HTTPS_PROXY, http_proxy, optional_defaults[constants._HTTPS_PROXY])
+    update_env_param(constants._NO_PROXY, no_proxy, optional_defaults[constants._NO_PROXY])
     # DOCKER_IMAGE
     # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
 
     update_env_param(
         constants._NET_CLIENT_DOCKER_IMAGE,
         net_options.get(AgentOptionsJsonFields.NET_CLIENT_DOCKER_IMAGE, None),
-        constants.NET_CLIENT_DOCKER_IMAGE(),
+        optional_defaults[constants._NET_CLIENT_DOCKER_IMAGE],
     )
     update_env_param(
         constants._NET_SERVER_PORT,
         net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None),
-        None,
+        optional_defaults[constants._NET_SERVER_PORT],
     )
     update_env_param(
         constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
     )
 
-    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
-    if agent_host_dir is None or agent_host_dir == "":
-        agent_host_dir = f"supervisely-agent-{constants.TOKEN()}"
-        docker_api = docker.from_env()
-        docker_api.volumes.create(agent_host_dir)
-    update_env_param(constants._AGENT_HOST_DIR, agent_host_dir, None)
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, constants.HOST_DIR())
+    docker_api = docker.from_env()
+    docker_api.volumes.create(agent_host_dir)
+    update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
     volumes = {}
 
