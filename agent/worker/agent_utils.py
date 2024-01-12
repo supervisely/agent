@@ -698,6 +698,8 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         docker_api.volumes.create(agent_host_dir)
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
+    sly.logger.info(f"ENV: {json.dumps(env, indent=4)}")
+
     volumes = {}
 
     def add_volume(src: str, dst: str) -> dict:
