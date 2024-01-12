@@ -16,6 +16,13 @@ _DOCKER_PASSWORD = "DOCKER_PASSWORD"
 _DOCKER_REGISTRY = "DOCKER_REGISTRY"
 
 
+_VALUES = {
+    _DOCKER_LOGIN: os.environ.get(_DOCKER_LOGIN, ""),
+    _DOCKER_PASSWORD: os.environ.get(_DOCKER_PASSWORD, ""),
+    _DOCKER_REGISTRY: os.environ.get(_DOCKER_REGISTRY, ""),
+}
+
+
 def TOKEN():
     return os.environ[_ACCESS_TOKEN]
 
@@ -201,15 +208,15 @@ def TASKS_DOCKER_LABEL_LEGACY():
 
 
 def DOCKER_LOGIN():
-    return os.environ[_DOCKER_LOGIN]
+    return _VALUES[_DOCKER_LOGIN]
 
 
 def DOCKER_PASSWORD():
-    return os.environ[_DOCKER_PASSWORD]
+    return _VALUES[_DOCKER_PASSWORD]
 
 
 def DOCKER_REGISTRY():
-    return os.environ[_DOCKER_REGISTRY]
+    return _VALUES[_DOCKER_REGISTRY]
 
 
 def AGENT_TASKS_DIR_HOST():
