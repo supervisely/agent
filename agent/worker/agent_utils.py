@@ -598,7 +598,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         env[name] = value
 
     params = get_agent_options()
-    sly.logger.info(f"Agent options: {json.dumps(params, indent=4)}")
     options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
     net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
     ca_cert = params["caCert"]
@@ -695,8 +694,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         docker_api = docker.from_env()
         docker_api.volumes.create(agent_host_dir)
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
-
-    sly.logger.info(f"ENV: {json.dumps(env, indent=4)}")
 
     volumes = {}
 
