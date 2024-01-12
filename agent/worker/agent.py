@@ -88,7 +88,7 @@ class Agent:
         self.logger.info("Agent connected to server.")
 
     @classmethod
-    def _restart(cls, envs: list = None, volumes: list = None, runtime: str = None):
+    def _restart(cls, envs: list = None, volumes: dict = None, runtime: str = None):
         docker_api = docker.from_env()
         container_info = get_container_info()
         if envs is None:
@@ -629,7 +629,7 @@ class Agent:
             return
 
         self.net_logger = sly.get_task_logger("net_client")
-        sly.change_formatters_default_values(self.net_logger, "service_type", "NET CLIENT")
+        sly.change_formatters_default_values(self.net_logger, "service_type", "NET_CLIENT")
         sly.change_formatters_default_values(self.net_logger, "event_type", sly.EventType.LOGJ)
 
         add_task_handler(self.net_logger, self.log_queue)
