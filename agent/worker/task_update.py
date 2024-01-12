@@ -40,9 +40,8 @@ class TaskUpdate(TaskSly):
             _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
             if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
                 envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
-            envs = agent_utils.envs_dict_to_list(envs)
         except:
-            envs = docker_img_info["Config"]["Env"]
+            envs = agent_utils.envs_list_to_dict(docker_img_info["Config"]["Env"])
             volumes = agent_utils.binds_to_volumes_dict(docker_img_info["HostConfig"]["Binds"])
 
         cur_container_id = docker_img_info["Config"]["Hostname"]
@@ -56,22 +55,15 @@ class TaskUpdate(TaskSly):
             )
             return
 
-        envs = [
-            val
-            for val in envs
-            if not val.startswith(constants._REMOVE_OLD_AGENT)
-            and not val.startswith(constants._UPDATE_SLY_NET_AFTER_RESTART)
-        ]
-        envs.append(f"{constants._REMOVE_OLD_AGENT}={cur_container_id}")
+        envs[constants._REMOVE_OLD_AGENT] = cur_container_id
 
         image = docker_img_info["Config"]["Image"]
         if self.info.get("docker_image", None):
             image = self.info["docker_image"]
-        for env in envs:
-            if env.startswith(constants._DOCKER_IMAGE):
-                image = env.split("=")[1]
-                break
-        sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
+        if constants._DOCKER_IMAGE in envs:
+            image = envs[constants._DOCKER_IMAGE]
+        if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
+            sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed
         net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
@@ -80,9 +72,7 @@ class TaskUpdate(TaskSly):
             need_update = check_and_pull_sly_net_if_needed(
                 self._docker_api, sly_net_container, self.logger
             )
-            envs.append(
-                f"{constants._UPDATE_SLY_NET_AFTER_RESTART}={'true' if need_update else 'false'}"
-            )
+            envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true" if need_update else "false"
         except docker.errors.NotFound:
             self.logger.warn(
                 "Something goes wrong: can't find sly-net-client attached to this agent"
@@ -99,6 +89,7 @@ class TaskUpdate(TaskSly):
         }
 
         runtime = docker_img_info["HostConfig"]["Runtime"]
+        envs = agent_utils.envs_dict_to_list(envs)
 
         # start new agent
         container = self._docker_api.containers.run(
