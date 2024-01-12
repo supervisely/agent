@@ -647,9 +647,21 @@ class Agent:
 
     def update_base_layers(self):
         self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
+
+        image = "supervisely/base-py-sdk:latest"
+
+        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+            self.logger.info(
+                "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                    image,
+                    f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                )
+            )
+            image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
+
         sly.docker_utils.docker_pull_if_needed(
             self.docker_api,
-            "supervisely/base-py-sdk:latest",
+            image,
             policy=sly.docker_utils.PullPolicy.ALWAYS,
             logger=self.logger,
             progress=False,
