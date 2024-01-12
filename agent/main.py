@@ -66,13 +66,14 @@ def _start_net_client(docker_api=None):
     if docker_api is None:
         docker_api = docker.from_env()
     net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
-    sly_net_container = None
 
-    for container in docker_api.containers.list():
-        if container.name == net_container_name:
-            sly_net_container: Container = container
-            break
-    if sly_net_container is None:
+    for container in docker_api.containers.list(all=True):
+        if container.name.startswith(net_container_name) and container.name != net_container_name:
+            container.remove(force=True)
+
+    try:
+        sly_net_container: Container = docker_api.containers.get(net_container_name)
+    except docker.errors.NotFound:
         try:
             sly.logger.info("Starting sly-net-client...")
             network = constants.NET_CLIENT_NETWORK()
