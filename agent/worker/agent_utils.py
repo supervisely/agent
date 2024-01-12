@@ -691,9 +691,11 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
     )
 
-    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, constants.HOST_DIR())
-    docker_api = docker.from_env()
-    docker_api.volumes.create(agent_host_dir)
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
+    if agent_host_dir is None:
+        agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
+        docker_api = docker.from_env()
+        docker_api.volumes.create(agent_host_dir)
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
     volumes = {}
