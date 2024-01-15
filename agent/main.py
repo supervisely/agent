@@ -67,73 +67,76 @@ def _start_net_client(docker_api=None):
         docker_api = docker.from_env()
     net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
 
-    for container in docker_api.containers.list(all=True):
-        if container.name.startswith(net_container_name) and container.name != net_container_name:
-            container.rename(net_container_name)
-            return
     try:
-        sly_net_container: Container = docker_api.containers.get(net_container_name)
-    except docker.errors.NotFound:
+        network = constants.NET_CLIENT_NETWORK()
+        image = constants.NET_CLIENT_DOCKER_IMAGE()
+        net_server_port = constants.NET_SERVER_PORT()
+        if net_server_port is None:
+            raise RuntimeError(f"{constants._NET_SERVER_PORT} is not defined")
+        command = [
+            constants.TOKEN(),
+            os.path.join(constants.SERVER_ADDRESS(), "net/"),
+            f"{constants.SERVER_ADDRESS().rstrip('/').lstrip('https://').lstrip('http://')}:{net_server_port}",
+        ]
+        envs = [
+            f"{constants._SLY_NET_CLIENT_PING_INTERVAL}={constants.SLY_NET_CLIENT_PING_INTERVAL()}",
+            f"{constants._TRUST_DOWNSTREAM_PROXY}={constants.TRUST_DOWNSTREAM_PROXY()}",
+        ]
+        if constants.HTTP_PROXY():
+            envs.append(f"{constants._HTTP_PROXY}={constants.HTTP_PROXY()}")
+        if constants.HTTPS_PROXY():
+            envs.append(f"{constants._HTTPS_PROXY}={constants.HTTPS_PROXY()}")
+        if constants.NO_PROXY():
+            envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
+        if constants.SLY_EXTRA_CA_CERTS():
+            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
+        volumes = [
+            "/var/run/docker.sock:/tmp/docker.sock:ro",
+            f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
+            f"{constants.SUPERVISELY_AGENT_FILES()}:{constants.SUPERVISELY_AGENT_FILES_CONTAINER()}",
+        ]
+        log_config = LogConfig(
+            type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
+        )
+
         try:
-            sly.logger.info("Starting sly-net-client...")
-            network = constants.NET_CLIENT_NETWORK()
-            image = constants.NET_CLIENT_DOCKER_IMAGE()
-            net_server_port = constants.NET_SERVER_PORT()
-            if net_server_port is None:
-                raise RuntimeError(f"{constants._NET_SERVER_PORT} is not defined")
-            command = [
-                constants.TOKEN(),
-                os.path.join(constants.SERVER_ADDRESS(), "net/"),
-                f"{constants.SERVER_ADDRESS().rstrip('/').lstrip('https://').lstrip('http://')}:{net_server_port}",
-            ]
-            envs = [
-                f"{constants._SLY_NET_CLIENT_PING_INTERVAL}={constants.SLY_NET_CLIENT_PING_INTERVAL()}",
-                f"{constants._TRUST_DOWNSTREAM_PROXY}={constants.TRUST_DOWNSTREAM_PROXY()}",
-            ]
-            if constants.HTTP_PROXY():
-                envs.append(f"{constants._HTTP_PROXY}={constants.HTTP_PROXY()}")
-            if constants.HTTPS_PROXY():
-                envs.append(f"{constants._HTTPS_PROXY}={constants.HTTPS_PROXY()}")
-            if constants.NO_PROXY():
-                envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
-            if constants.SLY_EXTRA_CA_CERTS():
-                envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
-            volumes = [
-                "/var/run/docker.sock:/tmp/docker.sock:ro",
-                f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
-                f"{constants.SUPERVISELY_AGENT_FILES()}:{constants.SUPERVISELY_AGENT_FILES_CONTAINER()}",
-            ]
-            log_config = LogConfig(
-                type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
-            )
-
-            try:
-                docker_api.networks.get(network)
-            except:
-                docker_api.networks.create(network)
-            docker_api.containers.run(
-                image=image,
-                name=net_container_name,
-                command=command,
-                network=network,
-                cap_add="NET_ADMIN",
-                volumes=volumes,
-                privileged=True,
-                restart_policy={"Name": "always", "MaximumRetryCount": 0},
-                environment=envs,
-                log_config=log_config,
-                devices=["/dev/net/tun:/dev/net/tun"],
-                detach=True,
-            )
-            sly.logger.info("Sly-net-client is started")
-
-            for container in docker_api.containers.list(all=True):
-                if (
-                    container.name.startswith(net_container_name)
-                    and container.name != net_container_name
-                ):
-                    container.remove(force=True)
+            docker_api.networks.get(network)
         except:
+            docker_api.networks.create(network)
+        sly.logger.info("Starting sly-net-client...")
+        net_container = docker_api.containers.run(
+            image=image,
+            name=f"{net_container_name}_{sly.rand_str(5)}",
+            command=command,
+            network=network,
+            cap_add="NET_ADMIN",
+            volumes=volumes,
+            privileged=True,
+            restart_policy={"Name": "always", "MaximumRetryCount": 0},
+            environment=envs,
+            log_config=log_config,
+            devices=["/dev/net/tun:/dev/net/tun"],
+            detach=True,
+        )
+        for container in docker_api.containers.list(all=True):
+            if container.name.startswith(net_container_name) and container.id != net_container.id:
+                container.remove(force=True)
+        net_container.rename(net_container_name)
+        sly.logger.info("Sly-net-client is started")
+    except:
+        for container in docker_api.containers.list():
+            if container.name.startswith(net_container_name):
+                try:
+                    docker_api.containers.get(net_container_name)
+                    container.remove(force=True)
+                except docker.errors.NotFound:
+                    container.rename(net_container_name)
+
+        try:
+            net_container = docker_api.containers.get(net_container_name)
+        except:
+            net_container = None
+        if net_container is None:
             sly.logger.fatal("Sly-net-client is not started", exc_info=True)
             sly.logger.warn("Something goes wrong: can not start sly-net-client")
             sly.logger.warn(
