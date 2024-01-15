@@ -134,21 +134,17 @@ class Agent:
         )
 
     def _remove_old_agent(self):
-        container_ids = constants.REMOVE_OLD_AGENT()
-        if container_ids is None:
+        container_id = os.getenv("REMOVE_OLD_AGENT", None)
+        if container_id is None:
             return
 
         dc = docker.from_env()
-        container_ids = container_ids.split(",")
-        old_agents: List[Container] = []
-        for c_id in container_ids:
-            try:
-                old_agents.append(dc.containers.get(c_id))
-            except docker.errors.NotFound:
-                pass
+        try:
+            old_agent: Container = dc.containers.get(container_id)
+        except docker.errors.NotFound:
+            return
 
-        for agent in old_agents:
-            agent.remove(force=True)
+        old_agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
