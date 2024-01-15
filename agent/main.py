@@ -69,8 +69,8 @@ def _start_net_client(docker_api=None):
 
     for container in docker_api.containers.list(all=True):
         if container.name.startswith(net_container_name) and container.name != net_container_name:
-            container.remove(force=True)
-
+            container.rename(net_container_name)
+            return
     try:
         sly_net_container: Container = docker_api.containers.get(net_container_name)
     except docker.errors.NotFound:
@@ -126,12 +126,19 @@ def _start_net_client(docker_api=None):
                 detach=True,
             )
             sly.logger.info("Sly-net-client is started")
+
+            for container in docker_api.containers.list(all=True):
+                if (
+                    container.name.startswith(net_container_name)
+                    and container.name != net_container_name
+                ):
+                    container.remove(force=True)
         except:
-            sly.logger.debug("Sly-net-client is not started", exc_info=True)
+            sly.logger.fatal("Sly-net-client is not started", exc_info=True)
             sly.logger.warn("Something goes wrong: can not start sly-net-client")
             sly.logger.warn(
                 (
-                    "Probably you should restart agent manually using instructions:"
+                    "Probably you should update Supervisely to the latest version or restart agent manually using instructions:"
                     "https://developer.supervisely.com/getting-started/connect-your-computer"
                 )
             )
