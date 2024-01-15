@@ -125,7 +125,10 @@ def _start_net_client(docker_api=None):
         sly.logger.info("Sly-net-client is started")
     except:
         for container in docker_api.containers.list():
-            if container.name.startswith(net_container_name):
+            if (
+                container.name.startswith(net_container_name)
+                and not container.name == net_container_name
+            ):
                 try:
                     docker_api.containers.get(net_container_name)
                     container.remove(force=True)
