@@ -135,16 +135,14 @@ class Agent:
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
-        if container_id is None:
-            return
-
         dc = docker.from_env()
-        try:
-            old_agent: Container = dc.containers.get(container_id)
-        except docker.errors.NotFound:
-            return
+        if container_id is not None:
+            try:
+                old_agent: Container = dc.containers.get(container_id)
+                old_agent.remove(force=True)
+            except docker.errors.NotFound:
+                pass
 
-        old_agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
@@ -595,7 +593,7 @@ class Agent:
             raise RuntimeError("AGENT: EXCEPTION IN BASE FUTURE !!!")
 
     def task_clear_old_data(self):
-        day = 60 * 60 * 24
+        day = 60 * 2
         cleaner = AppDirCleaner(self.logger)
         image_cleaner = DockerImagesCleaner(self.docker_api, self.logger)
 
