@@ -4,6 +4,7 @@ from logging import Logger
 import os
 import json
 import supervisely_lib as sly
+
 from .task_dockerized import TaskSly
 import subprocess
 import docker
@@ -11,6 +12,7 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
+from worker import agent_utils
 
 
 class TaskUpdate(TaskSly):
@@ -32,9 +34,17 @@ class TaskUpdate(TaskSly):
         ).communicate()[0]
         docker_img_info = json.loads(docker_img_info)
 
+        try:
+            agent_utils.check_instance_version()
+            envs, volumes, ca_cert = agent_utils.updated_agent_options()
+            _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
+            if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
+                envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
+        except:
+            envs = agent_utils.envs_list_to_dict(docker_img_info["Config"]["Env"])
+            volumes = agent_utils.binds_to_volumes_dict(docker_img_info["HostConfig"]["Binds"])
+
         cur_container_id = docker_img_info["Config"]["Hostname"]
-        cur_volumes = docker_img_info["HostConfig"]["Binds"]
-        cur_envs = docker_img_info["Config"]["Env"]
 
         if (
             docker_img_info["Config"]["Labels"].get("com.docker.compose.project", None)
@@ -45,56 +55,52 @@ class TaskUpdate(TaskSly):
             )
             return
 
-        sly.docker_utils._docker_pull_progress(
-            self._docker_api, self.info["docker_image"], self.logger
-        )
+        envs[constants._REMOVE_OLD_AGENT] = cur_container_id
 
-        new_volumes = {}
-        for vol in cur_volumes:
-            parts = vol.split(":")
-            src = parts[0]
-            dst = parts[1]
-            new_volumes[src] = {"bind": dst, "mode": "rw"}
-
-        new_envs = []
-        for val in cur_envs:
-            if not val.startswith("REMOVE_OLD_AGENT"):
-                new_envs.append(val)
-        cur_envs = new_envs
-        cur_envs.append("REMOVE_OLD_AGENT={}".format(cur_container_id))
+        image = docker_img_info["Config"]["Image"]
+        if self.info.get("docker_image", None):
+            image = self.info["docker_image"]
+        if constants._DOCKER_IMAGE in envs:
+            image = envs[constants._DOCKER_IMAGE]
+        if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
+            sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
-        sly_net_container = None
-
-        for container in self._docker_api.containers.list():
-            if container.name == net_container_name:
-                sly_net_container: Container = container
-                break
-
-        if sly_net_container is None:
-            self.logger.warn(
-                "Something goes wrong: can't find sly-net-client attached to this agent"
-            )
-        else:
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
+        try:
+            sly_net_container = self._docker_api.containers.get(net_container_name)
             need_update = check_and_pull_sly_net_if_needed(
                 self._docker_api, sly_net_container, self.logger
             )
-            if need_update is True:
-                cur_envs.append("UPDATE_SLY_NET_AFTER_RESTART=1")
-            else:
-                cur_envs.append("UPDATE_SLY_NET_AFTER_RESTART=0")
+            envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true" if need_update else "false"
+        except docker.errors.NotFound:
+            self.logger.warn(
+                "Something goes wrong: can't find sly-net-client attached to this agent"
+            )
+
+        # add cross agent volume
+        try:
+            self._docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
+        except:
+            pass
+        volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
+            "bind": constants.CROSS_AGENT_DATA_DIR(),
+            "mode": "rw",
+        }
+
+        runtime = docker_img_info["HostConfig"]["Runtime"]
+        envs = agent_utils.envs_dict_to_list(envs)
 
         # start new agent
         container = self._docker_api.containers.run(
-            self.info["docker_image"],
-            runtime=self.info["config"]["docker_runtime"],
+            image,
+            runtime=runtime,
             detach=True,
-            name="supervisely-agent-{}-{}".format(constants.TOKEN(), sly.rand_str(5)),
+            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
             remove=False,
             restart_policy={"Name": "unless-stopped"},
-            volumes=new_volumes,
-            environment=cur_envs,
+            volumes=volumes,
+            environment=envs,
             stdin_open=False,
             tty=False,
         )
@@ -124,7 +130,7 @@ def check_and_pull_sly_net_if_needed(
     dc: docker.DockerClient,
     cur_container: Container,
     logger: Logger,
-    sly_net_client_image_name = None,
+    sly_net_client_image_name=None,
 ) -> bool:
     ic = ImageCollection(dc)
 

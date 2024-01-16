@@ -1,22 +1,25 @@
 # coding: utf-8
 
-from enum import Enum
-from threading import Lock
+import copy
 import json
 import os
-import copy
-import docker
-import supervisely_lib as sly
 from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from threading import Lock
 from typing import Callable, List, Optional
 
+import docker
+from filelock import FileLock
+import supervisely_lib as sly
+from worker import constants
 from worker.agent_utils import (
     TaskDirCleaner,
     filter_log_line,
     pip_req_satisfied_filter,
     post_get_request_filter,
 )
-from worker import constants
 from worker.task_sly import TaskSly
 
 
@@ -66,10 +69,20 @@ class TaskDockerized(TaskSly):
         self._task_reports: List[ErrorReport] = []
         self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
+        self._history_file = None
+        if constants.CROSS_AGENT_DATA_DIR() is not None:
+            self._history_file = os.path.join(
+                constants.CROSS_AGENT_DATA_DIR(),
+                f"docker-images-history-{constants.TOKEN()[:8]}.json",
+            )
+            self._history_file_lock = FileLock(f"{self._history_file}.lock")
+
     def init_docker_image(self):
         self.docker_image_name = self.info.get("docker_image", None)
         if self.docker_image_name is not None and ":" not in self.docker_image_name:
             self.docker_image_name += ":latest"
+
+        self.update_image_history(self.docker_image_name)
 
     @property
     def docker_api(self):
@@ -354,3 +367,24 @@ class TaskDockerized(TaskSly):
                     self.logger.warn("Found message without title.")
             except IndexError:
                 pass
+
+    def update_image_history(self, image_name):
+        if self._history_file is None:
+            self.logger.debug(
+                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker will not be executed"
+            )
+            return
+
+        cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
+
+        with self._history_file_lock:
+            if sly.fs.file_exists(self._history_file):
+                with open(self._history_file, "r") as json_file:
+                    images_stat = json.load(json_file)
+            else:
+                images_stat = {}
+
+            images_stat[image_name] = cur_date
+
+            with open(self._history_file, "w") as json_file:
+                json.dump(images_stat, json_file, indent=4)
