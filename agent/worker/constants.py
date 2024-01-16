@@ -136,7 +136,7 @@ _OPTIONAL_DEFAULTS = {
     _DOCKER_NET: None,  # or string value 'supervisely-vpn'
     _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
-    _SUPERVISELY_AGENT_FILES: f"supervisely-agent-files-{TOKEN()[:8]}",
+    _SUPERVISELY_AGENT_FILES: f"/opt/supervisely/agents/agent-files-{TOKEN()[:8]}",
     _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
