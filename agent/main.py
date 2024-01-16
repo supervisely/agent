@@ -33,7 +33,7 @@ from worker.agent import Agent
 
 def parse_envs():
     args_req = {
-        x: constants._VALUES[x] if x in constants._VALUES else os.environ[x]
+        x: constants._VALUES[x] if x in constants._VALUES else os.environ.get(x, None)
         for x in constants.get_required_settings()
     }
     args_opt = {
