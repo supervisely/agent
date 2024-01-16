@@ -617,7 +617,7 @@ class Agent:
             raise RuntimeError("AGENT: EXCEPTION IN BASE FUTURE !!!")
 
     def task_clear_old_data(self):
-        day = 60 * 2
+        day = 60 * 60 * 24
         cleaner = AppDirCleaner(self.logger)
         image_cleaner = DockerImagesCleaner(self.docker_api, self.logger)
 
