@@ -179,7 +179,9 @@ class Agent:
             raise RuntimeError(
                 "Several agents with the same token are running. Please, kill them or contact support."
             )
-        agent_same_token[0].rename(agent_name_start)
+
+        if len(agent_same_token) == 1 and agent_same_token[0].name != agent_name_start:
+          agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
