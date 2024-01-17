@@ -107,7 +107,7 @@ _NET_CLIENT_CONTAINER_NAME = "NET_CLIENT_CONTAINER_NAME"
 _NET_CLIENT_NETWORK = "NET_CLIENT_NETWORK"
 
 _OPTIONAL_DEFAULTS = {
-    _AGENT_HOST_DIR: f"supervisely-agent-{TOKEN()[:8]}",
+    _AGENT_HOST_DIR: f"/opt/supervisely/agents/agent-data-{TOKEN()[:8]}",
     _WITH_LOCAL_STORAGE: "true",
     _UPLOAD_RESULT_IMAGES: "true",
     _PULL_ALWAYS: None,
