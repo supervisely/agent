@@ -189,6 +189,7 @@ class Agent:
             return
 
         net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
+        sly_net_client_image_name = constants.NET_CLIENT_DOCKER_IMAGE()
         sly_net_container = None
 
         for container in dc.containers.list():
@@ -210,13 +211,12 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger)
+                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger, sly_net_client_image_name)
 
         if need_update_env is False:
             return
 
         network = constants.NET_CLIENT_NETWORK()
-        sly_net_client_image_name = sly_net_container.image.tags[0]
         command = sly_net_container.attrs.get("Args")
         volumes = sly_net_container.attrs["HostConfig"]["Binds"]
         cap_add = sly_net_container.attrs["HostConfig"]["CapAdd"]

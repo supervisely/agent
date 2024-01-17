@@ -34,13 +34,17 @@ class TaskUpdate(TaskSly):
         ).communicate()[0]
         docker_img_info = json.loads(docker_img_info)
 
+        use_options = False
+
         try:
             agent_utils.check_instance_version()
             envs, volumes, ca_cert = agent_utils.updated_agent_options()
             _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
             if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
                 envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
-        except:
+
+            use_options = True
+        except agent_utils.AgentOptionsNotAvailable:
             envs = agent_utils.envs_list_to_dict(docker_img_info["Config"]["Env"])
             volumes = agent_utils.binds_to_volumes_dict(docker_img_info["HostConfig"]["Binds"])
 
@@ -69,10 +73,17 @@ class TaskUpdate(TaskSly):
         net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         try:
             sly_net_container = self._docker_api.containers.get(net_container_name)
-            need_update = check_and_pull_sly_net_if_needed(
-                self._docker_api, sly_net_container, self.logger
-            )
-            envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true" if need_update else "false"
+
+            if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
+                sly_net_client_image_name = None
+
+                if use_options:
+                    sly_net_client_image_name = envs.get(constants._NET_CLIENT_DOCKER_IMAGE)
+
+                need_update = check_and_pull_sly_net_if_needed(
+                    self._docker_api, sly_net_container, self.logger, sly_net_client_image_name
+                )
+                envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true" if need_update else "false"
         except docker.errors.NotFound:
             self.logger.warn(
                 "Something goes wrong: can't find sly-net-client attached to this agent"
@@ -135,7 +146,7 @@ def check_and_pull_sly_net_if_needed(
     ic = ImageCollection(dc)
 
     if sly_net_client_image_name is None:
-        sly_net_client_image_name = cur_container.image.tags[0]
+        sly_net_client_image_name = cur_container.attrs["Config"]["Image"]
 
     docker_hub_image_info = ic.get_registry_data(sly_net_client_image_name)
     name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
