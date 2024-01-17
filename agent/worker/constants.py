@@ -71,12 +71,8 @@ _AUTO_CLEAN_INT_RANGE_DAYS = "AUTO_CLEAN_INT_RANGE_DAYS"
 
 
 _REQUIRED_SETTINGS = [
-    _AGENT_HOST_DIR,
     _SERVER_ADDRESS,
     _ACCESS_TOKEN,
-    _DOCKER_LOGIN,
-    _DOCKER_PASSWORD,
-    _DOCKER_REGISTRY,
 ]
 
 
@@ -133,7 +129,7 @@ _OPTIONAL_DEFAULTS = {
     _SSL_CERT_FILE: None,
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
-    _DOCKER_NET: None,  # or string value 'supervisely-vpn'
+    _DOCKER_NET: None,
     _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
     _SUPERVISELY_AGENT_FILES: f"/opt/supervisely/agents/agent-files-{TOKEN()[:8]}",
@@ -500,7 +496,7 @@ def SHM_SIZE():
 
 
 def DOCKER_NET():
-    return read_optional_setting(_DOCKER_NET)
+    return read_optional_setting(_NET_CLIENT_NETWORK)
 
 
 def DISABLE_TELEMETRY():

@@ -23,6 +23,9 @@ from worker import constants
 from worker.system_info import get_container_info
 
 
+class AgentOptionsNotAvailable(RuntimeError):
+    pass
+
 class AgentOptionsJsonFields:
     AGENT_OPTIONS = "agentOptions"
     AGENT_HOST_DIR = "agentDataHostDir"
@@ -566,7 +569,7 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
         msg = f"Can't get agent options from server {server_address}."
         if text is not None:
             msg += f" Response: {text}"
-        raise RuntimeError(msg)
+        raise AgentOptionsNotAvailable(msg)
     return resp.json()
 
 
@@ -583,7 +586,7 @@ def get_instance_version(server_address=None, timeout=60):
         msg = f"Can't get instance version from server {server_address}."
         if text is not None:
             msg += f" Response: {text}"
-        raise RuntimeError(msg)
+        raise AgentOptionsNotAvailable(msg)
     return resp.json()["version"]
 
 
@@ -688,11 +691,14 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
     )
 
-    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, None)
-    if agent_host_dir is None:
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
+    if agent_host_dir == "":
         agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
         docker_api = docker.from_env()
-        docker_api.volumes.create(agent_host_dir)
+
+        if '/' not in agent_host_dir:
+          docker_api.volumes.create(agent_host_dir)
+
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
     volumes = {}

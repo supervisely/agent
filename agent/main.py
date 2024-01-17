@@ -209,7 +209,7 @@ def init_envs():
     try:
         agent_utils.check_instance_version()
         new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
-    except:
+    except agent_utils.AgentOptionsNotAvailable:
         sly.logger.debug("Can not update agent options", exc_info=True)
         sly.logger.warn("Can not update agent options. Agent will be started with current options")
         return
