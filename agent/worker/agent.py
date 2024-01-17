@@ -210,9 +210,9 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger)
+                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger)
 
-        if need_update is False:
+        if need_update_env is False:
             return
 
         network = constants.NET_CLIENT_NETWORK()
