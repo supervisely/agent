@@ -148,11 +148,11 @@ def _start_net_client(docker_api=None):
         except:
             net_container = None
         if net_container is None:
-            sly.logger.fatal("Sly-net-client is not started", exc_info=True)
-            sly.logger.warn("Something goes wrong: can not start sly-net-client")
+            sly.logger.fatal("Sly-net-client is not running", exc_info=True)
+            sly.logger.warn("Something went wrong: couldn't start sly-net-client")
             sly.logger.warn(
                 (
-                    "Probably you should update Supervisely to the latest version or restart agent manually using instructions:"
+                    "You should probably update Supervisely to the latest version or restart the agent manually using the instructions here:"
                     "https://developer.supervisely.com/getting-started/connect-your-computer"
                 )
             )
@@ -231,8 +231,8 @@ def init_envs():
         if remove_old_agent is not None:
             new_envs[constants._REMOVE_OLD_AGENT] = remove_old_agent
 
-        # add update net client env if needed (in case of update)
-        new_envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = constants.UPDATE_SLY_NET_AFTER_RESTART()
+        # TODO: only set true if some NET_CLIENT envs changed
+        new_envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true"
 
         envs = agent_utils.envs_dict_to_list(new_envs)
 

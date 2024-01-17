@@ -199,7 +199,7 @@ class Agent:
 
         if sly_net_container is None:
             self.logger.warn(
-                "Something goes wrong: can't find sly-net-client attached to this agent"
+                "Something went wrong: can't find sly-net-client attached to this agent"
             )
             self.logger.warn(
                 (

@@ -86,7 +86,7 @@ class TaskUpdate(TaskSly):
                 envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true" if need_update else "false"
         except docker.errors.NotFound:
             self.logger.warn(
-                "Something goes wrong: can't find sly-net-client attached to this agent"
+                "Couldn't find sly-net-client attached to this agent. We'll try to deploy it during the agent restart"
             )
 
         # add cross agent volume
