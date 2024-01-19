@@ -111,6 +111,7 @@ def _start_net_client(docker_api=None):
             docker_api.networks.get(network)
         except:
             docker_api.networks.create(network)
+
         sly.logger.info("Starting sly-net-client...")
         net_container = docker_api.containers.run(
             image=image,
@@ -156,6 +157,16 @@ def _start_net_client(docker_api=None):
                     "https://developer.supervisely.com/getting-started/connect-your-computer"
                 )
             )
+        else:
+            try:
+                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get("Networks")
+                net_client_network_name = list(net_client_networks_dict.keys())[0]
+
+                if net_client_network_name != constants.NET_CLIENT_NETWORK():
+                    os.environ[constants._NET_CLIENT_NETWORK] = net_client_network_name
+            except Exception as e:
+                sly.logger.fatal("Couldn't fetch network name from the net-client to reuse the same network", exc_info=True)
+                raise e
 
 
 def _nvidia_runtime_check():

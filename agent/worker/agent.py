@@ -122,6 +122,7 @@ class Agent:
                 container_info.get("HostConfig", {}).get("Binds", [])
             )
 
+        agent_utils.check_and_remove_agent_with_old_name(docker_api)
         envs_dict = agent_utils.envs_list_to_dict(envs)
 
         # recursion stopper
@@ -171,6 +172,9 @@ class Agent:
 
         agent_same_token = []
         agent_name_start = constants.CONTAINER_NAME()
+
+        agent_utils.check_and_remove_agent_with_old_name(dc)
+
         for cont in dc.containers.list():
             if cont.name.startswith(agent_name_start):
                 agent_same_token.append(cont)
@@ -234,6 +238,12 @@ class Agent:
             perm = dev.get("CgroupPermissions", "rwm")
             if host is not None and perm is not None:
                 devices.append(f"{host}:{cont}:{perm}")
+
+        # recreate network if necessary
+        try:
+            dc.networks.get(network)
+        except:
+            dc.networks.create(network)
 
         sly_net_container.remove(force=True)
         dc.containers.run(

@@ -194,6 +194,9 @@ def SERVER_ADDRESS():
     server_address = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
     return server_address
 
+def PUBLIC_API_SERVER_ADDRESS():
+    return SERVER_ADDRESS() + "public/api/v3/"
+
 
 def TASKS_DOCKER_LABEL():
     return "supervisely_{}".format(hashlib.sha256(TOKEN().encode("utf-8")).hexdigest())

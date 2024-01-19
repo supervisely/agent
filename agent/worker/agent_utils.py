@@ -20,7 +20,7 @@ from docker.errors import APIError, ImageNotFound
 from filelock import FileLock
 
 from worker import constants
-from worker.system_info import get_container_info
+from worker.system_info import get_container_info, _get_self_container_idx
 
 
 class AgentOptionsNotAvailable(RuntimeError):
@@ -558,8 +558,8 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
         server_address = constants.SERVER_ADDRESS()
     if token is None:
         token = constants.TOKEN()
-    api_method = "agents.options.info"
-    url = os.path.join(server_address, "public", "api", "v3", api_method)
+
+    url = constants.PUBLIC_API_SERVER_ADDRESS() + "agents.options.info"
     resp = requests.post(url=url, json={"token": token}, timeout=timeout)
     if resp.status_code != requests.codes.ok:
         try:
@@ -576,9 +576,11 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 def get_instance_version(server_address=None, timeout=60):
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
-    url = os.path.join(server_address, "public", "api", "v3", "instance.version")
+    url = constants.PUBLIC_API_SERVER_ADDRESS() + "instance.version"
     resp = requests.get(url=url, timeout=timeout)
     if resp.status_code != requests.codes.ok:
+        if resp.status_code in (400, 401, 403, 404):
+            return None
         try:
             text = resp.text
         except:
@@ -586,7 +588,7 @@ def get_instance_version(server_address=None, timeout=60):
         msg = f"Can't get instance version from server {server_address}."
         if text is not None:
             msg += f" Response: {text}"
-        raise AgentOptionsNotAvailable(msg)
+        raise RuntimeError(msg)
     return resp.json()["version"]
 
 
@@ -734,8 +736,8 @@ def compare_semver(first, second):
 def check_instance_version():
     MIN_INSTANCE_VERSION = "6.8.68"
     instance_version = get_instance_version()
-    if compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
-        raise RuntimeError(
+    if instance_version is None or compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
+        raise AgentOptionsNotAvailable(
             f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
         )
 
@@ -780,3 +782,27 @@ def _ca_cert_changed(ca_cert) -> str:
 
 def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
     return _envs_changes(envs), _volumes_changes(volumes), _ca_cert_changed(ca_cert)
+
+def check_and_remove_agent_with_old_name(dc: DockerClient):
+        agent_same_token = []
+        agent_name_start = constants.CONTAINER_NAME()
+        cur_agent_cont = dc.containers.get(_get_self_container_idx())
+
+        agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
+        cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)
+
+        for cont in dc.containers.list():
+            if cont.name.startswith(agent_name_start):
+                agent_same_token.append(cont)
+
+        if len(agent_same_token) > 1:
+            for cont in agent_same_token:
+                # we don't want to remove current container
+                if cur_agent_cont.name == cont.name:
+                    continue
+                # we want to remove any other container with the same token that got stuck during the upgrade - the ones that have - after their name
+                elif cont.name.startswith(f"{agent_name_start}-"):
+                    cont.remove(force=True)
+                # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
+                elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
+                    cont.remove(force=True)
