@@ -565,7 +565,10 @@ def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
 
 
 def OFFLINE_MODE():
-    return read_optional_setting(_OFFLINE_MODE)
+    if read_optional_setting(_OFFLINE_MODE) == "true":
+        return True
+
+    return False
 
 
 def DEFAULT_APP_DOCKER_IMAGE():
