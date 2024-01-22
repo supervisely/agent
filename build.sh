@@ -3,11 +3,15 @@ readme=$(cat README.md | base64)
 
 built_at=$(date -u +"%Y-%m-%d %H:%M:%SZ")
 
+VERSION="${1}"
+TAG="${VERSION}"
+
 if [[ -z "${VERSION}" ]]; then
   VERSION='6.999.0'
+  TAG='dev'
 fi
 
-docker build . -t supervisely/agent:dev \
+docker build . -t supervisely/agent:${TAG} \
 --label "VERSION=agent:${VERSION}" \
 --label "INFO=${plugin_info}" \
 --label "MODES=main" \
