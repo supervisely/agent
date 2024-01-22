@@ -522,7 +522,14 @@ def str_to_value(value_str):
 def envs_list_to_dict(envs_list: List[str]) -> dict:
     envs_dict = {}
     for env in envs_list:
-        env_name, env_value = env.split("=", maxsplit=1)
+        env_split_arr = env.split("=", maxsplit=1)
+
+        if len(env_split_arr) == 1:
+            env_name = env_split_arr[0]
+            env_value = ""
+        else:
+            env_name, env_value = env_split_arr
+
         envs_dict[env_name] = str_to_value(env_value)
     return envs_dict
 
