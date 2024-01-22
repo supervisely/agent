@@ -78,7 +78,7 @@ def _start_net_client(docker_api=None):
         if net_server_port is None:
             raise RuntimeError(f"{constants._NET_SERVER_PORT} is not defined")
 
-        server_addr_url_obj = urllib.parse.urlparse(f"http://{constants.SERVER_ADDRESS().rstrip('/').lstrip('https://').lstrip('http://')}")
+        server_addr_url_obj = urllib.parse.urlparse(constants.SERVER_ADDRESS())
         net_server_address = f"{server_addr_url_obj.hostname}:{net_server_port}"
 
         command = [
