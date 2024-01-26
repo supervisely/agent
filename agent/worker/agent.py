@@ -185,7 +185,7 @@ class Agent:
             )
 
         if len(agent_same_token) == 1 and agent_same_token[0].name != agent_name_start:
-          agent_same_token[0].rename(agent_name_start)
+            agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
@@ -215,7 +215,9 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger, sly_net_client_image_name)
+                need_update_env = check_and_pull_sly_net_if_needed(
+                    dc, sly_net_container, self.logger, sly_net_client_image_name
+                )
 
         if need_update_env is False:
             return
@@ -676,26 +678,27 @@ class Agent:
                 log_buffer = ""
 
     def update_base_layers(self):
-        self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
-
-        image = "supervisely/base-py-sdk:latest"
-
-        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
-            self.logger.info(
-                "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
-                    image,
-                    f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+        self.logger.info("Start background task: pulling base images")
+        pulled = []
+        for image in constants._BASE_IMAGES:
+            if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+                self.logger.info(
+                    "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                        image,
+                        f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                    )
                 )
-            )
-            image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
+                image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-        sly.docker_utils.docker_pull_if_needed(
-            self.docker_api,
-            image,
-            policy=sly.docker_utils.PullPolicy.ALWAYS,
-            logger=self.logger,
-            progress=False,
-        )
+            sly.docker_utils.docker_pull_if_needed(
+                self.docker_api,
+                image,
+                policy=sly.docker_utils.PullPolicy.ALWAYS,
+                logger=self.logger,
+                progress=False,
+            )
+            self.logger.info(f"Pulled docker image '{image}'")
+            pulled.append(image)
         self.logger.info(
-            "Background task finished: `supervisely/base-py-sdk:latest` has been pulled."
+            f"Background task finished: base images has been pulled. Images: [{', '.join([image for image in pulled])}]"
         )
