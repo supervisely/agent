@@ -681,24 +681,27 @@ class Agent:
         self.logger.info("Start background task: pulling base images")
         pulled = []
         for image in constants._BASE_IMAGES:
-            if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
-                self.logger.info(
-                    "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
-                        image,
-                        f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+            try:
+                if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+                    self.logger.info(
+                        "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                            image,
+                            f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                        )
                     )
-                )
-                image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
+                    image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-            sly.docker_utils.docker_pull_if_needed(
-                self.docker_api,
-                image,
-                policy=sly.docker_utils.PullPolicy.ALWAYS,
-                logger=self.logger,
-                progress=False,
-            )
-            self.logger.info(f"Pulled docker image '{image}'")
-            pulled.append(image)
+                sly.docker_utils.docker_pull_if_needed(
+                    self.docker_api,
+                    image,
+                    policy=sly.docker_utils.PullPolicy.ALWAYS,
+                    logger=self.logger,
+                    progress=False,
+                )
+                self.logger.info(f"Pulled docker image '{image}'")
+                pulled.append(image)
+            except:
+                self.logger.error(f"Failed to pull docker image '{image}'", exc_info=True)
         self.logger.info(
             f"Background task finished: base images has been pulled. Images: [{', '.join([image for image in pulled])}]"
         )

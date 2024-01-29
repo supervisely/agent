@@ -159,13 +159,18 @@ def _start_net_client(docker_api=None):
             )
         else:
             try:
-                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get("Networks")
+                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get(
+                    "Networks"
+                )
                 net_client_network_name = list(net_client_networks_dict.keys())[0]
 
                 if net_client_network_name != constants.NET_CLIENT_NETWORK():
                     os.environ[constants._NET_CLIENT_NETWORK] = net_client_network_name
             except Exception as e:
-                sly.logger.fatal("Couldn't fetch network name from the net-client to reuse the same network", exc_info=True)
+                sly.logger.fatal(
+                    "Couldn't fetch network name from the net-client to reuse the same network",
+                    exc_info=True,
+                )
                 raise e
 
 

@@ -26,6 +26,7 @@ from worker.system_info import get_container_info, _get_self_container_idx
 class AgentOptionsNotAvailable(RuntimeError):
     pass
 
+
 class AgentOptionsJsonFields:
     AGENT_OPTIONS = "agentOptions"
     AGENT_HOST_DIR = "agentDataHostDir"
@@ -391,7 +392,7 @@ class DockerImagesCleaner:
         for hist in hist_paths:
             to_remove = self._parse_and_update_history(hist, to_remove)
         return list(to_remove.keys())
-    
+
     def _is_base_image(image_name):
         return image_name in constants._BASE_IMAGES
 
@@ -709,8 +710,8 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
         docker_api = docker.from_env()
 
-        if '/' not in agent_host_dir:
-          docker_api.volumes.create(agent_host_dir)
+        if "/" not in agent_host_dir:
+            docker_api.volumes.create(agent_host_dir)
 
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
@@ -794,26 +795,27 @@ def _ca_cert_changed(ca_cert) -> str:
 def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
     return _envs_changes(envs), _volumes_changes(volumes), _ca_cert_changed(ca_cert)
 
+
 def check_and_remove_agent_with_old_name(dc: DockerClient):
-        agent_same_token = []
-        agent_name_start = constants.CONTAINER_NAME()
-        cur_agent_cont = dc.containers.get(_get_self_container_idx())
+    agent_same_token = []
+    agent_name_start = constants.CONTAINER_NAME()
+    cur_agent_cont = dc.containers.get(_get_self_container_idx())
 
-        agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
-        cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)
+    agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
+    cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)
 
-        for cont in dc.containers.list():
-            if cont.name.startswith(agent_name_start):
-                agent_same_token.append(cont)
+    for cont in dc.containers.list():
+        if cont.name.startswith(agent_name_start):
+            agent_same_token.append(cont)
 
-        if len(agent_same_token) > 1:
-            for cont in agent_same_token:
-                # we don't want to remove current container
-                if cur_agent_cont.name == cont.name:
-                    continue
-                # we want to remove any other container with the same token that got stuck during the upgrade - the ones that have - after their name
-                elif cont.name.startswith(f"{agent_name_start}-"):
-                    cont.remove(force=True)
-                # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
-                elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
-                    cont.remove(force=True)
+    if len(agent_same_token) > 1:
+        for cont in agent_same_token:
+            # we don't want to remove current container
+            if cur_agent_cont.name == cont.name:
+                continue
+            # we want to remove any other container with the same token that got stuck during the upgrade - the ones that have - after their name
+            elif cont.name.startswith(f"{agent_name_start}-"):
+                cont.remove(force=True)
+            # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
+            elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
+                cont.remove(force=True)
