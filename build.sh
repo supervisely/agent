@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -o pipefail -e
+
 plugin_info=$(cat plugin_info.json | base64)
 readme=$(cat README.md | base64)
 

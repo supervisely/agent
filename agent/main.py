@@ -174,7 +174,7 @@ def _nvidia_runtime_check():
     runtime = container_info["HostConfig"]["Runtime"]
     if runtime == "nvidia":
         return False
-    sly.logger.info("NVIDIA runtime is not enabled. Checking if it can be enabled...")
+    sly.logger.debug("NVIDIA runtime is not enabled. Checking if it can be enabled...")
     docker_api = docker.from_env()
     image = constants.DEFAULT_APP_DOCKER_IMAGE()
     try:
@@ -184,10 +184,10 @@ def _nvidia_runtime_check():
             runtime="nvidia",
             remove=True,
         )
-        sly.logger.info("NVIDIA runtime is available. Will restart Agent with NVIDIA runtime.")
+        sly.logger.debug("NVIDIA runtime is available. Will restart Agent with NVIDIA runtime.")
         return True
     except Exception as e:
-        sly.logger.info("NVIDIA runtime is not available.")
+        sly.logger.debug("NVIDIA runtime is not available.")
         return False
 
 
@@ -265,7 +265,7 @@ def init_envs():
                     for k, v in envs_changes.items()
                 },
                 "volumes_changes": volumes_changes,
-                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime},
+                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime} if restart_with_nvidia_runtime else {},
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )

@@ -779,8 +779,12 @@ def _ca_cert_changed(ca_cert) -> str:
     if cert_path == cur_path:
         if os.path.exists(cert_path):
             with open(cert_path, "r") as f:
+                sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
                 if f.read() == ca_cert:
+                    sly.logger.debug(f"Certificates are equal, skipping the update")
                     return None
+                else:
+                    sly.logger.debug(f"Certificates are not equal, updating")
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
     with open(cert_path, "w") as f:
         f.write(ca_cert)
