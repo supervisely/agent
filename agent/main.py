@@ -159,13 +159,18 @@ def _start_net_client(docker_api=None):
             )
         else:
             try:
-                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get("Networks")
+                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get(
+                    "Networks"
+                )
                 net_client_network_name = list(net_client_networks_dict.keys())[0]
 
                 if net_client_network_name != constants.NET_CLIENT_NETWORK():
                     os.environ[constants._NET_CLIENT_NETWORK] = net_client_network_name
             except Exception as e:
-                sly.logger.fatal("Couldn't fetch network name from the net-client to reuse the same network", exc_info=True)
+                sly.logger.fatal(
+                    "Couldn't fetch network name from the net-client to reuse the same network",
+                    exc_info=True,
+                )
                 raise e
 
 
@@ -269,9 +274,10 @@ def init_envs():
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        Agent._restart(envs, new_volumes, runtime)
-        sly.logger.info("Agent is restarted. This container will be removed")
-        docker_api.containers.get(container_info["Id"]).remove(force=True)
+        restarted = Agent._restart(envs, new_volumes, runtime)
+        if restarted:
+            sly.logger.info("Agent is restarted. This container will be removed")
+            docker_api.containers.get(container_info["Id"]).remove(force=True)
 
 
 if __name__ == "__main__":

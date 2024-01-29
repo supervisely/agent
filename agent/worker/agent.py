@@ -131,6 +131,7 @@ class Agent:
             sly.logger.warn(
                 "Agent restarted multiple times, indicating a potential error. Reapply options and contact support if issues persist."
             )
+            return False
 
         envs_dict["AGENT_RESTARTED"] = restart_n + 1
 
@@ -156,6 +157,7 @@ class Agent:
             "Docker container is spawned",
             extra={"container_id": container.id, "container_name": container.name},
         )
+        return True
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
