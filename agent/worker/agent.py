@@ -126,7 +126,7 @@ class Agent:
         envs_dict = agent_utils.envs_list_to_dict(envs)
 
         # recursion stopper
-        restart_n = int(envs_dict.get("AGENT_RESTARTED", "0"))
+        restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
         if restart_n >= 1:
             raise (
                 RuntimeError(
