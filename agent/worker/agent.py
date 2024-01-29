@@ -125,15 +125,14 @@ class Agent:
         agent_utils.check_and_remove_agent_with_old_name(docker_api)
         envs_dict = agent_utils.envs_list_to_dict(envs)
 
-        # # recursion stopper
-        # restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
-        # if restart_n >= 1:
-        #     raise (
-        #         RuntimeError(
-        #             "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
-        #         )
-        #     )
-        # envs_dict["AGENT_RESTARTED"] = restart_n + 1
+        # recursion warning
+        restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
+        if restart_n >= 1:
+            sly.logger.warn(
+                "Agent restarted multiple times, indicating a potential error. Reapply options and contact support if issues persist."
+            )
+
+        envs_dict["AGENT_RESTARTED"] = restart_n + 1
 
         image = container_info["Config"]["Image"]
         if runtime is None:
