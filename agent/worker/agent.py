@@ -698,10 +698,10 @@ class Agent:
                     logger=self.logger,
                     progress=False,
                 )
-                self.logger.info(f"Pulled docker image '{image}'")
+                self.logger.info(f"Docker image '{image}' has been pulled successfully")
                 pulled.append(image)
             except:
-                self.logger.error(f"Failed to pull docker image '{image}'", exc_info=True)
+                self.logger.warn(f"Failed to pull docker image '{image}'", exc_info=True)
         self.logger.info(
-            f"Background task finished: base images has been pulled. Images: [{', '.join([image for image in pulled])}]"
+            f"Background task finished: base images have been pulled. Images: [{', '.join([image for image in pulled])}]"
         )
