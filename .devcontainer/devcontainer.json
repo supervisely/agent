@@ -13,7 +13,7 @@
     ],
     "containerEnv": {
         // access token from secret.env
-        "DOCKER_NET": "supervisely-net-{access token}"
+        "NET_CLIENT_NETWORK": "supervisely-net-{access token}"
     },
     "mounts": [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",

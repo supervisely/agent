@@ -6,6 +6,7 @@ import threading
 import time
 import multiprocessing
 import platform
+import traceback
 
 if platform.system() == "Darwin":
     multiprocessing.set_start_method("fork")
@@ -124,12 +125,15 @@ class TaskLogged(multiprocessing.Process):
         return sly.EventType.TASK_STOPPED
 
     def end_log_crash(self, e):
+        exc_str = traceback.format_exc()
+
         self.logger.warn(
             "TASK_END",
             extra={
                 "event_type": sly.EventType.TASK_CRASHED,
                 "exit_status": str(e),
                 "exc_str": repr(e),
+                "trace": exc_str,
             },
         )
         return sly.EventType.TASK_CRASHED

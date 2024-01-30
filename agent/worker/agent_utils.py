@@ -1,19 +1,54 @@
 # coding: utf-8
 
+import json
 import os
 import os.path as osp
-import shutil
 import queue
-import json
 import re
+import requests
+import docker
+import shutil
 
 import supervisely_lib as sly
 
 from logging import Logger
-from typing import Callable, List, Optional, Union, Container
+from typing import Callable, List, Optional, Tuple, Union, Container
 from datetime import datetime, timedelta
 from pathlib import Path
+from docker import DockerClient
+from docker.errors import APIError, ImageNotFound
+from filelock import FileLock
+
 from worker import constants
+from worker.system_info import get_container_info, _get_self_container_idx
+
+
+class AgentOptionsNotAvailable(RuntimeError):
+    pass
+
+class AgentOptionsJsonFields:
+    AGENT_OPTIONS = "agentOptions"
+    AGENT_HOST_DIR = "agentDataHostDir"
+    DELETE_TASK_DIR_ON_FAILURE = "deleteTaskDirOnFailure"
+    DELETE_TASK_DIR_ON_FINISH = "deleteTaskDirOnFinish"
+    DOCKER_CREDS = "dockerCreds"
+    DOCKER_LOGIN = "login"
+    DOCKER_PASSWORD = "password"
+    DOCKER_REGISTRY = "registry"
+    SERVER_ADDRESS = "serverAddress"
+    SERVER_ADDRESS_INTERNAL = "internalServerAddress"
+    SERVER_ADDRESS_EXTERNAL = "externalServerAddress"
+    OFFLINE_MODE = "offlineMode"
+    PULL_POLICY = "pullPolicy"
+    SUPERVISELY_AGENT_FILES = "slyAppsDataHostDir"
+    NO_PROXY = "noProxy"
+    MEM_LIMIT = "memLimit"
+    HTTP_PROXY = "httpProxy"
+    SECURITY_OPT = "securityOpts"
+    NET_OPTIONS = "netClientOptions"
+    NET_CLIENT_DOCKER_IMAGE = "dockerImage"
+    NET_SERVER_PORT = "netServerPort"
+    DOCKER_IMAGE = "dockerImage"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -306,6 +341,91 @@ class AppDirCleaner:
             self.logger.info(f"Files for this session can be manually removed: {allow_for_cleaner}")
 
 
+class DockerImagesCleaner:
+    def __init__(self, docker_api: DockerClient, logger: Logger) -> None:
+        self._days_before_delete = timedelta(days=constants.REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS())
+        self.logger = logger
+        self.path_to_history = constants.CROSS_AGENT_DATA_DIR()
+        self.docker_api = docker_api
+
+    def remove_idle_images(self):
+        if self.path_to_history is None:
+            self.logger.debug(
+                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker Images will not be executed"
+            )
+            return
+
+        if constants.OFFLINE_MODE() is True:
+            self.logger.debug(
+                f"Offline mode is enabled; the process of removing unused Docker Images will not be executed"
+            )
+            return
+
+        all_hists = sly.fs.list_files(
+            self.path_to_history, filter_fn=self._is_history, valid_extensions=".json"
+        )
+        lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
+
+        if sly.fs.file_exists(lock_file):
+            self.logger.info(
+                "Skip DockerImagesCleaner task: another agent is already working on this task"
+            )
+            return
+
+        self.logger.info("DockerImagesCleaner started: old images will be removed.")
+        sly.fs.touch(lock_file)
+
+        try:
+            # check all
+            to_remove = self._parse_all_hists(all_hists)
+            for image in to_remove:
+                try:
+                    self.docker_api.api.remove_image(image)
+                    self.logger.info(f"Image {image} has been successfully removed.")
+                except (APIError, ImageNotFound) as exc:
+                    reason = exc.response.json().get("message")
+                    self.logger.info(f"Skip {image}: {reason}")
+        finally:
+            sly.fs.silent_remove(lock_file)
+            self.logger.info("DockerImagesCleaner finished.")
+
+    def _is_history(self, filename: str) -> bool:
+        return "docker-images-history-" in filename
+
+    def _parse_all_hists(self, hist_paths: List[str]) -> List[str]:
+        to_remove = {}
+        for hist in hist_paths:
+            to_remove = self._parse_and_update_history(hist, to_remove)
+        return list(to_remove.keys())
+
+    def _parse_and_update_history(self, hist_path: str, to_remove: dict):
+        hist_lock = FileLock(f"{hist_path}.lock")
+
+        with hist_lock:
+            with open(hist_path, "r") as json_file:
+                images_data: dict = json.load(json_file)
+
+            rest_images = {}
+            for image, last_date in images_data.items():
+                if self._is_outdated(last_date):
+                    to_remove[image] = last_date
+                else:
+                    rest_images[image] = last_date
+                    if image in to_remove:
+                        del to_remove[image]
+
+            with open(hist_path, "w") as json_file:
+                json.dump(rest_images, json_file, indent=4)
+
+        return to_remove
+
+    def _is_outdated(self, last_date: Union[str, datetime]) -> bool:
+        last_date_ts = last_date
+        if isinstance(last_date, str):
+            last_date_ts = datetime.strptime(last_date, "%Y-%m-%dT%H:%M")
+        return datetime.now() - last_date_ts > self._days_before_delete
+
+
 # @TODO: remove this method or refactor it in future (dict_name - WTF??)
 def get_single_item_or_die(src_dict, key, dict_name):
     results = src_dict.get(key, None)
@@ -381,3 +501,329 @@ def post_get_request_filter(msg: str, cur_level: int) -> int:
     if re.match(pattern, msg) is not None:
         return sly.LOGGING_LEVELS["DEBUG"].int
     return cur_level
+
+
+def value_to_str(value):
+    if isinstance(value, list):
+        return ",".join(value)
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
+def str_to_value(value_str):
+    if value_str == "":
+        return None
+    if value_str == "true":
+        return True
+    if value_str == "false":
+        return False
+    if "," in value_str:
+        return value_str.split(",")
+    return value_str
+
+
+def envs_list_to_dict(envs_list: List[str]) -> dict:
+    envs_dict = {}
+    for env in envs_list:
+        env_split_arr = env.split("=", maxsplit=1)
+
+        if len(env_split_arr) == 1:
+            env_name = env_split_arr[0]
+            env_value = ""
+        else:
+            env_name, env_value = env_split_arr
+
+        envs_dict[env_name] = str_to_value(env_value)
+    return envs_dict
+
+
+def envs_dict_to_list(envs_dict: dict) -> List[str]:
+    envs_list = []
+    for env_name, env_value in envs_dict.items():
+        envs_list.append(f"{env_name}={value_to_str(env_value)}")
+    return envs_list
+
+
+def binds_to_volumes_dict(binds: List[str]) -> dict:
+    volumes = {}
+    for bind in binds:
+        split = bind.split(":")
+        src = split[0]
+        dst = split[1]
+        mode = split[2] if len(split) == 3 else "rw"
+        volumes[src] = {"bind": dst, "mode": mode}
+    return volumes
+
+
+def volumes_dict_to_binds(volumes: dict) -> List[str]:
+    binds = []
+    for src, dst in volumes.items():
+        bind = f"{src}:{dst['bind']}:{dst['mode']}" if "mode" in dst else f"{src}:{dst['bind']}"
+        binds.append(bind)
+    return binds
+
+
+def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
+    if server_address is None:
+        server_address = constants.SERVER_ADDRESS()
+    if token is None:
+        token = constants.TOKEN()
+
+    url = constants.PUBLIC_API_SERVER_ADDRESS() + "agents.options.info"
+    resp = requests.post(url=url, json={"token": token}, timeout=timeout)
+    if resp.status_code != requests.codes.ok:
+        try:
+            text = resp.text
+        except:
+            text = None
+        msg = f"Can't get agent options from server {server_address}."
+        if text is not None:
+            msg += f" Response: {text}"
+        raise AgentOptionsNotAvailable(msg)
+    return resp.json()
+
+
+def get_instance_version(server_address=None, timeout=60):
+    if server_address is None:
+        server_address = constants.SERVER_ADDRESS()
+    url = constants.PUBLIC_API_SERVER_ADDRESS() + "instance.version"
+    resp = requests.get(url=url, timeout=timeout)
+    if resp.status_code != requests.codes.ok:
+        if resp.status_code in (400, 401, 403, 404):
+            return None
+        try:
+            text = resp.text
+        except:
+            text = None
+        msg = f"Can't get instance version from server {server_address}."
+        if text is not None:
+            msg += f" Response: {text}"
+        raise RuntimeError(msg)
+    return resp.json()["version"]
+
+
+def updated_agent_options() -> Tuple[dict, dict, str]:
+    env = {}
+
+    def update_env_param(name, value, default=None):
+        if value is None or value == "":
+            if name in constants.get_required_settings():
+                raise RuntimeError(f'Required option "{name}" is empty.')
+            value = default
+        env[name] = value
+
+    params = get_agent_options()
+    options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
+    net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
+    ca_cert = params["caCert"]
+    http_proxy = params.get("httpProxy", None)
+    no_proxy = params.get("noProxy", constants.NO_PROXY())
+
+    optional_defaults = constants.get_optional_defaults()
+
+    update_env_param(constants._ACCESS_TOKEN, constants.TOKEN())
+    update_env_param(
+        constants._SUPERVISELY_AGENT_FILES,
+        options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None),
+        optional_defaults[constants._SUPERVISELY_AGENT_FILES],
+    )
+    update_env_param(
+        constants._DELETE_TASK_DIR_ON_FAILURE,
+        str(options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FAILURE, "")).lower(),
+        optional_defaults[constants._DELETE_TASK_DIR_ON_FAILURE],
+    )
+    update_env_param(
+        constants._DELETE_TASK_DIR_ON_FINISH,
+        str(options.get(AgentOptionsJsonFields.DELETE_TASK_DIR_ON_FINISH, "")).lower(),
+        optional_defaults[constants._DELETE_TASK_DIR_ON_FINISH],
+    )
+
+    docker_cr = options.get(AgentOptionsJsonFields.DOCKER_CREDS, [])
+    docker_login = ",".join([cr[AgentOptionsJsonFields.DOCKER_LOGIN] for cr in docker_cr])
+    docker_pass = ",".join([cr[AgentOptionsJsonFields.DOCKER_PASSWORD] for cr in docker_cr])
+    docker_reg = ",".join([cr[AgentOptionsJsonFields.DOCKER_REGISTRY] for cr in docker_cr])
+    os.environ["DOCKER_LOGIN"] = ""
+    os.environ["DOCKER_PASSWORD"] = ""
+    os.environ["DOCKER_REGISTRY"] = ""
+    constants._VALUES[constants._DOCKER_LOGIN] = docker_login
+    constants._VALUES[constants._DOCKER_PASSWORD] = docker_pass
+    constants._VALUES[constants._DOCKER_REGISTRY] = docker_reg
+
+    # TODO: save all server addresses
+    server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS, None)
+    if server_address is None or server_address == "":
+        server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_INTERNAL, "")
+        try:
+            get_agent_options(server_address=server_address, timeout=4)
+        except Exception as e:
+            server_address = options.get(AgentOptionsJsonFields.SERVER_ADDRESS_EXTERNAL, None)
+    update_env_param(constants._SERVER_ADDRESS, server_address, constants.SERVER_ADDRESS())
+
+    update_env_param(
+        constants._OFFLINE_MODE,
+        options.get(AgentOptionsJsonFields.OFFLINE_MODE, None),
+        optional_defaults[constants._OFFLINE_MODE],
+    )
+    update_env_param(
+        constants._PULL_POLICY,
+        options.get(AgentOptionsJsonFields.PULL_POLICY, None),
+        optional_defaults[constants._PULL_POLICY],
+    )
+    update_env_param(
+        constants._MEM_LIMIT,
+        options.get(AgentOptionsJsonFields.MEM_LIMIT, None),
+        optional_defaults[constants._MEM_LIMIT],
+    )
+    update_env_param(
+        constants._SECURITY_OPT,
+        options.get(AgentOptionsJsonFields.SECURITY_OPT, None),
+        optional_defaults[constants._SECURITY_OPT],
+    )
+    update_env_param(
+        constants._HTTP_PROXY,
+        http_proxy,
+        optional_defaults[constants._HTTP_PROXY],
+    )
+    update_env_param(constants._HTTPS_PROXY, http_proxy, optional_defaults[constants._HTTPS_PROXY])
+    update_env_param(constants._NO_PROXY, no_proxy, optional_defaults[constants._NO_PROXY])
+    # DOCKER_IMAGE
+    # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
+
+    update_env_param(
+        constants._NET_CLIENT_DOCKER_IMAGE,
+        net_options.get(AgentOptionsJsonFields.NET_CLIENT_DOCKER_IMAGE, None),
+        optional_defaults[constants._NET_CLIENT_DOCKER_IMAGE],
+    )
+    update_env_param(
+        constants._NET_SERVER_PORT,
+        net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None),
+        optional_defaults[constants._NET_SERVER_PORT],
+    )
+    update_env_param(
+        constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
+    )
+
+    agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
+    if agent_host_dir == "":
+        agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
+        docker_api = docker.from_env()
+
+        if '/' not in agent_host_dir:
+          docker_api.volumes.create(agent_host_dir)
+
+    update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
+
+    volumes = {}
+
+    def add_volume(src: str, dst: str) -> dict:
+        volumes[src] = {"bind": dst, "mode": "rw"}
+
+    add_volume(agent_host_dir, constants.AGENT_ROOT_DIR())
+    add_volume("/var/run/docker.sock", "/var/run/docker.sock")
+    add_volume(
+        env[constants._SUPERVISELY_AGENT_FILES], constants.SUPERVISELY_AGENT_FILES_CONTAINER()
+    )
+
+    return env, volumes, ca_cert
+
+
+def compare_semver(first, second):
+    if first == second:
+        return 0
+    first = first.split(".")
+    second = second.split(".")
+    if len(first) != len(second):
+        first = [*first, *["0"] * max(0, len(second) - len(first))]
+        second = [*second, *["0"] * max(0, len(first) - len(second))]
+    for i in range(3):
+        if int(first[i]) > int(second[i]):
+            return 1
+        elif int(first[i]) < int(second[i]):
+            return -1
+    return 0
+
+
+def check_instance_version():
+    MIN_INSTANCE_VERSION = "6.8.68"
+    instance_version = get_instance_version()
+    if instance_version is None or compare_semver(instance_version, MIN_INSTANCE_VERSION) < 0:
+        raise AgentOptionsNotAvailable(
+            f"Instance version {instance_version} is too old. Required {MIN_INSTANCE_VERSION}"
+        )
+
+
+def _envs_changes(envs: dict) -> dict:
+    changes = {}
+    for key, value in envs.items():
+        cur_value = os.environ.get(key, None)
+        if cur_value is None or cur_value != value_to_str(value):
+            changes[key] = value
+    return changes
+
+
+def _volumes_changes(volumes) -> dict:
+    container_info = get_container_info()
+    container_volumes = container_info.get("HostConfig", {}).get("Binds", [])
+    container_volumes = binds_to_volumes_dict(container_volumes)
+    changes = {}
+    for key, value in volumes.items():
+        if key not in container_volumes:
+            changes[key] = value
+        elif container_volumes[key]["bind"] != value["bind"]:
+            changes[key] = value
+    return changes
+
+
+def _ca_cert_changed(ca_cert) -> str:
+    if ca_cert is None:
+        return None
+
+    ca_cert = ca_cert.replace('\r\n', '\n')
+
+    cert_path = os.path.join(constants.AGENT_ROOT_DIR(), "certs", "instance_ca_chain.crt")
+    cur_path = constants.SLY_EXTRA_CA_CERTS()
+    if cert_path == cur_path:
+        if os.path.exists(cert_path):
+            with open(cert_path, "r", encoding='utf-8') as f:
+                ca_file_contents = f.read().replace('\r\n', '\n')
+                sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
+                if ca_file_contents == ca_cert:
+                    sly.logger.debug(f"Certificates are equal, skipping the update")
+                    return None
+                else:
+                    sly.logger.debug(f"Certificates are not equal, updating")
+    Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(cert_path, "w", encoding='utf-8') as f:
+        f.write(ca_cert)
+    return cert_path
+
+
+def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
+    return _envs_changes(envs), _volumes_changes(volumes), _ca_cert_changed(ca_cert)
+
+def check_and_remove_agent_with_old_name(dc: DockerClient):
+        agent_same_token = []
+        agent_name_start = constants.CONTAINER_NAME()
+        cur_agent_cont = dc.containers.get(_get_self_container_idx())
+
+        agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
+        cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)
+
+        for cont in dc.containers.list():
+            if cont.name.startswith(agent_name_start):
+                agent_same_token.append(cont)
+
+        if len(agent_same_token) > 1:
+            for cont in agent_same_token:
+                # we don't want to remove current container
+                if cur_agent_cont.name == cont.name:
+                    continue
+                # we want to remove any other container with the same token that got stuck during the upgrade - the ones that have - after their name
+                elif cont.name.startswith(f"{agent_name_start}-"):
+                    cont.remove(force=True)
+                # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
+                elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
+                    cont.remove(force=True)

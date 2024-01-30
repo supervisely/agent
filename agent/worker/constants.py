@@ -9,13 +9,25 @@ import re
 from supervisely_lib.io.docker_utils import PullPolicy
 
 
-_AGENT_HOST_DIR = "AGENT_HOST_DIR"
 _SERVER_ADDRESS = "SERVER_ADDRESS"
 _ACCESS_TOKEN = "ACCESS_TOKEN"
 _DOCKER_LOGIN = "DOCKER_LOGIN"
 _DOCKER_PASSWORD = "DOCKER_PASSWORD"
 _DOCKER_REGISTRY = "DOCKER_REGISTRY"
 
+
+_VALUES = {
+    _DOCKER_LOGIN: os.environ.get(_DOCKER_LOGIN, ""),
+    _DOCKER_PASSWORD: os.environ.get(_DOCKER_PASSWORD, ""),
+    _DOCKER_REGISTRY: os.environ.get(_DOCKER_REGISTRY, ""),
+}
+
+
+def TOKEN():
+    return os.environ[_ACCESS_TOKEN]
+
+
+_AGENT_HOST_DIR = "AGENT_HOST_DIR"
 _WITH_LOCAL_STORAGE = "WITH_LOCAL_STORAGE"
 _UPLOAD_RESULT_IMAGES = "UPLOAD_RESULT_IMAGES"
 _PULL_ALWAYS = "PULL_ALWAYS"
@@ -29,11 +41,13 @@ _HTTPS_PROXY = "HTTPS_PROXY"
 _NO_PROXY = "NO_PROXY"
 _PUBLIC_API_RETRY_LIMIT = "PUBLIC_API_RETRY_LIMIT"
 _APP_DEBUG_DOCKER_IMAGE = "APP_DEBUG_DOCKER_IMAGE"
+_SLY_APPS_DOCKER_REGISTRY = "SLY_APPS_DOCKER_REGISTRY"
 
 _REQUESTS_CA_BUNDLE = "REQUESTS_CA_BUNDLE"
 _REQUESTS_CA_BUNDLE_DIR_CONTAINER = "REQUESTS_CA_BUNDLE_DIR_CONTAINER"
 _HOST_REQUESTS_CA_BUNDLE = "HOST_REQUESTS_CA_BUNDLE"
 _SSL_CERT_FILE = "SSL_CERT_FILE"
+_SLY_EXTRA_CA_CERTS = "SLY_EXTRA_CA_CERTS"
 
 # container limits
 _CPU_PERIOD = "CPU_PERIOD"
@@ -57,12 +71,8 @@ _AUTO_CLEAN_INT_RANGE_DAYS = "AUTO_CLEAN_INT_RANGE_DAYS"
 
 
 _REQUIRED_SETTINGS = [
-    _AGENT_HOST_DIR,
     _SERVER_ADDRESS,
     _ACCESS_TOKEN,
-    _DOCKER_LOGIN,
-    _DOCKER_PASSWORD,
-    _DOCKER_REGISTRY,
 ]
 
 
@@ -77,9 +87,23 @@ _DOCKER_NET = "DOCKER_NET"
 _SUPERVISELY_AGENT_FILES = "SUPERVISELY_AGENT_FILES"
 _SUPERVISELY_AGENT_FILES_CONTAINER = "SUPERVISELY_AGENT_FILES_CONTAINER"
 _OFFLINE_MODE = "OFFLINE_MODE"
+_CROSS_AGENT_VOLUME_NAME = "CROSS_AGENT_VOLUME_NAME"
+_CROSS_AGENT_DATA_DIR = "CROSS_AGENT_DATA_DIR"
+_REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS = "REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS"
+_REMOVE_OLD_AGENT = "REMOVE_OLD_AGENT"
+_UPDATE_SLY_NET_AFTER_RESTART = "UPDATE_SLY_NET_AFTER_RESTART"
+_DOCKER_IMAGE = "DOCKER_IMAGE"
+_CONTAINER_NAME = "CONTAINER_NAME"
 
+_NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
+_NET_SERVER_PORT = "NET_SERVER_PORT"
+_SLY_NET_CLIENT_PING_INTERVAL = "SLY_NET_CLIENT_PING_INTERVAL"
+_TRUST_DOWNSTREAM_PROXY = "TRUST_DOWNSTREAM_PROXY"
+_NET_CLIENT_CONTAINER_NAME = "NET_CLIENT_CONTAINER_NAME"
+_NET_CLIENT_NETWORK = "NET_CLIENT_NETWORK"
 
 _OPTIONAL_DEFAULTS = {
+    _AGENT_HOST_DIR: f"/opt/supervisely/agents/agent-data-{TOKEN()[:8]}",
     _WITH_LOCAL_STORAGE: "true",
     _UPLOAD_RESULT_IMAGES: "true",
     _PULL_ALWAYS: None,
@@ -100,14 +124,15 @@ _OPTIONAL_DEFAULTS = {
     _GIT_PASSWORD: None,
     _GITHUB_TOKEN: None,
     _APP_DEBUG_DOCKER_IMAGE: None,
+    _SLY_APPS_DOCKER_REGISTRY: None,
     _REQUESTS_CA_BUNDLE: None,
     _SSL_CERT_FILE: None,
     _HOST_REQUESTS_CA_BUNDLE: None,
     _SHM_SIZE: "5G",
-    _DOCKER_NET: None,  # or string value 'supervisely-vpn'
+    _DOCKER_NET: None,
     _AGENT_ROOT_DIR: "/sly_agent",
     _DISABLE_TELEMETRY: None,
-    _SUPERVISELY_AGENT_FILES: None,
+    _SUPERVISELY_AGENT_FILES: f"/opt/supervisely/agents/agent-files-{TOKEN()[:8]}",
     _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
     _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
@@ -115,7 +140,24 @@ _OPTIONAL_DEFAULTS = {
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
     _SECURITY_OPT: None,
+    _NET_CLIENT_DOCKER_IMAGE: "supervisely/sly-net-client:latest",
+    _CROSS_AGENT_VOLUME_NAME: "supervisely-cross-agents-data",
+    _CROSS_AGENT_DATA_DIR: "/cross-agent-data",
+    _REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS: 14,
+    _SLY_EXTRA_CA_CERTS: None,
+    _SLY_NET_CLIENT_PING_INTERVAL: 60,
+    _TRUST_DOWNSTREAM_PROXY: "true",
+    _REMOVE_OLD_AGENT: None,
+    _UPDATE_SLY_NET_AFTER_RESTART: "false",
+    _DOCKER_IMAGE: None,
+    _NET_SERVER_PORT: None,
+    _NET_CLIENT_CONTAINER_NAME: f"supervisely-net-client-{TOKEN()[:8]}",
+    _NET_CLIENT_NETWORK: f"supervisely-net-{TOKEN()[:8]}",
+    _CONTAINER_NAME: f"supervisely-agent-{TOKEN()[:8]}",
 }
+
+
+SENSITIVE_SETTINGS = [_ACCESS_TOKEN, _DOCKER_PASSWORD, _GIT_PASSWORD]
 
 
 def get_required_settings():
@@ -131,8 +173,8 @@ def read_optional_setting(name):
 
 
 def HOST_DIR():
-    """{agent root host dir}; default '~/.supervisely-agent'"""
-    return os.environ[_AGENT_HOST_DIR]
+    """{agent root host dir}; can be a named volume; default (named volume): 'supervisely-agent-###'"""
+    return read_optional_setting(_AGENT_HOST_DIR)
 
 
 def AGENT_ROOT_DIR():
@@ -152,9 +194,8 @@ def SERVER_ADDRESS():
     server_address = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
     return server_address
 
-
-def TOKEN():
-    return os.environ[_ACCESS_TOKEN]
+def PUBLIC_API_SERVER_ADDRESS():
+    return SERVER_ADDRESS() + "public/api/v3/"
 
 
 def TASKS_DOCKER_LABEL():
@@ -166,15 +207,15 @@ def TASKS_DOCKER_LABEL_LEGACY():
 
 
 def DOCKER_LOGIN():
-    return os.environ[_DOCKER_LOGIN]
+    return _VALUES[_DOCKER_LOGIN]
 
 
 def DOCKER_PASSWORD():
-    return os.environ[_DOCKER_PASSWORD]
+    return _VALUES[_DOCKER_PASSWORD]
 
 
 def DOCKER_REGISTRY():
-    return os.environ[_DOCKER_REGISTRY]
+    return _VALUES[_DOCKER_REGISTRY]
 
 
 def AGENT_TASKS_DIR_HOST():
@@ -216,6 +257,16 @@ def AGENT_TASK_SHARED_DIR():
 def AGENT_TMP_DIR():
     """default: /sly_agent/tmp"""
     return os.path.join(AGENT_ROOT_DIR(), "tmp")
+
+
+def CROSS_AGENT_DATA_DIR():
+    """default: /cross-agent-data"""
+    return read_optional_setting(_CROSS_AGENT_DATA_DIR)
+
+
+def CROSS_AGENT_VOLUME_NAME():
+    """default: none, usually supervisely_agents_volume"""
+    return read_optional_setting(_CROSS_AGENT_VOLUME_NAME)
 
 
 def AGENT_IMPORT_DIR():
@@ -448,11 +499,15 @@ def SHM_SIZE():
 
 
 def DOCKER_NET():
-    return read_optional_setting(_DOCKER_NET)
+    return read_optional_setting(_NET_CLIENT_NETWORK)
 
 
 def DISABLE_TELEMETRY():
     return read_optional_setting(_DISABLE_TELEMETRY)
+
+
+def REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS():
+    return read_optional_setting(_REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS)
 
 
 def AGENT_ID():
@@ -471,7 +526,7 @@ def AGENT_ID():
 def SUPERVISELY_AGENT_FILES():
     # /root/supervisely/agent-17 (host) -> /app/sly-files (net-client)
     # /root/supervisely/agent-17 (host) -> /app/sly-files (agent container)
-    """{agent files host dir}; default `~/supervisely/agent-###`"""
+    """{agent files host dir}; default `supervisely-agent-###`"""
     return read_optional_setting(_SUPERVISELY_AGENT_FILES)
 
 
@@ -510,7 +565,10 @@ def SUPERVISELY_SYNCED_APP_DATA_CONTAINER():
 
 
 def OFFLINE_MODE():
-    return read_optional_setting(_OFFLINE_MODE)
+    if read_optional_setting(_OFFLINE_MODE) == "true":
+        return True
+
+    return False
 
 
 def DEFAULT_APP_DOCKER_IMAGE():
@@ -524,6 +582,55 @@ def SECURITY_OPT():
         if len(value) > 0:
             return value
     return None
+
+
+def SLY_APPS_DOCKER_REGISTRY():
+    return read_optional_setting(_SLY_APPS_DOCKER_REGISTRY)
+
+
+def NET_CLIENT_DOCKER_IMAGE():
+    """defaul: supervisely/sly-net-client:latest"""
+    return read_optional_setting(_NET_CLIENT_DOCKER_IMAGE)
+
+
+def NET_SERVER_PORT():
+    return read_optional_setting(_NET_SERVER_PORT)
+
+
+def SLY_EXTRA_CA_CERTS():
+    return read_optional_setting(_SLY_EXTRA_CA_CERTS)
+
+
+def SLY_NET_CLIENT_PING_INTERVAL():
+    return read_optional_setting(_SLY_NET_CLIENT_PING_INTERVAL)
+
+
+def TRUST_DOWNSTREAM_PROXY():
+    return read_optional_setting(_TRUST_DOWNSTREAM_PROXY)
+
+
+def REMOVE_OLD_AGENT():
+    return read_optional_setting(_REMOVE_OLD_AGENT)
+
+
+def UPDATE_SLY_NET_AFTER_RESTART():
+    return sly.env.flag_from_env(read_optional_setting(_UPDATE_SLY_NET_AFTER_RESTART))
+
+
+def DOCKER_IMAGE():
+    return read_optional_setting(_DOCKER_IMAGE)
+
+
+def NET_CLIENT_CONTAINER_NAME():
+    return read_optional_setting(_NET_CLIENT_CONTAINER_NAME)
+
+
+def NET_CLIENT_NETWORK():
+    return read_optional_setting(_NET_CLIENT_NETWORK)
+
+
+def CONTAINER_NAME():
+    return read_optional_setting(_CONTAINER_NAME)
 
 
 def init_constants():
@@ -554,3 +661,6 @@ def init_constants():
                 REQUESTS_CA_BUNDLE(),
                 os.path.join(MOUNTED_REQUESTS_CA_BUNDLE_DIR(), filename),
             )
+
+    if CROSS_AGENT_DATA_DIR() is not None and not sly.fs.dir_exists(CROSS_AGENT_DATA_DIR()):
+        sly.fs.mkdir(CROSS_AGENT_DATA_DIR())

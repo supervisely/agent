@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import re
 import time
 import docker
 import json
@@ -12,12 +13,14 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import Dict
+from typing import Dict, List
 from pathlib import Path
+from filelock import FileLock
+from datetime import datetime
 
 import supervisely_lib as sly
 
-from worker.agent_utils import TaskDirCleaner, AppDirCleaner
+from worker.agent_utils import TaskDirCleaner, AppDirCleaner, DockerImagesCleaner
 from worker.task_update import check_and_pull_sly_net_if_needed
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
@@ -25,11 +28,17 @@ warnings.filterwarnings(action="ignore", category=UserWarning)
 import torch
 
 from worker import constants
+from worker import agent_utils
 from worker.task_sly import TaskSly
 from worker.task_factory import create_task, is_task_type
 from worker.logs_to_rpc import add_task_handler
 from worker.agent_utils import LogQueue
-from worker.system_info import get_hw_info, get_self_docker_image_digest, get_gpu_info
+from worker.system_info import (
+    get_hw_info,
+    get_self_docker_image_digest,
+    get_gpu_info,
+    get_container_info,
+)
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
 from supervisely_lib._utils import _remove_sensitive_information
@@ -80,22 +89,92 @@ class Agent:
         self.agent_connect_initially()
         self.logger.info("Agent connected to server.")
 
+        self._history_file = None
+        if constants.CROSS_AGENT_DATA_DIR() is not None:
+            self._history_file = os.path.join(
+                constants.CROSS_AGENT_DATA_DIR(),
+                f"docker-images-history-{constants.TOKEN()[:8]}.json",
+            )
+            self._history_file_lock = FileLock(f"{self._history_file}.lock")
+
+        cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
+
+        with self._history_file_lock:
+            if sly.fs.file_exists(self._history_file):
+                with open(self._history_file, "r") as json_file:
+                    images_stat = json.load(json_file)
+            else:
+                images_stat = {}
+
+            images_stat[self.agent_info["agent_image"]] = cur_date
+
+            with open(self._history_file, "w") as json_file:
+                json.dump(images_stat, json_file, indent=4)
+
+    @classmethod
+    def _restart(cls, envs: list = None, volumes: dict = None, runtime: str = None):
+        docker_api = docker.from_env()
+        container_info = get_container_info()
+        if envs is None:
+            envs = container_info.get("Config", {}).get("Env", [])
+        if volumes is None:
+            volumes = agent_utils.binds_to_volumes_dict(
+                container_info.get("HostConfig", {}).get("Binds", [])
+            )
+
+        agent_utils.check_and_remove_agent_with_old_name(docker_api)
+        envs_dict = agent_utils.envs_list_to_dict(envs)
+
+        # recursion stopper
+        restart_n = int(envs_dict.get("AGENT_RESTARTED", "0"))
+        if restart_n >= 1:
+            raise (
+                RuntimeError(
+                    "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
+                )
+            )
+        envs_dict["AGENT_RESTARTED"] = restart_n + 1
+
+        image = container_info["Config"]["Image"]
+        if runtime is None:
+            runtime = container_info["HostConfig"]["Runtime"]
+
+        container: Container = docker_api.containers.run(
+            image,
+            runtime=runtime,
+            detach=True,
+            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
+            remove=False,
+            restart_policy={"Name": "unless-stopped"},
+            volumes=volumes,
+            environment=agent_utils.envs_dict_to_list(envs_dict),
+            stdin_open=False,
+            tty=False,
+        )
+        container.reload()
+        sly.logger.debug("After spawning. Container status: {}".format(str(container.status)))
+        sly.logger.info(
+            "Docker container is spawned",
+            extra={"container_id": container.id, "container_name": container.name},
+        )
+
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
-        if container_id is None:
-            return
-
         dc = docker.from_env()
-        try:
-            old_agent: Container = dc.containers.get(container_id)
-        except docker.errors.NotFound:
-            return
+        if container_id is not None:
+            try:
+                old_agent: Container = dc.containers.get(container_id)
+                old_agent.remove(force=True)
+            except docker.errors.NotFound:
+                pass
 
-        old_agent.remove(force=True)
         self._update_net_client(dc)
 
         agent_same_token = []
-        agent_name_start = "supervisely-agent-{}".format(constants.TOKEN())
+        agent_name_start = constants.CONTAINER_NAME()
+
+        agent_utils.check_and_remove_agent_with_old_name(dc)
+
         for cont in dc.containers.list():
             if cont.name.startswith(agent_name_start):
                 agent_same_token.append(cont)
@@ -104,15 +183,17 @@ class Agent:
             raise RuntimeError(
                 "Several agents with the same token are running. Please, kill them or contact support."
             )
-        agent_same_token[0].rename(agent_name_start)
+
+        if len(agent_same_token) == 1 and agent_same_token[0].name != agent_name_start:
+          agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
-        need_update_env = os.getenv("UPDATE_SLY_NET_AFTER_RESTART", None)
-        if need_update_env == "0":
+        need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
+        if not need_update_env:
             return
 
-        net_container_name = "supervisely-net-client-{}".format(constants.TOKEN())
-        sly_net_hub_name = "supervisely/sly-net-client:latest"
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
+        sly_net_client_image_name = constants.NET_CLIENT_DOCKER_IMAGE()
         sly_net_container = None
 
         for container in dc.containers.list():
@@ -122,11 +203,11 @@ class Agent:
 
         if sly_net_container is None:
             self.logger.warn(
-                "Something goes wrong: can't find sly-net-client attached to this agent"
+                "Something went wrong: can't find sly-net-client attached to this agent"
             )
             self.logger.warn(
                 (
-                    "Probably you should reastart agent manually using instructions:"
+                    "Probably you should restart agent manually using instructions:"
                     "https://developer.supervisely.com/getting-started/connect-your-computer"
                 )
             )
@@ -134,14 +215,12 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update = check_and_pull_sly_net_if_needed(
-                    dc, sly_net_container, self.logger, sly_net_hub_name
-                )
+                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger, sly_net_client_image_name)
 
-        if need_update is False:
+        if need_update_env is False:
             return
 
-        network = "supervisely-net-{}".format(constants.TOKEN())
+        network = constants.NET_CLIENT_NETWORK()
         command = sly_net_container.attrs.get("Args")
         volumes = sly_net_container.attrs["HostConfig"]["Binds"]
         cap_add = sly_net_container.attrs["HostConfig"]["CapAdd"]
@@ -160,9 +239,15 @@ class Agent:
             if host is not None and perm is not None:
                 devices.append(f"{host}:{cont}:{perm}")
 
+        # recreate network if necessary
+        try:
+            dc.networks.get(network)
+        except:
+            dc.networks.create(network)
+
         sly_net_container.remove(force=True)
         dc.containers.run(
-            image=sly_net_hub_name,
+            image=sly_net_client_image_name,
             name=net_container_name,
             command=command,
             network=network,
@@ -180,7 +265,7 @@ class Agent:
         dc = docker.from_env()
         agent_same_token = []
         for cont in dc.containers.list():
-            if "supervisely-agent-{}".format(constants.TOKEN()) in cont.name:
+            if constants.CONTAINER_NAME() in cont.name:
                 agent_same_token.append(cont)
         if len(agent_same_token) > 1:
             raise RuntimeError("Agent with the same token already exists.")
@@ -408,12 +493,16 @@ class Agent:
 
         for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
             if registry:
-                doc_login = self.docker_api.login(
-                    username=login, password=password, registry=registry
-                )
-                self.logger.info(
-                    "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
-                )
+                try:
+                    doc_login = self.docker_api.login(
+                        username=login, password=password, registry=registry
+                    )
+                    self.logger.info(
+                        "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
+                    )
+                except Exception as e:
+                    if not constants.OFFLINE_MODE():
+                        raise e
 
     def submit_log(self):
         while True:
@@ -488,6 +577,16 @@ class Agent:
                 sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
             )
         )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.task_stream_net_client_logs, self.logger
+            )
+        )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.update_base_layers, self.logger
+            )
+        )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -532,6 +631,8 @@ class Agent:
     def task_clear_old_data(self):
         day = 60 * 60 * 24
         cleaner = AppDirCleaner(self.logger)
+        image_cleaner = DockerImagesCleaner(self.docker_api, self.logger)
+
         while True:
             with self.task_pool_lock:
                 all_tasks = set(self.task_pool.keys())
@@ -542,5 +643,59 @@ class Agent:
                 self.logger.exception(e)
                 # raise or not?
                 # raise e
-
+            image_cleaner.remove_idle_images()
             time.sleep(day)
+
+    def task_stream_net_client_logs(self):
+        net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
+        sly_net_container = None
+
+        for container in self.docker_api.containers.list():
+            if container.name == net_container_name:
+                sly_net_container: Container = container
+                break
+
+        if sly_net_container is None:
+            return
+
+        self.net_logger = sly.get_task_logger("net_client")
+        sly.change_formatters_default_values(self.net_logger, "service_type", "NET_CLIENT")
+        sly.change_formatters_default_values(self.net_logger, "event_type", sly.EventType.LOGJ)
+
+        add_task_handler(self.net_logger, self.log_queue)
+        sly.add_default_logging_into_file(self.net_logger, constants.AGENT_LOG_DIR())
+
+        log_buffer = ""
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        for chunk in sly_net_container.logs(stdout=True, stderr=True, follow=True, stream=True):
+            decoded_chunk = chunk.decode("utf-8")
+            log_buffer += decoded_chunk
+            if log_buffer.endswith("\n"):
+                log_buffer = ansi_escape.sub("", log_buffer)
+                self.net_logger.info(log_buffer.strip())
+                log_buffer = ""
+
+    def update_base_layers(self):
+        self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
+
+        image = "supervisely/base-py-sdk:latest"
+
+        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+            self.logger.info(
+                "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                    image,
+                    f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                )
+            )
+            image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
+
+        sly.docker_utils.docker_pull_if_needed(
+            self.docker_api,
+            image,
+            policy=sly.docker_utils.PullPolicy.ALWAYS,
+            logger=self.logger,
+            progress=False,
+        )
+        self.logger.info(
+            "Background task finished: `supervisely/base-py-sdk:latest` has been pulled."
+        )

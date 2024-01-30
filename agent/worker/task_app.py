@@ -261,7 +261,7 @@ class TaskApp(TaskDockerized):
             self.info["docker_image"] = self.app_config["docker_image"]
             if constants.APP_DEBUG_DOCKER_IMAGE() is not None:
                 self.logger.info(
-                    "APP DEBUG MODE: docker image {!r} is replaced to {!r}".format(
+                    "APP DEBUG MODE: docker image {!r} is replaced with {!r}".format(
                         self.info["docker_image"], constants.APP_DEBUG_DOCKER_IMAGE()
                     )
                 )
@@ -277,6 +277,17 @@ class TaskApp(TaskDockerized):
             self.logger.info(
                 f'Dockerimage not found in config.json, so it is set to default: {self.info["docker_image"]}'
             )
+
+        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+            self.logger.info(
+                "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                    self.info["docker_image"],
+                    f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}",
+                )
+            )
+            self.info[
+                "docker_image"
+            ] = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}"
 
     def is_isolate(self):
         if self.app_config is None:
@@ -333,7 +344,16 @@ class TaskApp(TaskDockerized):
                 "mode": "rw",
             }
 
-            api = sly.Api(self.info["server_address"], self.info["api_token"])
+            context = self.info.get("context", {})
+            # spawnApiToken - is a token of user, that spawned application.
+            # apiToken - is a token of user for which application was spawned.
+            # It's important to use spawnApiToken, because the application can be spawned
+            # by user with higher permissions, than current user (e.g. annotator).
+            # For example, if we'lll use annotator's token, we'll get 403 error, when
+            # trying to update task meta, since the annotator doesn't have enough permissions.
+            api_token = context.get("spawnApiToken") or self.info["api_token"]
+
+            api = sly.Api(self.info["server_address"], api_token)
             api.task.update_meta(
                 int(self.info["task_id"]),
                 {},
