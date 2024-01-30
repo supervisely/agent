@@ -679,26 +679,30 @@ class Agent:
                 log_buffer = ""
 
     def update_base_layers(self):
-        self.logger.info("Start background task: pulling `supervisely/base-py-sdk:latest`")
+        self.logger.info("Start background task: pulling base images")
+        pulled = []
+        for image in constants._BASE_IMAGES:
+            try:
+                if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+                    self.logger.info(
+                        "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                            image,
+                            f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                        )
+                    )
+                    image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-        image = "supervisely/base-py-sdk:latest"
-
-        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
-            self.logger.info(
-                "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
+                sly.docker_utils.docker_pull_if_needed(
+                    self.docker_api,
                     image,
-                    f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}",
+                    policy=sly.docker_utils.PullPolicy.ALWAYS,
+                    logger=self.logger,
+                    progress=False,
                 )
-            )
-            image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
-
-        sly.docker_utils.docker_pull_if_needed(
-            self.docker_api,
-            image,
-            policy=sly.docker_utils.PullPolicy.ALWAYS,
-            logger=self.logger,
-            progress=False,
-        )
+                self.logger.info(f"Docker image '{image}' has been pulled successfully")
+                pulled.append(image)
+            except:
+                self.logger.warn(f"Failed to pull docker image '{image}'", exc_info=True)
         self.logger.info(
-            "Background task finished: `supervisely/base-py-sdk:latest` has been pulled."
+            f"Background task finished: base images have been pulled. Images: [{', '.join([image for image in pulled])}]"
         )
