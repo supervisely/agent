@@ -233,12 +233,19 @@ def init_envs():
     envs_changes, volumes_changes, new_ca_cert_path = agent_utils.get_options_changes(
         new_envs, new_volumes, ca_cert
     )
-    if any((envs_changes, volumes_changes, restart_with_nvidia_runtime, new_ca_cert_path)):
+    if (
+        len(envs_changes) > 0
+        or len(volumes_changes) > 0
+        or restart_with_nvidia_runtime
+        or new_ca_cert_path is not None
+    ):
         docker_api = docker.from_env()
         container_info = get_container_info()
         if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
             new_envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
-        runtime = "nvidia" if restart_with_nvidia_runtime else None
+        runtime = (
+            "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
+        )
 
         # add remove old agent env if needed (in case of update)
         remove_old_agent = constants.REMOVE_OLD_AGENT()
@@ -268,7 +275,9 @@ def init_envs():
                     for k, v in envs_changes.items()
                 },
                 "volumes_changes": volumes_changes,
-                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime} if restart_with_nvidia_runtime else {},
+                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime}
+                if restart_with_nvidia_runtime
+                else {},
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
