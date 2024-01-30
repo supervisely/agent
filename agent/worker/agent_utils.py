@@ -351,7 +351,13 @@ class DockerImagesCleaner:
     def remove_idle_images(self):
         if self.path_to_history is None:
             self.logger.debug(
-                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker will not be executed"
+                f"{constants._CROSS_AGENT_DATA_DIR} has not been set; the process of removing unused Docker Images will not be executed"
+            )
+            return
+
+        if constants.OFFLINE_MODE() is True:
+            self.logger.debug(
+                f"Offline mode is enabled; the process of removing unused Docker Images will not be executed"
             )
             return
 
@@ -774,15 +780,23 @@ def _volumes_changes(volumes) -> dict:
 def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
         return None
+
+    ca_cert = ca_cert.replace('\r\n', '\n')
+
     cert_path = os.path.join(constants.AGENT_ROOT_DIR(), "certs", "instance_ca_chain.crt")
     cur_path = constants.SLY_EXTRA_CA_CERTS()
     if cert_path == cur_path:
         if os.path.exists(cert_path):
-            with open(cert_path, "r") as f:
-                if f.read() == ca_cert:
+            with open(cert_path, "r", encoding='utf-8') as f:
+                ca_file_contents = f.read().replace('\r\n', '\n')
+                sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
+                if ca_file_contents == ca_cert:
+                    sly.logger.debug(f"Certificates are equal, skipping the update")
                     return None
+                else:
+                    sly.logger.debug(f"Certificates are not equal, updating")
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cert_path, "w") as f:
+    with open(cert_path, "w", encoding='utf-8') as f:
         f.write(ca_cert)
     return cert_path
 
