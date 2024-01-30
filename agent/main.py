@@ -159,13 +159,18 @@ def _start_net_client(docker_api=None):
             )
         else:
             try:
-                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get("Networks")
+                net_client_networks_dict = net_container.attrs.get("NetworkSettings").get(
+                    "Networks"
+                )
                 net_client_network_name = list(net_client_networks_dict.keys())[0]
 
                 if net_client_network_name != constants.NET_CLIENT_NETWORK():
                     os.environ[constants._NET_CLIENT_NETWORK] = net_client_network_name
             except Exception as e:
-                sly.logger.fatal("Couldn't fetch network name from the net-client to reuse the same network", exc_info=True)
+                sly.logger.fatal(
+                    "Couldn't fetch network name from the net-client to reuse the same network",
+                    exc_info=True,
+                )
                 raise e
 
 
@@ -228,7 +233,12 @@ def init_envs():
     envs_changes, volumes_changes, new_ca_cert_path = agent_utils.get_options_changes(
         new_envs, new_volumes, ca_cert
     )
-    if envs_changes or volumes_changes or restart_with_nvidia_runtime or new_ca_cert_path:
+    if (
+        len(envs_changes) > 0
+        or len(volumes_changes) > 0
+        or restart_with_nvidia_runtime
+        or new_ca_cert_path is not None
+    ):
         docker_api = docker.from_env()
         container_info = get_container_info()
         if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
@@ -265,13 +275,16 @@ def init_envs():
                     for k, v in envs_changes.items()
                 },
                 "volumes_changes": volumes_changes,
-                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime} if restart_with_nvidia_runtime else {},
+                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime}
+                if restart_with_nvidia_runtime
+                else {},
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        Agent._restart(envs, new_volumes, runtime)
-        sly.logger.info("Agent is restarted. This container will be removed")
-        docker_api.containers.get(container_info["Id"]).remove(force=True)
+        restarted = Agent._restart(envs, new_volumes, runtime)
+        if restarted:
+            sly.logger.info("Agent is restarted. This container will be removed")
+            docker_api.containers.get(container_info["Id"]).remove(force=True)
 
 
 if __name__ == "__main__":

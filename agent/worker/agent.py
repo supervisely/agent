@@ -125,14 +125,14 @@ class Agent:
         agent_utils.check_and_remove_agent_with_old_name(docker_api)
         envs_dict = agent_utils.envs_list_to_dict(envs)
 
-        # recursion stopper
-        restart_n = int(envs_dict.get("AGENT_RESTARTED", "0"))
+        # recursion warning
+        restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
         if restart_n >= 1:
-            raise (
-                RuntimeError(
-                    "Agent is already restarted. This error is a recursion stopper. If you see it, please, contact support."
-                )
+            sly.logger.warn(
+                "Agent restarted multiple times, indicating a potential error. Reapply options and contact support if issues persist."
             )
+            return False
+
         envs_dict["AGENT_RESTARTED"] = restart_n + 1
 
         image = container_info["Config"]["Image"]
@@ -157,6 +157,7 @@ class Agent:
             "Docker container is spawned",
             extra={"container_id": container.id, "container_name": container.name},
         )
+        return True
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
@@ -185,7 +186,7 @@ class Agent:
             )
 
         if len(agent_same_token) == 1 and agent_same_token[0].name != agent_name_start:
-          agent_same_token[0].rename(agent_name_start)
+            agent_same_token[0].rename(agent_name_start)
 
     def _update_net_client(self, dc: docker.DockerClient):
         need_update_env = constants.UPDATE_SLY_NET_AFTER_RESTART()
@@ -215,7 +216,9 @@ class Agent:
         else:
             # pull if update too old agent
             if need_update_env is None:
-                need_update_env = check_and_pull_sly_net_if_needed(dc, sly_net_container, self.logger, sly_net_client_image_name)
+                need_update_env = check_and_pull_sly_net_if_needed(
+                    dc, sly_net_container, self.logger, sly_net_client_image_name
+                )
 
         if need_update_env is False:
             return
