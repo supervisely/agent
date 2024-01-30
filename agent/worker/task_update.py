@@ -66,7 +66,7 @@ class TaskUpdate(TaskSly):
             image = self.info["docker_image"]
         if constants._DOCKER_IMAGE in envs:
             image = envs[constants._DOCKER_IMAGE]
-        if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
+        if str(envs.get(constants._PULL_POLICY)) != str(sly.docker_utils.PullPolicy.NEVER):
             sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed

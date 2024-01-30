@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import traceback
 import requests
 import tarfile
 import shutil
@@ -475,7 +476,6 @@ class TaskApp(TaskDockerized):
             else:
                 self.logger.info("Use existing pip cache")
 
-    @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
         sly.docker_utils.docker_pull_if_needed(
@@ -616,7 +616,14 @@ class TaskApp(TaskDockerized):
         else:
             self.logger.warn("baseUrl not found in task info")
 
-        self.find_or_run_container()
+        try:
+            self.find_or_run_container()
+        except Exception as e:
+            print("Exception in find_or_run_container", type(e))
+            print(traceback.format_exc())
+            self.logger.exception(e)
+
+            raise
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
         self.drop_container_and_check_status()
@@ -769,11 +776,11 @@ class TaskApp(TaskDockerized):
         status = self._docker_api.api.exec_inspect(self._exec_id)["ExitCode"]
         if self.is_isolate():
             self._drop_container()
-        self.logger.debug("Task container finished with status: {}".format(str(status)))
+        self.logger.info("Task container finished with status: {}".format(str(status)))
         if status != 0:
             if len(self._task_reports) > 0:
                 last_report = self._task_reports[-1].to_dict()
-                self.logger.debug("Founded error report.", extra=last_report)
+                self.logger.info("Found error report.", extra=last_report)
                 raise sly.app.exceptions.DialogWindowError(**last_report)
             raise RuntimeError(
                 # self.logger.warn(
