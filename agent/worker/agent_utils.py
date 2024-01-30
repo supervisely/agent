@@ -393,8 +393,11 @@ class DockerImagesCleaner:
             to_remove = self._parse_and_update_history(hist, to_remove)
         return list(to_remove.keys())
 
-    def _is_base_image(image_name):
-        return image_name in constants._BASE_IMAGES
+    def _is_base_image(image_name: str):
+        for base_image_name in constants._BASE_IMAGES:
+            if image_name.endswith(base_image_name):
+                return True
+        return False
 
     def _parse_and_update_history(self, hist_path: str, to_remove: dict):
         hist_lock = FileLock(f"{hist_path}.lock")
@@ -406,7 +409,7 @@ class DockerImagesCleaner:
             rest_images = {}
             for image, last_date in images_data.items():
                 image: str
-                if not self._is_base_image(image) and self._is_outdated(last_date):
+                if not self._is_base_image(image) and self._is_unused(last_date):
                     to_remove[image] = last_date
                 else:
                     rest_images[image] = last_date
@@ -418,7 +421,7 @@ class DockerImagesCleaner:
 
         return to_remove
 
-    def _is_outdated(self, last_date: Union[str, datetime]) -> bool:
+    def _is_unused(self, last_date: Union[str, datetime]) -> bool:
         last_date_ts = last_date
         if isinstance(last_date, str):
             last_date_ts = datetime.strptime(last_date, "%Y-%m-%dT%H:%M")
