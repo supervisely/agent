@@ -243,6 +243,8 @@ def init_envs():
         container_info = get_container_info()
         if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
             new_envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
+        else:
+            new_envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
         )
