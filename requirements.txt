@@ -17,7 +17,7 @@ filelock==3.13.1
 torch==1.7.1+cu110
 torchvision==0.8.2+cu110
 -f https://download.pytorch.org/whl/torch_stable.html
-supervisely==6.73.21
+supervisely==6.73.23
 # for development
 # RUN pip install git+https://github.com/supervisely/supervisely.git@dev-branch
 
