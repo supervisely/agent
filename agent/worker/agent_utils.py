@@ -399,7 +399,7 @@ class DockerImagesCleaner:
             to_remove = self._parse_and_update_history(hist, to_remove)
         return list(to_remove.keys())
 
-    def _is_base_image(image_name: str):
+    def _is_base_image(self, image_name: str):
         for base_image_name in constants._BASE_IMAGES:
             if image_name.endswith(base_image_name):
                 return True
