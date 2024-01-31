@@ -97,7 +97,8 @@ def _start_net_client(docker_api=None):
         if constants.NO_PROXY():
             envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
         if constants.SLY_EXTRA_CA_CERTS():
-            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
+            if os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+                envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
         volumes = [
             "/var/run/docker.sock:/tmp/docker.sock:ro",
             f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
