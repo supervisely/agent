@@ -42,6 +42,8 @@ class TaskUpdate(TaskSly):
             _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
             if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
                 envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
+            else:
+                envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
 
             use_options = True
         except agent_utils.AgentOptionsNotAvailable:
