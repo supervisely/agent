@@ -347,6 +347,10 @@ class TaskDockerized(TaskSly):
             self.logger.warn("No logs obtained from container.")  # check if bug occurred
 
     def _process_report(self, log_msg: str):
+        if log_msg is None:
+            self.logger.warn("Received empty (none) message in process task report")
+            return
+
         err_title, err_desc = None, None
         splits = log_msg.split(":")
 

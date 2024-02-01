@@ -721,6 +721,11 @@ class TaskApp(TaskDockerized):
         def _process_line(log_line):
             # log_line = log_line.decode("utf-8")
             msg, res_log, lvl = self.parse_log_line(log_line)
+            if msg is None:
+                self.logger.warn(
+                    "Received empty (none) message in log line, will be handled automatically"
+                )
+                msg = "empty message"
             self._process_report(msg)
             output = self.call_event_function(res_log)
 
