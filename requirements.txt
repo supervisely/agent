@@ -8,11 +8,11 @@ scandir==1.10.0
 grpcio==1.47.0
 grpcio-tools==1.47.0
 py3exiv2==0.9.3
-packaging
+packaging==21.2
 version-parser==1.0.1
 python-slugify==6.1.2
 nvidia-ml-py==12.535.77
-httpx
+httpx>=0.26.0
 filelock==3.13.1
 torch==1.7.1+cu110
 torchvision==0.8.2+cu110
@@ -20,4 +20,3 @@ torchvision==0.8.2+cu110
 supervisely==6.73.23
 # for development
 # RUN pip install git+https://github.com/supervisely/supervisely.git@dev-branch
-

@@ -16,8 +16,7 @@ LABEL CONFIGS=""
 ##############################################################################
 # Additional project libraries
 ##############################################################################
-RUN rm /etc/apt/sources.list.d/cuda.list
-RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -38,9 +37,11 @@ RUN apt-get update \
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
-COPY . /workdir
 
+COPY requirements.txt /workdir/requirements.txt
 RUN pip install --no-cache-dir -r /workdir/requirements.txt
+
+COPY . /workdir
 
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
 WORKDIR /workdir/agent
