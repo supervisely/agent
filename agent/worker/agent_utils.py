@@ -400,7 +400,7 @@ class DockerImagesCleaner:
         return list(to_remove.keys())
 
     def _is_base_image(self, image_name: str):
-        for base_image_name in constants._BASE_IMAGES:
+        for base_image_name in constants.BASE_IMAGES():
             if image_name.endswith(base_image_name):
                 return True
         return False
@@ -717,10 +717,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
     if agent_host_dir == "":
         agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
-        docker_api = docker.from_env()
-
-        if "/" not in agent_host_dir:
-            docker_api.volumes.create(agent_host_dir)
 
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 

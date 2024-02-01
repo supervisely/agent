@@ -69,6 +69,8 @@ _DEFAULT_APP_DOCKER_IMAGE = "DEFAULT_APP_DOCKER_IMAGE"
 _AGENT_FILES_IN_APP_CONTAINER = "AGENT_FILES_IN_APP_CONTAINER"
 _AUTO_CLEAN_INT_RANGE_DAYS = "AUTO_CLEAN_INT_RANGE_DAYS"
 _BASE_IMAGES = ["supervisely/base-py-sdk:latest"]
+_MAX_AGENT_RESTARTS = "MAX_AGENT_RESTARTS"
+_AGENT_RESTART_COUNT = "AGENT_RESTART_COUNT"
 
 
 _REQUIRED_SETTINGS = [
@@ -155,6 +157,8 @@ _OPTIONAL_DEFAULTS = {
     _NET_CLIENT_CONTAINER_NAME: f"supervisely-net-client-{TOKEN()[:8]}",
     _NET_CLIENT_NETWORK: f"supervisely-net-{TOKEN()[:8]}",
     _CONTAINER_NAME: f"supervisely-agent-{TOKEN()[:8]}",
+    _MAX_AGENT_RESTARTS: 1,
+    _AGENT_RESTART_COUNT: 0,
 }
 
 
@@ -633,6 +637,18 @@ def NET_CLIENT_NETWORK():
 
 def CONTAINER_NAME():
     return read_optional_setting(_CONTAINER_NAME)
+
+
+def BASE_IMAGES():
+    return _BASE_IMAGES
+
+
+def MAX_AGENT_RESTARTS():
+    return int(read_optional_setting(_MAX_AGENT_RESTARTS))
+
+
+def AGENT_RESTART_COUNT():
+    return int(read_optional_setting(_AGENT_RESTART_COUNT))
 
 
 def init_constants():

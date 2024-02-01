@@ -112,52 +112,85 @@ class Agent:
                 json.dump(images_stat, json_file, indent=4)
 
     @classmethod
-    def _restart(cls, envs: list = None, volumes: dict = None, runtime: str = None):
-        docker_api = docker.from_env()
+    def restart(
+        cls,
+        image: str = None,
+        envs: dict = None,
+        volumes: dict = None,
+        runtime: str = None,
+        ca_cert_path: str = None,
+        docker_api=None,
+    ):
+        """Restart agent with new image, envs, volumes, runtime.
+        If any of the arugments is None, it will be taken from the current agent.
+        image: str - new image name
+        envs: dict - new environment variables
+        volumes: dict - new volumes
+        runtime: str - new runtime
+        """
+        if docker_api is None:
+            docker_api = docker.from_env()
         container_info = get_container_info()
+        if image is None:
+            image = container_info["Config"]["Image"]
         if envs is None:
             envs = container_info.get("Config", {}).get("Env", [])
+            envs = agent_utils.envs_list_to_dict(envs)
         if volumes is None:
             volumes = agent_utils.binds_to_volumes_dict(
                 container_info.get("HostConfig", {}).get("Binds", [])
             )
-
-        agent_utils.check_and_remove_agent_with_old_name(docker_api)
-        envs_dict = agent_utils.envs_list_to_dict(envs)
-
-        # recursion warning
-        restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
-        if restart_n >= 1:
-            sly.logger.warn(
-                "Agent restarted multiple times, indicating a potential error. Reapply options and contact support if issues persist."
-            )
-            return False
-
-        envs_dict["AGENT_RESTARTED"] = restart_n + 1
-
-        image = container_info["Config"]["Image"]
         if runtime is None:
             runtime = container_info["HostConfig"]["Runtime"]
 
+        # remove agent with old name if exists
+        agent_utils.check_and_remove_agent_with_old_name(docker_api)
+
+        # add SLY_EXTRA_CA_CERTS env
+        if ca_cert_path is None:
+            envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
+        else:
+            envs[constants._SLY_EXTRA_CA_CERTS] = ca_cert_path
+
+        # add REMOVE_OLD_AGENT env if needed (in case of update)
+        remove_old_agent = constants.REMOVE_OLD_AGENT()
+        remove_old_agent = envs.get(constants._REMOVE_OLD_AGENT, remove_old_agent)
+        if remove_old_agent is not None:
+            envs[constants._REMOVE_OLD_AGENT] = remove_old_agent
+
+        # add cross agent volume
+        volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
+            "bind": constants.CROSS_AGENT_DATA_DIR(),
+            "mode": "rw",
+        }
+
+        # create named volumes if necessary
+        for src in volumes.keys():
+            if "/" not in src:
+                try:
+                    docker_api.volumes.get(src)
+                except docker.errors.NotFound:
+                    docker_api.volumes.create(src)
+
+        envs = agent_utils.envs_dict_to_list(envs)
         container: Container = docker_api.containers.run(
             image,
             runtime=runtime,
             detach=True,
-            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
+            name=f"{constants.CONTAINER_NAME()}-{sly.rand_str(5)}",
             remove=False,
             restart_policy={"Name": "unless-stopped"},
             volumes=volumes,
-            environment=agent_utils.envs_dict_to_list(envs_dict),
+            environment=envs,
             stdin_open=False,
             tty=False,
         )
         container.reload()
-        sly.logger.debug("After spawning. Container status: {}".format(str(container.status)))
+        sly.logger.debug(f"After spawning. Container status: {str(container.status)}")
         sly.logger.info(
             "Docker container is spawned",
             extra={"container_id": container.id, "container_name": container.name},
         )
-        return True
 
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
@@ -681,7 +714,7 @@ class Agent:
     def update_base_layers(self):
         self.logger.info("Start background task: pulling base images")
         pulled = []
-        for image in constants._BASE_IMAGES:
+        for image in constants.BASE_IMAGES():
             try:
                 if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
                     self.logger.info(
