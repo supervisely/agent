@@ -8,6 +8,8 @@ import re
 import requests
 import docker
 import shutil
+import tarfile
+import io
 
 import supervisely_lib as sly
 
@@ -780,6 +782,23 @@ def _volumes_changes(volumes) -> dict:
             changes[key] = value
     return changes
 
+def _is_bind_attached(container_info, bind_path):
+    vols = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+
+    for vol in vols.values():
+        if vol["bind"] == bind_path:
+            return True
+
+    return False
+
+def _copy_file_to_container(container, src, dst_dir: str):
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode='w|') as tar, open(src, 'rb') as f:
+        info = tar.gettarinfo(fileobj=f)
+        info.name = os.path.basename(src)
+        tar.addfile(info, f)
+
+    container.put_archive(dst_dir, stream.getvalue())
 
 def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
@@ -789,19 +808,36 @@ def _ca_cert_changed(ca_cert) -> str:
 
     cert_path = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
     cur_path = constants.SLY_EXTRA_CA_CERTS()
-    if cert_path == cur_path:
-        if os.path.exists(cert_path):
-            with open(cert_path, "r", encoding="utf-8") as f:
-                ca_file_contents = f.read().replace("\r\n", "\n")
-                sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
-                if ca_file_contents == ca_cert:
-                    sly.logger.debug(f"Certificates are equal, skipping the update")
-                    return None
-                else:
-                    sly.logger.debug(f"Certificates are not equal, updating")
+    if cert_path == cur_path and os.path.exists(cert_path):
+        with open(cert_path, "r", encoding="utf-8") as f:
+            ca_file_contents = f.read().replace("\r\n", "\n")
+            sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
+            if ca_file_contents == ca_cert:
+                sly.logger.debug(f"Certificates are equal, skipping the update")
+                return None
+            else:
+                sly.logger.debug(f"Certificates are not equal, updating")
+
+    docker_api = docker.from_env()
+    container_info = get_container_info()
+
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
     with open(cert_path, "w", encoding="utf-8") as f:
         f.write(ca_cert)
+
+    # initialize certs volume and copy the new certificate
+    if not _is_bind_attached(get_container_info(), constants.SLY_EXTRA_CA_CERTS_DIR()):
+        agent_image = container_info["Config"]["Image"]
+
+        tmp_container = docker_api.containers.create(
+            agent_image,
+            "",
+            volumes={constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME(): {"bind": constants.SLY_EXTRA_CA_CERTS_DIR(), "mode": "rw"}},
+        )
+
+        _copy_file_to_container(tmp_container, cert_path, constants.SLY_EXTRA_CA_CERTS_DIR())
+        tmp_container.remove(force=True)
+
     return cert_path
 
 
@@ -847,7 +883,7 @@ def restart_agent(
     docker_api=None,
 ):
     """Restart agent with new image, envs, volumes, runtime.
-    If any of the arugments is None, it will be taken from the current agent.
+    If any of the arguments is None, it will be taken from the current agent.
     image: str - new image name
     envs: dict - new environment variables
     volumes: dict - new volumes
@@ -876,11 +912,12 @@ def restart_agent(
     else:
         envs[constants._SLY_EXTRA_CA_CERTS] = ca_cert_path
 
-    # add SLY_EXTRA_CA_CERTS volume
-    volumes[constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()] = {
-        "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
-        "mode": "rw",
-    }
+    if envs[constants._SLY_EXTRA_CA_CERTS] is not None:
+        # add SLY_EXTRA_CA_CERTS volume
+        volumes[constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()] = {
+            "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
+            "mode": "rw",
+        }
 
     # add REMOVE_OLD_AGENT env if needed (in case of update)
     remove_old_agent = constants.REMOVE_OLD_AGENT()
