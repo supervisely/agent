@@ -278,7 +278,7 @@ def init_envs():
             return
         new_envs[constants._AGENT_RESTART_COUNT] = restart_n + 1
 
-        Agent.restart(
+        agent_utils.restart_agent(
             envs=new_envs,
             volumes=new_volumes,
             runtime=runtime,

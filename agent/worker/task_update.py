@@ -13,7 +13,6 @@ from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
 from worker import agent_utils
-from worker.agent import Agent
 from worker.system_info import get_container_info
 
 
@@ -85,7 +84,7 @@ class TaskUpdate(TaskSly):
         cur_container_id = container_info["Config"]["Hostname"]
         envs[constants._REMOVE_OLD_AGENT] = cur_container_id
 
-        Agent.restart(
+        agent_utils.restart_agent(
             image=image,
             envs=envs,
             volumes=volumes,
