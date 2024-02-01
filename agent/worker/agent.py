@@ -152,6 +152,12 @@ class Agent:
         else:
             envs[constants._SLY_EXTRA_CA_CERTS] = ca_cert_path
 
+        # add SLY_EXTRA_CA_CERTS volume
+        volumes[constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()] = {
+            "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
+            "mode": "rw",
+        }
+
         # add REMOVE_OLD_AGENT env if needed (in case of update)
         remove_old_agent = constants.REMOVE_OLD_AGENT()
         remove_old_agent = envs.get(constants._REMOVE_OLD_AGENT, remove_old_agent)
@@ -166,7 +172,7 @@ class Agent:
 
         # create named volumes if necessary
         for src in volumes.keys():
-            if "/" not in src:
+            if agent_utils.is_named_docker_volume():
                 try:
                     docker_api.volumes.get(src)
                 except docker.errors.NotFound:

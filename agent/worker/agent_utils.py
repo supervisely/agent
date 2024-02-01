@@ -785,14 +785,14 @@ def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
         return None
 
-    ca_cert = ca_cert.replace('\r\n', '\n')
+    ca_cert = ca_cert.replace("\r\n", "\n")
 
-    cert_path = os.path.join(constants.AGENT_ROOT_DIR(), "certs", "instance_ca_chain.crt")
+    cert_path = os.path.join(constants.SLY_EXTRA_CA_CERTS_DIR(), "instance_ca_chain.crt")
     cur_path = constants.SLY_EXTRA_CA_CERTS()
     if cert_path == cur_path:
         if os.path.exists(cert_path):
-            with open(cert_path, "r", encoding='utf-8') as f:
-                ca_file_contents = f.read().replace('\r\n', '\n')
+            with open(cert_path, "r", encoding="utf-8") as f:
+                ca_file_contents = f.read().replace("\r\n", "\n")
                 sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
                 if ca_file_contents == ca_cert:
                     sly.logger.debug(f"Certificates are equal, skipping the update")
@@ -800,7 +800,7 @@ def _ca_cert_changed(ca_cert) -> str:
                 else:
                     sly.logger.debug(f"Certificates are not equal, updating")
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cert_path, "w", encoding='utf-8') as f:
+    with open(cert_path, "w", encoding="utf-8") as f:
         f.write(ca_cert)
     return cert_path
 
@@ -832,3 +832,7 @@ def check_and_remove_agent_with_old_name(dc: DockerClient):
             # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
             elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
                 cont.remove(force=True)
+
+
+def is_named_docker_volume(volume_name: str):
+    return "/" not in volume_name
