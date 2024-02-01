@@ -704,7 +704,7 @@ class TaskApp(TaskDockerized):
             envs["AGENT_STORAGE"] = constants.AGENT_FILES_IN_APP_CONTAINER()
 
         if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
-            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}")
+            envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)
