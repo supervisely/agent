@@ -96,14 +96,17 @@ def _start_net_client(docker_api=None):
             envs.append(f"{constants._HTTPS_PROXY}={constants.HTTPS_PROXY()}")
         if constants.NO_PROXY():
             envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
-        if constants.SLY_EXTRA_CA_CERTS():
-            if os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
-                envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
+
         volumes = [
             "/var/run/docker.sock:/tmp/docker.sock:ro",
             f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
             f"{constants.SUPERVISELY_AGENT_FILES()}:{constants.SUPERVISELY_AGENT_FILES_CONTAINER()}",
         ]
+
+        if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}")
+            volumes.append(f"{constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()}:{constants.SLY_EXTRA_CA_CERTS_DIR()}")
+
         log_config = LogConfig(
             type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
         )

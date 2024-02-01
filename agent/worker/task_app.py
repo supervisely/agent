@@ -308,9 +308,9 @@ class TaskApp(TaskDockerized):
                 "mode": "rw",
             }
 
-        if constants.REQUESTS_CA_BUNDLE() is not None:
-            res[constants.MOUNTED_HOST_REQUESTS_CA_BUNDLE()] = {
-                "bind": constants.REQUESTS_CA_BUNDLE_DIR_CONTAINER(),
+        if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+            res[constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()] = {
+                "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
                 "mode": "ro",
             }
 
@@ -703,8 +703,8 @@ class TaskApp(TaskDockerized):
         if constants.SUPERVISELY_AGENT_FILES() is not None:
             envs["AGENT_STORAGE"] = constants.AGENT_FILES_IN_APP_CONTAINER()
 
-        if constants.REQUESTS_CA_BUNDLE() is not None:
-            envs[constants._REQUESTS_CA_BUNDLE] = constants.REQUESTS_CA_BUNDLE_CONTAINER()
+        if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}")
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)

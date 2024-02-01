@@ -136,7 +136,7 @@ class AppDirCleaner:
             sly.fs.silent_remove(log_path)
             removed.append(log_path)
 
-        self.logger.info(f"Removed agent logs: {removed}")
+        self.logger.debug(f"Removed agent logs: {removed}")
 
     def clean_app_sessions(
         self,
@@ -168,7 +168,7 @@ class AppDirCleaner:
                 cleaned_sessions.append(app_id)
                 sly.fs.remove_dir(app)
 
-        self.logger.info(f"Removed sessions: {cleaned_sessions}")
+        self.logger.debug(f"Removed sessions: {cleaned_sessions}")
 
         return cleaned_sessions
 
@@ -219,7 +219,7 @@ class AppDirCleaner:
             if sly.fs.dir_empty(module_caches_path):
                 sly.fs.remove_dir(module_caches_path)
 
-        self.logger.info(f"Removed PIP cache: {removed}")
+        self.logger.debug(f"Removed PIP cache: {removed}")
 
     def clean_git_tags(self):
         # TODO: add conditions?
@@ -787,7 +787,7 @@ def _ca_cert_changed(ca_cert) -> str:
 
     ca_cert = ca_cert.replace("\r\n", "\n")
 
-    cert_path = os.path.join(constants.SLY_EXTRA_CA_CERTS_DIR(), "instance_ca_chain.crt")
+    cert_path = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
     cur_path = constants.SLY_EXTRA_CA_CERTS()
     if cert_path == cur_path:
         if os.path.exists(cert_path):

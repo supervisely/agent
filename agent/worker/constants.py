@@ -159,7 +159,7 @@ _OPTIONAL_DEFAULTS = {
     _NET_CLIENT_CONTAINER_NAME: f"supervisely-net-client-{TOKEN()[:8]}",
     _NET_CLIENT_NETWORK: f"supervisely-net-{TOKEN()[:8]}",
     _CONTAINER_NAME: f"supervisely-agent-{TOKEN()[:8]}",
-    _MAX_AGENT_RESTARTS: 1,
+    _MAX_AGENT_RESTARTS: 3,
     _AGENT_RESTART_COUNT: 0,
     _SLY_EXTRA_CA_CERTS_DIR: "/sly_certs",
     _SLY_EXTRA_CA_CERTS_VOLUME_NAME: f"supervisely-agent-ca-certs-{TOKEN()[:8]}",
@@ -657,6 +657,9 @@ def AGENT_RESTART_COUNT():
 
 def SLY_EXTRA_CA_CERTS_DIR():
     return read_optional_setting(_SLY_EXTRA_CA_CERTS_DIR)
+
+def SLY_EXTRA_CA_CERTS_FILEPATH():
+    return os.path.join(SLY_EXTRA_CA_CERTS_DIR(), "instance_ca_chain.crt")
 
 
 def SLY_EXTRA_CA_CERTS_VOLUME_NAME():
