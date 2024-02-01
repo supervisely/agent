@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-import requests
+from requests.utils import DEFAULT_CA_BUNDLE_PATH
 import tarfile
 import shutil
 import json
@@ -705,6 +705,10 @@ class TaskApp(TaskDockerized):
 
         if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
             envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
+
+            # there was an issue in the SDK that always required this env variable
+            # if SLY_CA_CERTS is defined
+            envs["REQUESTS_CA_BUNDLE"] = DEFAULT_CA_BUNDLE_PATH
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)
