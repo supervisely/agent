@@ -13,6 +13,7 @@ from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
 from worker import agent_utils
+from worker.system_info import get_container_info
 
 
 class TaskUpdate(TaskSly):
@@ -28,46 +29,34 @@ class TaskUpdate(TaskSly):
         if constants.TOKEN() != self.info["config"]["access_token"]:
             raise RuntimeError("Current token != new token")
 
-        docker_inspect_cmd = "curl -s --unix-socket /var/run/docker.sock http://localhost/containers/$(hostname)/json"
-        docker_img_info = subprocess.Popen(
-            [docker_inspect_cmd], shell=True, executable="/bin/bash", stdout=subprocess.PIPE
-        ).communicate()[0]
-        docker_img_info = json.loads(docker_img_info)
-
-        use_options = False
-
-        try:
-            agent_utils.check_instance_version()
-            envs, volumes, ca_cert = agent_utils.updated_agent_options()
-            _, _, new_ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
-            if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
-                envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
-            else:
-                envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
-
-            use_options = True
-        except agent_utils.AgentOptionsNotAvailable:
-            envs = agent_utils.envs_list_to_dict(docker_img_info["Config"]["Env"])
-            volumes = agent_utils.binds_to_volumes_dict(docker_img_info["HostConfig"]["Binds"])
-
-        cur_container_id = docker_img_info["Config"]["Hostname"]
+        container_info = get_container_info()
 
         if (
-            docker_img_info["Config"]["Labels"].get("com.docker.compose.project", None)
+            container_info["Config"]["Labels"].get("com.docker.compose.project", None)
             == "supervisely"
         ):
             raise RuntimeError(
                 "Docker container was started from docker-compose. Please, use docker-compose to upgrade."
             )
-            return
 
-        envs[constants._REMOVE_OLD_AGENT] = cur_container_id
+        use_options = False
+        ca_cert_path = None
+        try:
+            agent_utils.check_instance_version()
+            envs, volumes, ca_cert = agent_utils.updated_agent_options()
+            _, _, ca_cert_path = agent_utils.get_options_changes(envs, volumes, ca_cert)
+            use_options = True
+        except agent_utils.AgentOptionsNotAvailable:
+            envs = agent_utils.envs_list_to_dict(container_info["Config"]["Env"])
+            volumes = agent_utils.binds_to_volumes_dict(container_info["HostConfig"]["Binds"])
 
-        image = docker_img_info["Config"]["Image"]
+        image = container_info["Config"]["Image"]
         if self.info.get("docker_image", None):
             image = self.info["docker_image"]
         if constants._DOCKER_IMAGE in envs:
             image = envs[constants._DOCKER_IMAGE]
+
+        # Pull new image if needed
         if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
             sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
@@ -91,37 +80,16 @@ class TaskUpdate(TaskSly):
                 "Couldn't find sly-net-client attached to this agent. We'll try to deploy it during the agent restart"
             )
 
-        # add cross agent volume
-        try:
-            self._docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
-        except:
-            pass
-        volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
-            "bind": constants.CROSS_AGENT_DATA_DIR(),
-            "mode": "rw",
-        }
+        # Stop current container
+        cur_container_id = container_info["Config"]["Hostname"]
+        envs[constants._REMOVE_OLD_AGENT] = cur_container_id
 
-        runtime = docker_img_info["HostConfig"]["Runtime"]
-        envs = agent_utils.envs_dict_to_list(envs)
-
-        # start new agent
-        container = self._docker_api.containers.run(
-            image,
-            runtime=runtime,
-            detach=True,
-            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
-            remove=False,
-            restart_policy={"Name": "unless-stopped"},
+        agent_utils.restart_agent(
+            image=image,
+            envs=envs,
             volumes=volumes,
-            environment=envs,
-            stdin_open=False,
-            tty=False,
-        )
-        container.reload()
-        self.logger.debug("After spawning. Container status: {}".format(str(container.status)))
-        self.logger.info(
-            "Docker container is spawned",
-            extra={"container_id": container.id, "container_name": container.name},
+            ca_cert_path=ca_cert_path,
+            docker_api=self._docker_api,
         )
 
 

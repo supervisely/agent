@@ -16,8 +16,7 @@ LABEL CONFIGS=""
 ##############################################################################
 # Additional project libraries
 ##############################################################################
-RUN rm /etc/apt/sources.list.d/cuda.list
-RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+RUN rm /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -29,41 +28,18 @@ RUN apt-get update \
     && apt-get autoclean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
-RUN pip install --no-cache-dir \
-    docker==5.0.3 \
-    psutil==5.4.5 \
-    requests==2.24.0 \
-    hurry.filesize==0.9 \
-    scandir==1.10.0 \
-    grpcio==1.47.0 \
-    grpcio-tools==1.47.0 \
-    py3exiv2==0.9.3
-
-RUN pip install requests-toolbelt
-RUN pip install packaging
-
 RUN apt-get update \
     && apt-get install -y tree \
     && apt-get -qq -y autoremove \
     && apt-get autoclean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
-RUN pip install docker==6.0.1
-RUN pip install version-parser==1.0.1
-RUN pip install python-slugify==6.1.2
-RUN pip install nvidia-ml-py==12.535.77
 
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
-RUN pip install httpx
-RUN pip install requests-toolbelt>=1.0.0
 
-RUN pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 -f https://download.pytorch.org/whl/torch_stable.html
-
-RUN pip install filelock==3.13.1
-RUN pip install supervisely==6.72.203
-# for development
-# RUN pip install git+https://github.com/supervisely/supervisely.git@dev-branch
+COPY requirements.txt /workdir/requirements.txt
+RUN pip install --no-cache-dir -r /workdir/requirements.txt
 
 COPY . /workdir
 

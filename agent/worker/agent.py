@@ -111,54 +111,6 @@ class Agent:
             with open(self._history_file, "w") as json_file:
                 json.dump(images_stat, json_file, indent=4)
 
-    @classmethod
-    def _restart(cls, envs: list = None, volumes: dict = None, runtime: str = None):
-        docker_api = docker.from_env()
-        container_info = get_container_info()
-        if envs is None:
-            envs = container_info.get("Config", {}).get("Env", [])
-        if volumes is None:
-            volumes = agent_utils.binds_to_volumes_dict(
-                container_info.get("HostConfig", {}).get("Binds", [])
-            )
-
-        agent_utils.check_and_remove_agent_with_old_name(docker_api)
-        envs_dict = agent_utils.envs_list_to_dict(envs)
-
-        # recursion warning
-        restart_n = int(os.environ.get("AGENT_RESTARTED", "0"))
-        if restart_n >= 1:
-            sly.logger.warn(
-                "Agent restarted multiple times, indicating a potential error. Reapply options and contact support if issues persist."
-            )
-            return False
-
-        envs_dict["AGENT_RESTARTED"] = restart_n + 1
-
-        image = container_info["Config"]["Image"]
-        if runtime is None:
-            runtime = container_info["HostConfig"]["Runtime"]
-
-        container: Container = docker_api.containers.run(
-            image,
-            runtime=runtime,
-            detach=True,
-            name="{}-{}".format(constants.CONTAINER_NAME(), sly.rand_str(5)),
-            remove=False,
-            restart_policy={"Name": "unless-stopped"},
-            volumes=volumes,
-            environment=agent_utils.envs_dict_to_list(envs_dict),
-            stdin_open=False,
-            tty=False,
-        )
-        container.reload()
-        sly.logger.debug("After spawning. Container status: {}".format(str(container.status)))
-        sly.logger.info(
-            "Docker container is spawned",
-            extra={"container_id": container.id, "container_name": container.name},
-        )
-        return True
-
     def _remove_old_agent(self):
         container_id = os.getenv("REMOVE_OLD_AGENT", None)
         dc = docker.from_env()
@@ -681,7 +633,7 @@ class Agent:
     def update_base_layers(self):
         self.logger.info("Start background task: pulling base images")
         pulled = []
-        for image in constants._BASE_IMAGES:
+        for image in constants.BASE_IMAGES():
             try:
                 if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
                     self.logger.info(

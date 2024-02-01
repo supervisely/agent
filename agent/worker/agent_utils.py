@@ -8,6 +8,8 @@ import re
 import requests
 import docker
 import shutil
+import tarfile
+import io
 
 import supervisely_lib as sly
 
@@ -136,7 +138,7 @@ class AppDirCleaner:
             sly.fs.silent_remove(log_path)
             removed.append(log_path)
 
-        self.logger.info(f"Removed agent logs: {removed}")
+        self.logger.debug(f"Removed agent logs: {removed}")
 
     def clean_app_sessions(
         self,
@@ -168,7 +170,7 @@ class AppDirCleaner:
                 cleaned_sessions.append(app_id)
                 sly.fs.remove_dir(app)
 
-        self.logger.info(f"Removed sessions: {cleaned_sessions}")
+        self.logger.debug(f"Removed sessions: {cleaned_sessions}")
 
         return cleaned_sessions
 
@@ -219,7 +221,7 @@ class AppDirCleaner:
             if sly.fs.dir_empty(module_caches_path):
                 sly.fs.remove_dir(module_caches_path)
 
-        self.logger.info(f"Removed PIP cache: {removed}")
+        self.logger.debug(f"Removed PIP cache: {removed}")
 
     def clean_git_tags(self):
         # TODO: add conditions?
@@ -400,7 +402,7 @@ class DockerImagesCleaner:
         return list(to_remove.keys())
 
     def _is_base_image(self, image_name: str):
-        for base_image_name in constants._BASE_IMAGES:
+        for base_image_name in constants.BASE_IMAGES():
             if image_name.endswith(base_image_name):
                 return True
         return False
@@ -717,10 +719,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
     if agent_host_dir == "":
         agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
-        docker_api = docker.from_env()
-
-        if "/" not in agent_host_dir:
-            docker_api.volumes.create(agent_host_dir)
 
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
 
@@ -784,28 +782,62 @@ def _volumes_changes(volumes) -> dict:
             changes[key] = value
     return changes
 
+def _is_bind_attached(container_info, bind_path):
+    vols = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+
+    for vol in vols.values():
+        if vol["bind"] == bind_path:
+            return True
+
+    return False
+
+def _copy_file_to_container(container, src, dst_dir: str):
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode='w|') as tar, open(src, 'rb') as f:
+        info = tar.gettarinfo(fileobj=f)
+        info.name = os.path.basename(src)
+        tar.addfile(info, f)
+
+    container.put_archive(dst_dir, stream.getvalue())
 
 def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
         return None
 
-    ca_cert = ca_cert.replace('\r\n', '\n')
+    ca_cert = ca_cert.replace("\r\n", "\n")
 
-    cert_path = os.path.join(constants.AGENT_ROOT_DIR(), "certs", "instance_ca_chain.crt")
+    cert_path = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
     cur_path = constants.SLY_EXTRA_CA_CERTS()
-    if cert_path == cur_path:
-        if os.path.exists(cert_path):
-            with open(cert_path, "r", encoding='utf-8') as f:
-                ca_file_contents = f.read().replace('\r\n', '\n')
-                sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
-                if ca_file_contents == ca_cert:
-                    sly.logger.debug(f"Certificates are equal, skipping the update")
-                    return None
-                else:
-                    sly.logger.debug(f"Certificates are not equal, updating")
+    if cert_path == cur_path and os.path.exists(cert_path):
+        with open(cert_path, "r", encoding="utf-8") as f:
+            ca_file_contents = f.read().replace("\r\n", "\n")
+            sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
+            if ca_file_contents == ca_cert:
+                sly.logger.debug(f"Certificates are equal, skipping the update")
+                return None
+            else:
+                sly.logger.debug(f"Certificates are not equal, updating")
+
+    docker_api = docker.from_env()
+    container_info = get_container_info()
+
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cert_path, "w", encoding='utf-8') as f:
+    with open(cert_path, "w", encoding="utf-8") as f:
         f.write(ca_cert)
+
+    # initialize certs volume and copy the new certificate
+    if not _is_bind_attached(get_container_info(), constants.SLY_EXTRA_CA_CERTS_DIR()):
+        agent_image = container_info["Config"]["Image"]
+
+        tmp_container = docker_api.containers.create(
+            agent_image,
+            "",
+            volumes={constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME(): {"bind": constants.SLY_EXTRA_CA_CERTS_DIR(), "mode": "rw"}},
+        )
+
+        _copy_file_to_container(tmp_container, cert_path, constants.SLY_EXTRA_CA_CERTS_DIR())
+        tmp_container.remove(force=True)
+
     return cert_path
 
 
@@ -836,3 +868,93 @@ def check_and_remove_agent_with_old_name(dc: DockerClient):
             # we want to remove containers with a new name in case the current container contains an old one, this happens when the agent is deployed on an older Supervisely instance
             elif cur_agent_contains_old_name and cont.name.startswith(agent_name_start):
                 cont.remove(force=True)
+
+
+def is_named_docker_volume(volume_name: str):
+    return "/" not in volume_name
+
+
+def restart_agent(
+    image: str = None,
+    envs: dict = None,
+    volumes: dict = None,
+    runtime: str = None,
+    ca_cert_path: str = None,
+    docker_api=None,
+):
+    """Restart agent with new image, envs, volumes, runtime.
+    If any of the arguments is None, it will be taken from the current agent.
+    image: str - new image name
+    envs: dict - new environment variables
+    volumes: dict - new volumes
+    runtime: str - new runtime
+    ca_cert_path: str - new path to ca certificate
+    """
+    if docker_api is None:
+        docker_api = docker.from_env()
+    container_info = get_container_info()
+    if image is None:
+        image = container_info["Config"]["Image"]
+    if envs is None:
+        envs = container_info.get("Config", {}).get("Env", [])
+        envs = envs_list_to_dict(envs)
+    if volumes is None:
+        volumes = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+    if runtime is None:
+        runtime = container_info["HostConfig"]["Runtime"]
+
+    # remove agent with old name if exists
+    check_and_remove_agent_with_old_name(docker_api)
+
+    # add SLY_EXTRA_CA_CERTS env
+    if ca_cert_path is None:
+        envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
+    else:
+        envs[constants._SLY_EXTRA_CA_CERTS] = ca_cert_path
+
+    if envs[constants._SLY_EXTRA_CA_CERTS] is not None:
+        # add SLY_EXTRA_CA_CERTS volume
+        volumes[constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()] = {
+            "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
+            "mode": "rw",
+        }
+
+    # add REMOVE_OLD_AGENT env if needed (in case of update)
+    remove_old_agent = constants.REMOVE_OLD_AGENT()
+    remove_old_agent = envs.get(constants._REMOVE_OLD_AGENT, remove_old_agent)
+    if remove_old_agent is not None:
+        envs[constants._REMOVE_OLD_AGENT] = remove_old_agent
+
+    # add cross agent volume
+    volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
+        "bind": constants.CROSS_AGENT_DATA_DIR(),
+        "mode": "rw",
+    }
+
+    # create named volumes if necessary
+    for src in volumes.keys():
+        if is_named_docker_volume(src):
+            try:
+                docker_api.volumes.get(src)
+            except docker.errors.NotFound:
+                docker_api.volumes.create(src)
+
+    envs = envs_dict_to_list(envs)
+    container: Container = docker_api.containers.run(
+        image,
+        runtime=runtime,
+        detach=True,
+        name=f"{constants.CONTAINER_NAME()}-{sly.rand_str(5)}",
+        remove=False,
+        restart_policy={"Name": "unless-stopped"},
+        volumes=volumes,
+        environment=envs,
+        stdin_open=False,
+        tty=False,
+    )
+    container.reload()
+    sly.logger.debug(f"After spawning. Container status: {str(container.status)}")
+    sly.logger.info(
+        "Docker container is spawned",
+        extra={"container_id": container.id, "container_name": container.name},
+    )

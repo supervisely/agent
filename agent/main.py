@@ -96,14 +96,17 @@ def _start_net_client(docker_api=None):
             envs.append(f"{constants._HTTPS_PROXY}={constants.HTTPS_PROXY()}")
         if constants.NO_PROXY():
             envs.append(f"{constants._NO_PROXY}={constants.NO_PROXY()}")
-        if constants.SLY_EXTRA_CA_CERTS():
-            if os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
-                envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS()}")
+
         volumes = [
             "/var/run/docker.sock:/tmp/docker.sock:ro",
             f"{constants.HOST_DIR()}:{constants.AGENT_ROOT_DIR()}",
             f"{constants.SUPERVISELY_AGENT_FILES()}:{constants.SUPERVISELY_AGENT_FILES_CONTAINER()}",
         ]
+
+        if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}")
+            volumes.append(f"{constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()}:{constants.SLY_EXTRA_CA_CERTS_DIR()}")
+
         log_config = LogConfig(
             type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
         )
@@ -228,7 +231,9 @@ def init_envs():
         new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
     except agent_utils.AgentOptionsNotAvailable:
         sly.logger.debug("Can not update agent options", exc_info=True)
-        sly.logger.warn("Can not update agent options. Agent will be started with current options")
+        sly.logger.warning(
+            "Can not update agent options. Agent will be started with current options"
+        )
         return
     restart_with_nvidia_runtime = _nvidia_runtime_check()
     envs_changes, volumes_changes, new_ca_cert_path = agent_utils.get_options_changes(
@@ -242,33 +247,12 @@ def init_envs():
     ):
         docker_api = docker.from_env()
         container_info = get_container_info()
-        if new_ca_cert_path and constants.SLY_EXTRA_CA_CERTS() != new_ca_cert_path:
-            new_envs[constants._SLY_EXTRA_CA_CERTS] = new_ca_cert_path
-        else:
-            new_envs[constants._SLY_EXTRA_CA_CERTS] = constants.SLY_EXTRA_CA_CERTS()
         runtime = (
             "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
         )
 
-        # add remove old agent env if needed (in case of update)
-        remove_old_agent = constants.REMOVE_OLD_AGENT()
-        if remove_old_agent is not None:
-            new_envs[constants._REMOVE_OLD_AGENT] = remove_old_agent
-
         # TODO: only set true if some NET_CLIENT envs changed
         new_envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true"
-
-        envs = agent_utils.envs_dict_to_list(new_envs)
-
-        # add cross agent volume
-        try:
-            docker_api.volumes.create(constants.CROSS_AGENT_VOLUME_NAME(), driver="local")
-        except:
-            pass
-        new_volumes[constants.CROSS_AGENT_VOLUME_NAME()] = {
-            "bind": constants.CROSS_AGENT_DATA_DIR(),
-            "mode": "rw",
-        }
 
         sly.logger.info(
             "Agent is restarting due to options change",
@@ -284,10 +268,29 @@ def init_envs():
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
-        restarted = Agent._restart(envs, new_volumes, runtime)
-        if restarted:
-            sly.logger.info("Agent is restarted. This container will be removed")
-            docker_api.containers.get(container_info["Id"]).remove(force=True)
+
+        # recursion warning
+        restart_n = constants.AGENT_RESTART_COUNT()
+        if restart_n >= constants.MAX_AGENT_RESTARTS():
+            sly.logger.warning(
+                (
+                    "Agent restarted multiple times, indicating a potential error. "
+                    "Reapply options and contact support if issues persist."
+                )
+            )
+            return
+        new_envs[constants._AGENT_RESTART_COUNT] = restart_n + 1
+
+        agent_utils.restart_agent(
+            envs=new_envs,
+            volumes=new_volumes,
+            runtime=runtime,
+            ca_cert_path=new_ca_cert_path,
+            docker_api=docker_api,
+        )
+
+        sly.logger.info("Agent is restarted. This container will be removed")
+        docker_api.containers.get(container_info["Id"]).remove(force=True)
 
 
 if __name__ == "__main__":

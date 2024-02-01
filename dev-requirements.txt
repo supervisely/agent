@@ -1,0 +1,18 @@
+python-dotenv==0.19.2
+version_parser==1.0.1
+hurry.filesize==0.9
+scandir==1.10.0
+grpcio==1.47.0
+grpcio-tools==1.47.0
+# py3exiv2==0.9.3
+packaging==21.3
+version-parser==1.0.1
+supervisely==6.72.203
+docker==3.3.0
+black
+python-slugify==6.1.2
+requests==2.28.1
+urllib3==1.26.15
+# torch==1.7.1
+nvidia-ml-py==12.535.77
+filelock==3.13.1

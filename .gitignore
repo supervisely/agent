@@ -9,3 +9,4 @@ start.sh
 .venv
 supervisely
 .DS_Store
+push_images.txt

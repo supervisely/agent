@@ -20,4 +20,5 @@ docker build . -t supervisely/agent:${TAG} \
 --label "INFO=${plugin_info}" \
 --label "MODES=main" \
 --label "README=${readme}" \
---label "BUILT_AT=${built_at}"
+--label "BUILT_AT=${built_at}" \
+--progress plain
