@@ -2,14 +2,10 @@ name: Checking agent files with pylint
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
 
 jobs:
   pylint:
     runs-on: ubuntu-latest
-    outputs:
-      result: ${{ github.event.release.tag_name }}
     env:
       ISSUES_URL: "https://api.github.com/repos/supervisely/issues/issues"
       PROJECT_NUMBER: "2"
@@ -61,10 +57,10 @@ jobs:
           echo "Issue body: $issue_body"
           
           json=$(jq -n \
-                    --arg title "Pylint Errors for ${{ github.event_name }} #${{ github.event.pull_request.number }} at $(date -u +'%Y-%m-%d %H:%M') UTC+0" \
+                    --arg title "[Manual Run] Pylint Errors for #${{ github.ref_name }} at $(date -u +'%Y-%m-%d %H:%M') UTC+0" \
                     --arg body "$issue_body" \
                     --argjson assignees '["${{ github.actor }}"]' \
-                    --argjson labels '["bug", "pylint"]' \
+                    --argjson labels '["bug", "pylint", "agent"]' \
                     '{title: $title, body: $body, assignees: $assignees, labels: $labels}')
 
           issue_response=$(curl -X POST -H "Accept: application/vnd.github+json" \
@@ -173,12 +169,3 @@ jobs:
       run: | 
         echo "RESULT=failure" >> $GITHUB_ENV
         exit 1
-
-    - name: Generate output file with release tag name 
-      run: echo "${{ github.event.release.tag_name }}" > tagname.txt
-
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: tag-name
-        path: tagname.txt
