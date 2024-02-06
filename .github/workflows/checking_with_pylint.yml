@@ -2,12 +2,14 @@ name: Checking agent files with pylint
 
 on:
   workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   pylint:
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ env.RESULT }}
+      result: ${{ github.event.release.tag_name }}
     env:
       ISSUES_URL: "https://api.github.com/repos/supervisely/issues/issues"
       PROJECT_NUMBER: "2"
@@ -33,6 +35,9 @@ jobs:
 
     - name: Install dependencies
       run: |
+        sudo apt-get update
+        sudo apt-get install python-all-dev libboost-python-dev libexiv2-dev
+        sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so           
         pip install --upgrade pip
         pip install pylint
         pip install -r requirements.txt
@@ -162,12 +167,18 @@ jobs:
         "query": "mutation { set_status: updateProjectV2ItemFieldValue(input: { projectId: \"${{ env.ORG_PROJECT_ID }}\", itemId: \"${{env.ITEM_TO_MOVE}}\", fieldId: \"${{ env.STATUS_FIELD_ID}}\", value: { singleSelectOptionId: \"${{ env.STATUS_ID }}\" } }) { projectV2Item { id } } }"
         }' https://api.github.com/graphql
     
-    - name: Set Check Status
+    - name: Complete with exit code 1
+      if: ${{ env.ERRORS_DETECTED == 'true' }}
       id: set_status
-      run: |        
-        if [[ "${{ env.ERRORS_DETECTED }}" == "true" ]]; then
-          echo "RESULT=failure" >> $GITHUB_ENV
-        else
-          echo "RESULT=success" >> $GITHUB_ENV        
-        fi
-        echo "Result: ${{ env.RESULT }}"
+      run: | 
+        echo "RESULT=failure" >> $GITHUB_ENV
+        exit 1
+
+    - name: Generate output file with release tag name 
+      run: echo "${{ github.event.release.tag_name }}" > tagname.txt
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: tag-name
+        path: tagname.txt
