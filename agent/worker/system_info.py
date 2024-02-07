@@ -211,6 +211,7 @@ def get_gpu_info_with_torch(logger):
             gpu_info["device_memory"] = []
             for idx in range(gpu_info["device_count"]):
                 gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
+                mem = {}
                 try:
                     device_props = torch.cuda.get_device_properties(idx)
                     t = device_props.total_memory
@@ -224,7 +225,6 @@ def get_gpu_info_with_torch(logger):
                     }
                 except Exception as e:
                     logger.debug(repr(e))
-                    mem = {}
                 finally:
                     gpu_info["device_memory"].append(mem)
 
@@ -255,6 +255,7 @@ def get_gpu_info(logger):
                         "compute_capability": capability,
                     }
                 )
+                mem = {}
                 try:
                     device_props = smi.nvmlDeviceGetMemoryInfo(handle)
                     mem = {
@@ -264,7 +265,6 @@ def get_gpu_info(logger):
                     }
                 except Exception as e:
                     logger.debug(repr(e))
-                    mem = {}
                 finally:
                     gpu_info["device_memory"].append(mem)
             gpu_info["driver_version"] = smi.nvmlSystemGetDriverVersion()

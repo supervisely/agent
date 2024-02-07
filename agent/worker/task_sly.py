@@ -2,7 +2,7 @@
 
 import supervisely_lib as sly
 
-from supervisely_lib._utils import _remove_sensitive_information
+from supervisely_lib._utils import _remove_sensitive_information # pylint: disable=import-error, no-name-in-module
 from worker.task_logged import TaskLogged
 from worker import constants
 import logging

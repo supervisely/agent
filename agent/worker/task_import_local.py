@@ -6,8 +6,8 @@ from worker import constants
 from worker.task_dockerized import TaskStep
 from worker.task_import import TaskImport
 
-from supervisely_lib.io.fs import hardlink_or_copy_tree
-from supervisely_lib.io.json import dump_json_file
+from supervisely_lib.io.fs import hardlink_or_copy_tree # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
 
 
 class TaskImportLocal(TaskImport):

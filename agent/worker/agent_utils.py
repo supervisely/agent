@@ -584,7 +584,7 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 
     url = constants.PUBLIC_API_SERVER_ADDRESS() + "agents.options.info"
     resp = requests.post(url=url, json={"token": token}, timeout=timeout)
-    if resp.status_code != requests.codes.ok:
+    if resp.status_code != requests.codes.ok: # pylint: disable=no-member
         try:
             text = resp.text
         except:
@@ -601,7 +601,7 @@ def get_instance_version(server_address=None, timeout=60):
         server_address = constants.SERVER_ADDRESS()
     url = constants.PUBLIC_API_SERVER_ADDRESS() + "instance.version"
     resp = requests.get(url=url, timeout=timeout)
-    if resp.status_code != requests.codes.ok:
+    if resp.status_code != requests.codes.ok: # pylint: disable=no-member
         if resp.status_code in (400, 401, 403, 404):
             return None
         try:

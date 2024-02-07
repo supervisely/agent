@@ -4,7 +4,7 @@ import os
 import json
 import supervisely_lib as sly
 from worker import constants
-from supervisely_lib.task.paths import TaskPaths
+from supervisely_lib.task.paths import TaskPaths  # pylint: disable=import-error, no-name-in-module
 from worker.task_plugin import TaskPlugin
 
 

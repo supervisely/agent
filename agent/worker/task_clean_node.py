@@ -55,14 +55,14 @@ class TaskCleanNode(TaskSly):
         img_hashes = []
 
         for batch_img_ids in sly.batched(
-            list(image_array.images), constants.BATCH_SIZE_GET_IMAGES_INFO()
+            list(image_array.images), constants.BATCH_SIZE_GET_IMAGES_INFO() # pylint: disable=no-member
         ):
             images_info_proto = self.api.simple_request(
                 "GetImagesInfo",
                 sly.api_proto.ImagesInfo,
                 sly.api_proto.ImageArray(images=batch_img_ids),
             )
-            img_hashes.extend([(info.hash, info.ext) for info in images_info_proto.infos])
+            img_hashes.extend([(info.hash, info.ext) for info in images_info_proto.infos]) # pylint: disable=no-member
         return img_hashes
 
     def list_weights_to_remove(self, storage, action, input_weights_hashes):

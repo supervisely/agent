@@ -5,8 +5,8 @@ import os.path as osp
 import tarfile
 
 import supervisely_lib as sly
-from supervisely_lib.task import paths as sly_paths
-from supervisely_lib.api.api import SUPERVISELY_TASK_ID
+from supervisely_lib.task import paths as sly_paths  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.api.api import SUPERVISELY_TASK_ID  # pylint: disable=import-error, no-name-in-module
 
 from worker.task_dockerized import TaskDockerized, TaskStep
 from worker import constants as worker_constants

@@ -3,7 +3,7 @@
 import os
 import json
 import supervisely_lib as sly
-from supervisely_lib.task.paths import TaskPaths
+from supervisely_lib.task.paths import TaskPaths # pylint: disable=import-error, no-name-in-module
 from .task_dockerized import TaskDockerized, TaskStep
 
 
@@ -23,7 +23,7 @@ class TaskPlugin(TaskDockerized):
     def download_step(self):
         self.logger.info("DOWNLOAD_DATA")
         human_config = self.info
-        sly.io.json.dump_json_file(human_config, self.config_path)
+        sly.io.json.dump_json_file(human_config, self.config_path) # pylint: disable=no-member
         self.report_step_done(TaskStep.DOWNLOAD)
 
     def before_main_step(self):

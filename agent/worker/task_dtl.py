@@ -8,7 +8,7 @@ import supervisely_lib as sly
 
 from worker.task_dockerized import TaskDockerized, TaskStep
 from worker.agent_utils import ann_special_fields
-from supervisely_lib.io.json import dump_json_file
+from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
 
 
 class TaskDTL(TaskDockerized):

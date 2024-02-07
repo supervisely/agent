@@ -57,7 +57,7 @@ class ImageStreamer(TaskLogged):
 
         file_size = sly.fs.get_file_size(st_path)
 
-        def chunk_generator():
+        def chunk_generator(): # pylint: disable=function-redefined
             with open(st_path, 'rb') as file_:
                 for chunk_start, chunk_size in sly.ChunkSplitter(file_size, constants.NETW_CHUNK_SIZE()):
                     bytes_chunk = file_.read(chunk_size)
