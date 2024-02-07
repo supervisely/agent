@@ -37,15 +37,10 @@ jobs:
         pip install --upgrade pip
         pip install pylint
         pip install -r requirements.txt
-
-    - name: Set PYTHONPATH
-      run: |
-        echo "PYTHONPATH=$PWD:\$PYTHONPATH" >> $GITHUB_ENV
-        echo "Added path: $PWD to PYTHONPATH"
-
-
+    
     - name: Run check with pylint
       run: | 
+        export PYTHONPATH=$PYTHONPATH:$PWD/agent/
         pylint_output=$(pylint --ignore-patterns=".*\.json$|.*\.gitignore$" "agent") || true
         if [[ $pylint_output == *"E"* ]] || [[ $pylint_output == *"F"* ]]; then
           # Save pylint output to a file
