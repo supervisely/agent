@@ -1,9 +1,7 @@
-name: build-push-release
+name: Checking agent files with pylint
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
 
 jobs:
   pylint:
@@ -35,7 +33,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install python-all-dev libboost-python-dev libexiv2-dev
-        sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so
+        sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so           
         pip install --upgrade pip
         pip install pylint
         pip install -r requirements.txt
@@ -59,7 +57,7 @@ jobs:
           echo "Issue body: $issue_body"
           
           json=$(jq -n \
-                    --arg title "Pylint Errors for ${{ github.event_name }} #${{ github.event.release.tag_name }} at $(date -u +'%Y-%m-%d %H:%M') UTC+0" \
+                    --arg title "[Manual Run] Pylint Errors for #${{ github.ref_name }} at $(date -u +'%Y-%m-%d %H:%M') UTC+0" \
                     --arg body "$issue_body" \
                     --argjson assignees '["${{ github.actor }}"]' \
                     --argjson labels '["bug", "pylint", "agent"]' \
@@ -171,94 +169,3 @@ jobs:
       run: | 
         echo "RESULT=failure" >> $GITHUB_ENV
         exit 1
-    
-
-  build:
-    runs-on: ubuntu-latest
-    needs: pylint
-    if: ${{  needs.pylint.result == 'success' }}
-    steps:
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Checkout
-        uses: actions/checkout@v2
-      
-      - name: Write Tag to ENV variable
-        run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-              echo "LABEL_VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
-            else
-              response=$(curl \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer ${{secrets.GITHUB_TOKEN}}" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/latest")
-              echo "Response: $response"
-              LATEST_RELEASE_TAG=$(echo "$response" | jq -r .tag_name)
-              echo "LABEL_VERSION=$LATEST_RELEASE_TAG" >> $GITHUB_ENV
-            fi
-
-      - name: Echo ${{ env.LABEL_VERSION }}
-        run: echo ${{ env.LABEL_VERSION }}
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME_COMMUNITY }}
-          password: ${{ secrets.DOCKER_TOKEN_COMMUNITY }}
-
-      - name: Login to Docker Supervisely Enterprise
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME_ENTERPRISE }}
-          password: ${{ secrets.DOCKER_PASSWORD_ENTERPRISE }}
-
-      - name: Login to Docker Supervisely Developer
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.DOCKER_DEVELOPER_REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME_DEVELOPER }}
-          password: ${{ secrets.DOCKER_PASSWORD_DEVELOPER }}
-
-      - name: Get Docker Labels from python script
-        run: python .github/workflows/docker_labels.py
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-        with:
-          version: v0.9.1
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: ./
-          file: ./Dockerfile
-          provenance: false
-          builder: ${{ steps.buildx.outputs.name }}
-          push: true
-          tags: |
-            supervisely/agent:${{ env.LABEL_VERSION }}
-            ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/rc2/agent:${{ env.LABEL_VERSION }}
-            ${{ secrets.DOCKER_DEVELOPER_REGISTRY }}/supervisely/five/agent:${{ env.LABEL_VERSION }}
-          # supervisely/agent:dev
-          # ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}/rc2/agent:dev
-          build-args: |
-            LABEL_VERSION=agent:${{ env.LABEL_VERSION }}
-            LABEL_INFO=${{ env.LABEL_INFO }}
-            LABEL_MODES=${{ env.LABEL_MODES }}
-            LABEL_README=${{ env.LABEL_README }}
-            LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }}
-          cache-from: type=registry,ref=supervisely/agent:cache
-          cache-to: type=registry,ref=supervisely/agent:cache,mode=max
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
