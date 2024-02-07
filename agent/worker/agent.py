@@ -41,7 +41,7 @@ from worker.system_info import (
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
-from supervisely_lib._utils import _remove_sensitive_information
+from supervisely_lib._utils import _remove_sensitive_information # pylint: disable=import-error, no-name-in-module
 
 
 class Agent:

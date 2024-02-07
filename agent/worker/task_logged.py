@@ -15,7 +15,7 @@ import sys
 import json
 
 import supervisely_lib as sly
-from supervisely_lib.io.json import dump_json_file
+from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
 
 from worker.data_manager import DataManager
 from worker.logs_to_rpc import add_task_handler

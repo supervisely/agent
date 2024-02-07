@@ -2,7 +2,7 @@
 
 import os
 import supervisely_lib as sly
-from supervisely_lib._utils import batched
+from supervisely_lib._utils import batched # pylint: disable=import-error, no-name-in-module
 from worker.agent_storage import AgentStorage
 from worker.fs_storages import EmptyStorage
 from worker import constants

@@ -4,7 +4,7 @@ import os
 import os.path as osp
 import json
 import supervisely_lib as sly
-from supervisely_lib.task.paths import TaskPaths
+from supervisely_lib.task.paths import TaskPaths # pylint: disable=import-error, no-name-in-module
 
 from .task_dockerized import TaskDockerized, TaskStep
 from worker import agent_utils
@@ -44,8 +44,8 @@ class TaskTrain(TaskDockerized):
     def download_step(self):
         self.logger.info("DOWNLOAD_DATA")
 
-        sly.io.json.dump_json_file(self.info['config'], self.config_path1)  # Deprecated 'task_settings.json'
-        sly.io.json.dump_json_file(self.info['config'], self.config_path2)  # New style task_config.json
+        sly.io.json.dump_json_file(self.info['config'], self.config_path1)  # Deprecated 'task_settings.json' # pylint: disable=no-member
+        sly.io.json.dump_json_file(self.info['config'], self.config_path2)  # New style task_config.json # pylint: disable=no-member
 
         if len(self.info['projects']) != 1:
             raise ValueError("Config contains {} projects. Training works only with single project.".format(len(self.info['projects'])))

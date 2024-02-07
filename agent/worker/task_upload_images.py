@@ -2,7 +2,7 @@
 
 import cv2
 import supervisely_lib as sly
-import supervisely_lib.worker_proto.worker_api_pb2 as api_proto
+import supervisely_lib.worker_proto.worker_api_pb2 as api_proto # pylint: disable=import-error, no-name-in-module
 
 from worker.task_sly import TaskSly
 from worker.agent_utils import create_img_meta_str
@@ -26,7 +26,7 @@ class TaskUploadImages(TaskSly):
                 cnt_skipped_images += 1
                 continue
 
-            img = cv2.imread(st_path)
+            img = cv2.imread(st_path) # pylint: disable=no-member
             height, width = img.shape[:2]
             img_sizeb = sly.fs.get_file_size(st_path)
 
@@ -36,6 +36,6 @@ class TaskUploadImages(TaskSly):
             to_upload_paths.append(st_path)
             to_upload_infos.append(proto_img_info)
 
-        self.data_mgr.upload_images_to_remote(to_upload_paths, to_upload_infos)
+        self.data_mgr.upload_images_to_remote(to_upload_paths, to_upload_infos) # pylint: disable=no-member
 
         self.logger.info("CNT_SKIPPED_IMAGES", extra={'cnt_skipped': cnt_skipped_images})

@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
 import re
-from supervisely_lib.io.docker_utils import PullPolicy
+from supervisely_lib.io.docker_utils import PullPolicy # pylint: disable=import-error, no-name-in-module
 
 
 _SERVER_ADDRESS = "SERVER_ADDRESS"
@@ -261,7 +261,7 @@ def AGENT_TASKS_DIR():
 
 def AGENT_TASK_SHARED_DIR():
     """default: /sly_agent/tasks/task_shared"""
-    return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED)
+    return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED) # pylint: disable=no-member
 
 
 def AGENT_TMP_DIR():

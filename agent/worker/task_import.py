@@ -3,9 +3,9 @@
 import os
 import json
 import supervisely_lib as sly
-from supervisely_lib.task.paths import TaskPaths
+from supervisely_lib.task.paths import TaskPaths # pylint: disable=import-error, no-name-in-module
 from .task_dockerized import TaskDockerized, TaskStep
-from supervisely_lib.io.json import dump_json_file
+from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
 
 
 class TaskImport(TaskDockerized):

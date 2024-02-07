@@ -21,11 +21,11 @@ from typing import Optional
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
-from supervisely_lib.io.json import dump_json_file
-from supervisely_lib.io.json import flatten_json, modify_keys
-from supervisely_lib.api.api import SUPERVISELY_TASK_ID
-from supervisely_lib.api.api import Api
-from supervisely_lib.io.fs import (
+from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import flatten_json, modify_keys # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.api.api import SUPERVISELY_TASK_ID # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.api.api import Api # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.fs import ( # pylint: disable=import-error, no-name-in-module
     ensure_base_path,
     silent_remove,
     get_file_name,
@@ -34,7 +34,7 @@ from supervisely_lib.io.fs import (
     file_exists,
     mkdir,
 )
-from supervisely_lib.io.exception_handlers import handle_exceptions
+from supervisely_lib.io.exception_handlers import handle_exceptions # pylint: disable=import-error, no-name-in-module
 
 from worker import constants
 from worker.agent_utils import (
