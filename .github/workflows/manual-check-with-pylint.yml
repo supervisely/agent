@@ -40,13 +40,12 @@ jobs:
 
     - name: Set PYTHONPATH
       run: |
-        echo "PYTHONPATH=$PWD/worker:\$PYTHONPATH" >> $GITHUB_ENV
-        echo "Added path: $PWD/worker to PYTHONPATH"
+        echo "PYTHONPATH=$PWD:\$PYTHONPATH" >> $GITHUB_ENV
+        echo "Added path: $PWD to PYTHONPATH"
 
 
     - name: Run check with pylint
       run: | 
-        source $GITHUB_ENV
         pylint_output=$(pylint --ignore-patterns=".*\.json$|.*\.gitignore$" "agent") || true
         if [[ $pylint_output == *"E"* ]] || [[ $pylint_output == *"F"* ]]; then
           # Save pylint output to a file
