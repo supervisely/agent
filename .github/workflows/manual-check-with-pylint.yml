@@ -45,7 +45,8 @@ jobs:
 
 
     - name: Run check with pylint
-      run: |        
+      run: | 
+        source $GITHUB_ENV
         pylint_output=$(pylint --ignore-patterns=".*\.json$|.*\.gitignore$" "agent") || true
         if [[ $pylint_output == *"E"* ]] || [[ $pylint_output == *"F"* ]]; then
           # Save pylint output to a file
