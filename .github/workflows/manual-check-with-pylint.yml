@@ -40,8 +40,8 @@ jobs:
 
     - name: Set PYTHONPATH
       run: |
-        echo "PYTHONPATH=$PWD/agent/worker:\$PYTHONPATH" >> $GITHUB_ENV
-        echo "Added path: $PWD/agent/worker to PYTHONPATH"
+        echo "PYTHONPATH=$PWD/worker:\$PYTHONPATH" >> $GITHUB_ENV
+        echo "Added path: $PWD/worker to PYTHONPATH"
 
 
     - name: Run check with pylint
