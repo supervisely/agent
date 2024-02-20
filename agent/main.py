@@ -104,8 +104,12 @@ def _start_net_client(docker_api=None):
         ]
 
         if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
-            envs.append(f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}")
-            volumes.append(f"{constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()}:{constants.SLY_EXTRA_CA_CERTS_DIR()}")
+            envs.append(
+                f"{constants._SLY_EXTRA_CA_CERTS}={constants.SLY_EXTRA_CA_CERTS_FILEPATH()}"
+            )
+            volumes.append(
+                f"{constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME()}:{constants.SLY_EXTRA_CA_CERTS_DIR()}"
+            )
 
         log_config = LogConfig(
             type="local", config={"max-size": "1m", "max-file": "1", "compress": "false"}
@@ -178,26 +182,9 @@ def _start_net_client(docker_api=None):
                 raise e
 
 
-def _nvidia_runtime_check():
+def _is_runtime_changed(new_runtime):
     container_info = get_container_info()
-    runtime = container_info["HostConfig"]["Runtime"]
-    if runtime == "nvidia":
-        return False
-    sly.logger.debug("NVIDIA runtime is not enabled. Checking if it can be enabled...")
-    docker_api = docker.from_env()
-    image = constants.DEFAULT_APP_DOCKER_IMAGE()
-    try:
-        docker_api.containers.run(
-            image,
-            command="nvidia-smi",
-            runtime="nvidia",
-            remove=True,
-        )
-        sly.logger.debug("NVIDIA runtime is available. Will restart Agent with NVIDIA runtime.")
-        return True
-    except Exception as e:
-        sly.logger.debug("NVIDIA runtime is not available.")
-        return False
+    return container_info["HostConfig"]["Runtime"] != new_runtime
 
 
 def main(args):
@@ -235,21 +222,23 @@ def init_envs():
             "Can not update agent options. Agent will be started with current options"
         )
         return
-    restart_with_nvidia_runtime = _nvidia_runtime_check()
+    if new_envs.get(constants._FORCE_CPU_ONLY, "false") == "true":
+        runtime = "runc"
+        runtime_changed = _is_runtime_changed(runtime)
+    else:
+        runtime = agent_utils.maybe_update_runtime()
+        runtime_changed = _is_runtime_changed(runtime)
     envs_changes, volumes_changes, new_ca_cert_path = agent_utils.get_options_changes(
         new_envs, new_volumes, ca_cert
     )
     if (
         len(envs_changes) > 0
         or len(volumes_changes) > 0
-        or restart_with_nvidia_runtime
+        or runtime_changed
         or new_ca_cert_path is not None
     ):
         docker_api = docker.from_env()
         container_info = get_container_info()
-        runtime = (
-            "nvidia" if restart_with_nvidia_runtime else container_info["HostConfig"]["Runtime"]
-        )
 
         # TODO: only set true if some NET_CLIENT envs changed
         new_envs[constants._UPDATE_SLY_NET_AFTER_RESTART] = "true"
@@ -262,9 +251,9 @@ def init_envs():
                     for k, v in envs_changes.items()
                 },
                 "volumes_changes": volumes_changes,
-                "runtime_changes": {container_info["HostConfig"]["Runtime"]: runtime}
-                if restart_with_nvidia_runtime
-                else {},
+                "runtime_changes": (
+                    {container_info["HostConfig"]["Runtime"]: runtime} if runtime_changed else {}
+                ),
                 "ca_cert_changed": bool(new_ca_cert_path),
             },
         )
