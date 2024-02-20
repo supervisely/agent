@@ -21,11 +21,18 @@ from typing import Optional
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
-from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.io.json import flatten_json, modify_keys # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.api.api import SUPERVISELY_TASK_ID # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.api.api import Api # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.io.fs import ( # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import (
+    dump_json_file,
+)  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import (
+    flatten_json,
+    modify_keys,
+)  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.api.api import (
+    SUPERVISELY_TASK_ID,
+)  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.api.api import Api  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.fs import (  # pylint: disable=import-error, no-name-in-module
     ensure_base_path,
     silent_remove,
     get_file_name,
@@ -34,7 +41,9 @@ from supervisely_lib.io.fs import ( # pylint: disable=import-error, no-name-in-m
     file_exists,
     mkdir,
 )
-from supervisely_lib.io.exception_handlers import handle_exceptions # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.exception_handlers import (
+    handle_exceptions,
+)  # pylint: disable=import-error, no-name-in-module
 
 from worker import constants
 from worker.agent_utils import (
@@ -217,7 +226,7 @@ class TaskApp(TaskDockerized):
         gpu = GPUFlag.from_config(self.app_config)
         self.docker_runtime = "runc"
 
-        if gpu is not GPUFlag.skipped:
+        if gpu is not GPUFlag.skipped and not constants.FORCE_CPU_ONLY():
             docker_info = self._docker_api.info()
             nvidia = "nvidia"
             nvidia_available = False
@@ -285,9 +294,9 @@ class TaskApp(TaskDockerized):
                     f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}",
                 )
             )
-            self.info[
-                "docker_image"
-            ] = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}"
+            self.info["docker_image"] = (
+                f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{self.info['docker_image']}"
+            )
 
     def is_isolate(self):
         if self.app_config is None:

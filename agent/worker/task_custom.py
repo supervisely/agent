@@ -4,10 +4,13 @@ import json
 import supervisely_lib as sly
 import os
 
-from supervisely_lib.task.paths import TaskPaths # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.task.paths import TaskPaths  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import (
+    dump_json_file,
+)  # pylint: disable=import-error, no-name-in-module
 
 from worker.task_dockerized import TaskDockerized, TaskStep
+from worker import constants
 
 
 class TaskCustom(TaskDockerized):
@@ -15,13 +18,18 @@ class TaskCustom(TaskDockerized):
         super().__init__(*args, **kwargs)
 
         self.action_map = {}
-        self.docker_runtime = 'nvidia'
+        if not constants.FORCE_CPU_ONLY():
+            self.docker_runtime = "nvidia"
+        else:
+            self.docker_runtime = "runc"
 
         self.dir_data = os.path.join(self.dir_task, os.path.basename(TaskPaths.DATA_DIR))
         self.dir_results = os.path.join(self.dir_task, os.path.basename(TaskPaths.RESULTS_DIR))
         self.dir_model = os.path.join(self.dir_task, os.path.basename(TaskPaths.MODEL_DIR))
         self.config_path1 = os.path.join(self.dir_task, os.path.basename(TaskPaths.SETTINGS_PATH))
-        self.config_path2 = os.path.join(self.dir_task, os.path.basename(TaskPaths.TASK_CONFIG_PATH))
+        self.config_path2 = os.path.join(
+            self.dir_task, os.path.basename(TaskPaths.TASK_CONFIG_PATH)
+        )
 
     def init_additional(self):
         super().init_additional()
@@ -29,15 +37,15 @@ class TaskCustom(TaskDockerized):
         sly.fs.mkdir(self.dir_results)
 
     def download_step(self):
-        for model_info in self.info['models']:
-            self.data_mgr.download_nn(model_info['title'], self.dir_model)
+        for model_info in self.info["models"]:
+            self.data_mgr.download_nn(model_info["title"], self.dir_model)
 
         self.logger.info("DOWNLOAD_DATA")
-        dump_json_file(self.info['config'], self.config_path1)  # Deprecated 'task_settings.json'
-        dump_json_file(self.info['config'], self.config_path2)  # New style task_config.json
+        dump_json_file(self.info["config"], self.config_path1)  # Deprecated 'task_settings.json'
+        dump_json_file(self.info["config"], self.config_path2)  # New style task_config.json
 
-        for pr_info in self.info['projects']:
-            self.data_mgr.download_project(self.dir_data, pr_info['title'])
+        for pr_info in self.info["projects"]:
+            self.data_mgr.download_project(self.dir_data, pr_info["title"])
 
         self.report_step_done(TaskStep.DOWNLOAD)
 
