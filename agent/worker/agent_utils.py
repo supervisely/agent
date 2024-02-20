@@ -627,6 +627,7 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         env[name] = value
 
     params = get_agent_options()
+    sly.logger.debug("Received agent options", extra={"options": params})
     options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
     net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
     ca_cert = params["caCert"]
