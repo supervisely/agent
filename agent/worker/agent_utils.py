@@ -53,6 +53,7 @@ class AgentOptionsJsonFields:
     NET_SERVER_PORT = "netServerPort"
     DOCKER_IMAGE = "dockerImage"
     FORCE_CPU_ONLY = "forceCPUOnly"
+    LOG_LEVEL = "logLevel"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -716,8 +717,13 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     )
     update_env_param(
         constants._FORCE_CPU_ONLY,
-        options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, "false"),
-        "false",
+        options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, None),
+        optional_defaults[constants._NET_SERVER_PORT],
+    )
+    update_env_param(
+        constants._LOG_LEVEL,
+        options.get(AgentOptionsJsonFields.LOG_LEVEL, None),
+        optional_defaults[constants._LOG_LEVEL],
     )
 
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()

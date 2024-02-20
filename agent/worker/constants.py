@@ -102,6 +102,7 @@ _UPDATE_SLY_NET_AFTER_RESTART = "UPDATE_SLY_NET_AFTER_RESTART"
 _DOCKER_IMAGE = "DOCKER_IMAGE"
 _CONTAINER_NAME = "CONTAINER_NAME"
 _FORCE_CPU_ONLY = "FORCE_CPU_ONLY"
+_LOG_LEVEL = "LOG_LEVEL"
 
 _NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
 _NET_SERVER_PORT = "NET_SERVER_PORT"
@@ -167,6 +168,7 @@ _OPTIONAL_DEFAULTS = {
     _SLY_EXTRA_CA_CERTS_DIR: "/sly_certs",
     _SLY_EXTRA_CA_CERTS_VOLUME_NAME: f"supervisely-agent-ca-certs-{TOKEN()[:8]}",
     _FORCE_CPU_ONLY: "false",
+    _LOG_LEVEL: "INFO",
 }
 
 
@@ -673,6 +675,10 @@ def SLY_EXTRA_CA_CERTS_VOLUME_NAME():
 
 def FORCE_CPU_ONLY():
     return sly.env.flag_from_env(read_optional_setting(_FORCE_CPU_ONLY))
+
+
+def LOG_LEVEL():
+    return read_optional_setting(_LOG_LEVEL)
 
 
 def init_constants():
