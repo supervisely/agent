@@ -952,6 +952,10 @@ def restart_agent(
                 docker_api.volumes.create(src)
 
     envs = envs_dict_to_list(envs)
+    sly.logger.debug(
+        "Restarting agent with new options",
+        extra={"image": image, "envs": envs, "volumes": volumes, "runtime": runtime},
+    )
     container: Container = docker_api.containers.run(
         image,
         runtime=runtime,
