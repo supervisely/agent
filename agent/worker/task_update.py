@@ -80,6 +80,11 @@ class TaskUpdate(TaskSly):
                 "Couldn't find sly-net-client attached to this agent. We'll try to deploy it during the agent restart"
             )
 
+        if envs.get(constants._FORCE_CPU_ONLY, "false") == "true":
+            runtime = "runc"
+        else:
+            runtime = agent_utils.maybe_update_runtime()
+
         # Stop current container
         cur_container_id = container_info["Config"]["Hostname"]
         envs[constants._REMOVE_OLD_AGENT] = cur_container_id
@@ -88,6 +93,7 @@ class TaskUpdate(TaskSly):
             image=image,
             envs=envs,
             volumes=volumes,
+            runtime=runtime,
             ca_cert_path=ca_cert_path,
             docker_api=self._docker_api,
         )

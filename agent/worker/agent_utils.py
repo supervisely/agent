@@ -52,6 +52,8 @@ class AgentOptionsJsonFields:
     NET_CLIENT_DOCKER_IMAGE = "dockerImage"
     NET_SERVER_PORT = "netServerPort"
     DOCKER_IMAGE = "dockerImage"
+    FORCE_CPU_ONLY = "forceCPUOnly"
+    LOG_LEVEL = "logLevel"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -584,7 +586,7 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 
     url = constants.PUBLIC_API_SERVER_ADDRESS() + "agents.options.info"
     resp = requests.post(url=url, json={"token": token}, timeout=timeout)
-    if resp.status_code != requests.codes.ok: # pylint: disable=no-member
+    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         try:
             text = resp.text
         except:
@@ -601,7 +603,7 @@ def get_instance_version(server_address=None, timeout=60):
         server_address = constants.SERVER_ADDRESS()
     url = constants.PUBLIC_API_SERVER_ADDRESS() + "instance.version"
     resp = requests.get(url=url, timeout=timeout)
-    if resp.status_code != requests.codes.ok: # pylint: disable=no-member
+    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         if resp.status_code in (400, 401, 403, 404):
             return None
         try:
@@ -699,9 +701,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     )
     update_env_param(constants._HTTPS_PROXY, http_proxy, optional_defaults[constants._HTTPS_PROXY])
     update_env_param(constants._NO_PROXY, no_proxy, optional_defaults[constants._NO_PROXY])
-    # DOCKER_IMAGE
-    # maybe_update_env_param(constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None))
-
     update_env_param(
         constants._NET_CLIENT_DOCKER_IMAGE,
         net_options.get(AgentOptionsJsonFields.NET_CLIENT_DOCKER_IMAGE, None),
@@ -714,6 +713,16 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     )
     update_env_param(
         constants._DOCKER_IMAGE, options.get(AgentOptionsJsonFields.DOCKER_IMAGE, None)
+    )
+    update_env_param(
+        constants._FORCE_CPU_ONLY,
+        str(options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, False)).lower(),
+        optional_defaults[constants._NET_SERVER_PORT],
+    )
+    update_env_param(
+        constants._LOG_LEVEL,
+        options.get(AgentOptionsJsonFields.LOG_LEVEL, None),
+        optional_defaults[constants._LOG_LEVEL],
     )
 
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
@@ -782,6 +791,7 @@ def _volumes_changes(volumes) -> dict:
             changes[key] = value
     return changes
 
+
 def _is_bind_attached(container_info, bind_path):
     vols = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
 
@@ -791,14 +801,16 @@ def _is_bind_attached(container_info, bind_path):
 
     return False
 
+
 def _copy_file_to_container(container, src, dst_dir: str):
     stream = io.BytesIO()
-    with tarfile.open(fileobj=stream, mode='w|') as tar, open(src, 'rb') as f:
+    with tarfile.open(fileobj=stream, mode="w|") as tar, open(src, "rb") as f:
         info = tar.gettarinfo(fileobj=f)
         info.name = os.path.basename(src)
         tar.addfile(info, f)
 
     container.put_archive(dst_dir, stream.getvalue())
+
 
 def _ca_cert_changed(ca_cert) -> str:
     if ca_cert is None:
@@ -832,7 +844,12 @@ def _ca_cert_changed(ca_cert) -> str:
         tmp_container = docker_api.containers.create(
             agent_image,
             "",
-            volumes={constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME(): {"bind": constants.SLY_EXTRA_CA_CERTS_DIR(), "mode": "rw"}},
+            volumes={
+                constants.SLY_EXTRA_CA_CERTS_VOLUME_NAME(): {
+                    "bind": constants.SLY_EXTRA_CA_CERTS_DIR(),
+                    "mode": "rw",
+                }
+            },
         )
 
         _copy_file_to_container(tmp_container, cert_path, constants.SLY_EXTRA_CA_CERTS_DIR())
@@ -958,3 +975,33 @@ def restart_agent(
         "Docker container is spawned",
         extra={"container_id": container.id, "container_name": container.name},
     )
+
+
+def nvidia_runtime_is_available():
+    docker_api = docker.from_env()
+    image = constants.DEFAULT_APP_DOCKER_IMAGE()
+    try:
+        docker_api.containers.run(
+            image,
+            command="nvidia-smi",
+            runtime="nvidia",
+            remove=True,
+        )
+        return True
+    except Exception as e:
+        return False
+
+
+def maybe_update_runtime():
+    container_info = get_container_info()
+    runtime = container_info["HostConfig"]["Runtime"]
+    if runtime == "nvidia":
+        return runtime
+    sly.logger.debug("NVIDIA runtime is not enabled. Checking if it can be enabled...")
+    is_available = nvidia_runtime_is_available()
+    if is_available:
+        sly.logger.debug("NVIDIA runtime is available. Will restart Agent with NVIDIA runtime.")
+        return "nvidia"
+    else:
+        sly.logger.debug("NVIDIA runtime is not available.")
+        return runtime

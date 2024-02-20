@@ -6,7 +6,9 @@ from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
 import re
-from supervisely_lib.io.docker_utils import PullPolicy # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.docker_utils import (
+    PullPolicy,
+)  # pylint: disable=import-error, no-name-in-module
 
 
 _SERVER_ADDRESS = "SERVER_ADDRESS"
@@ -99,6 +101,8 @@ _REMOVE_OLD_AGENT = "REMOVE_OLD_AGENT"
 _UPDATE_SLY_NET_AFTER_RESTART = "UPDATE_SLY_NET_AFTER_RESTART"
 _DOCKER_IMAGE = "DOCKER_IMAGE"
 _CONTAINER_NAME = "CONTAINER_NAME"
+_FORCE_CPU_ONLY = "FORCE_CPU_ONLY"
+_LOG_LEVEL = "LOG_LEVEL"
 
 _NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
 _NET_SERVER_PORT = "NET_SERVER_PORT"
@@ -163,6 +167,8 @@ _OPTIONAL_DEFAULTS = {
     _AGENT_RESTART_COUNT: 0,
     _SLY_EXTRA_CA_CERTS_DIR: "/sly_certs",
     _SLY_EXTRA_CA_CERTS_VOLUME_NAME: f"supervisely-agent-ca-certs-{TOKEN()[:8]}",
+    _FORCE_CPU_ONLY: "false",
+    _LOG_LEVEL: "INFO",
 }
 
 
@@ -261,7 +267,7 @@ def AGENT_TASKS_DIR():
 
 def AGENT_TASK_SHARED_DIR():
     """default: /sly_agent/tasks/task_shared"""
-    return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED) # pylint: disable=no-member
+    return os.path.join(AGENT_TASKS_DIR(), sly.task.paths.TASK_SHARED)  # pylint: disable=no-member
 
 
 def AGENT_TMP_DIR():
@@ -658,12 +664,21 @@ def AGENT_RESTART_COUNT():
 def SLY_EXTRA_CA_CERTS_DIR():
     return read_optional_setting(_SLY_EXTRA_CA_CERTS_DIR)
 
+
 def SLY_EXTRA_CA_CERTS_FILEPATH():
     return os.path.join(SLY_EXTRA_CA_CERTS_DIR(), "instance_ca_chain.crt")
 
 
 def SLY_EXTRA_CA_CERTS_VOLUME_NAME():
     return read_optional_setting(_SLY_EXTRA_CA_CERTS_VOLUME_NAME)
+
+
+def FORCE_CPU_ONLY():
+    return sly.env.flag_from_env(read_optional_setting(_FORCE_CPU_ONLY))
+
+
+def LOG_LEVEL():
+    return read_optional_setting(_LOG_LEVEL)
 
 
 def init_constants():
