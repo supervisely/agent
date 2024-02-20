@@ -717,7 +717,7 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     )
     update_env_param(
         constants._FORCE_CPU_ONLY,
-        options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, None),
+        str(options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, False)).lower(),
         optional_defaults[constants._NET_SERVER_PORT],
     )
     update_env_param(
