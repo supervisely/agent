@@ -628,7 +628,6 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         env[name] = value
 
     params = get_agent_options()
-    sly.logger.debug("Received agent options", extra={"options": params})
     options: dict = params[AgentOptionsJsonFields.AGENT_OPTIONS]
     net_options: dict = params[AgentOptionsJsonFields.NET_OPTIONS]
     ca_cert = params["caCert"]
@@ -958,10 +957,6 @@ def restart_agent(
                 docker_api.volumes.create(src)
 
     envs = envs_dict_to_list(envs)
-    sly.logger.debug(
-        "Restarting agent with new options",
-        extra={"image": image, "envs": envs, "volumes": volumes, "runtime": runtime},
-    )
     container: Container = docker_api.containers.run(
         image,
         runtime=runtime,
