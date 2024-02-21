@@ -50,12 +50,12 @@ class TaskTrain(TaskDockerized):
     def download_step(self):
         self.logger.info("DOWNLOAD_DATA")
 
-        sly.io.json.dump_json_file(
+        sly.io.json.dump_json_file(  # Deprecated 'task_settings.json' # pylint: disable=no-member
             self.info["config"], self.config_path1
-        )  # Deprecated 'task_settings.json' # pylint: disable=no-member
-        sly.io.json.dump_json_file(
+        )
+        sly.io.json.dump_json_file(  # New style task_config.json # pylint: disable=no-member
             self.info["config"], self.config_path2
-        )  # New style task_config.json # pylint: disable=no-member
+        )
 
         if len(self.info["projects"]) != 1:
             raise ValueError(

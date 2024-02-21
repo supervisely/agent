@@ -6,9 +6,9 @@ import shutil
 
 import supervisely_lib as sly
 from supervisely_lib.task.paths import TaskPaths  # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.io.json import (
+from supervisely_lib.io.json import (  # pylint: disable=import-error, no-name-in-module
     dump_json_file,
-)  # pylint: disable=import-error, no-name-in-module
+)
 
 from worker.task_dockerized import TaskDockerized, TaskStep
 from worker import agent_utils
