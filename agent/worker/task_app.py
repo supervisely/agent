@@ -21,16 +21,16 @@ from typing import Optional
 
 import supervisely_lib as sly
 from .task_dockerized import TaskDockerized
-from supervisely_lib.io.json import (
+from supervisely_lib.io.json import (  # pylint: disable=import-error, no-name-in-module
     dump_json_file,
-)  # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.io.json import (
+)
+from supervisely_lib.io.json import (  # pylint: disable=import-error, no-name-in-module
     flatten_json,
     modify_keys,
-)  # pylint: disable=import-error, no-name-in-module
-from supervisely_lib.api.api import (
+)
+from supervisely_lib.api.api import (  # pylint: disable=import-error, no-name-in-module
     SUPERVISELY_TASK_ID,
-)  # pylint: disable=import-error, no-name-in-module
+)
 from supervisely_lib.api.api import Api  # pylint: disable=import-error, no-name-in-module
 from supervisely_lib.io.fs import (  # pylint: disable=import-error, no-name-in-module
     ensure_base_path,
@@ -41,9 +41,9 @@ from supervisely_lib.io.fs import (  # pylint: disable=import-error, no-name-in-
     file_exists,
     mkdir,
 )
-from supervisely_lib.io.exception_handlers import (
+from supervisely_lib.io.exception_handlers import (  # pylint: disable=import-error, no-name-in-module
     handle_exceptions,
-)  # pylint: disable=import-error, no-name-in-module
+)
 
 from worker import constants
 from worker.agent_utils import (
@@ -612,8 +612,8 @@ class TaskApp(TaskDockerized):
 
             pip_install_exec_info = self._docker_api.api.exec_inspect(self._exec_id)
 
-            if pip_install_exec_info['ExitCode'] != 0:
-               raise RuntimeError("Pip install failed")
+            if pip_install_exec_info["ExitCode"] != 0:
+                raise RuntimeError("Pip install failed")
 
             self.logger.info("Requirements are installed")
 

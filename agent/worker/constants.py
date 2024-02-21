@@ -6,9 +6,9 @@ from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
 import re
-from supervisely_lib.io.docker_utils import (
+from supervisely_lib.io.docker_utils import (  # pylint: disable=import-error, no-name-in-module
     PullPolicy,
-)  # pylint: disable=import-error, no-name-in-module
+)
 
 
 _SERVER_ADDRESS = "SERVER_ADDRESS"
