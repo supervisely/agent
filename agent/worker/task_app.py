@@ -572,8 +572,6 @@ class TaskApp(TaskDockerized):
             },
         )
         self._logs_output = self._docker_api.api.exec_start(self._exec_id, stream=True)
-        exec_info = self._docker_api.api.exec_inspect(self._exec_id)
-        self._exit_code = exec_info["ExitCode"]
 
     def exec_command(self, add_envs=None, command=None):
         add_envs = sly.take_with_default(add_envs, {})
@@ -611,8 +609,12 @@ class TaskApp(TaskDockerized):
             self.logger.info(f"PIP command: {command}")
             self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
             self.process_logs()
-            if self._exit_code != 0:
-                raise RuntimeError("Pip install failed")
+
+            pip_install_exec_info = self._docker_api.api.exec_inspect(self._exec_id)
+
+            if pip_install_exec_info['ExitCode'] != 0:
+               raise RuntimeError("Pip install failed")
+
             self.logger.info("Requirements are installed")
 
     def main_step(self):
