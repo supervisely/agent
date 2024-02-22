@@ -604,13 +604,8 @@ class TaskApp(TaskDockerized):
             )
             progress_dummy.iter_done_report()
 
-            install_cmd_str = "pip3 install"
-
-            if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
-                install_cmd_str += f" --cert {constants.SLY_EXTRA_CA_CERTS_FILEPATH()}"
-
             # --root-user-action=ignore
-            command = f"{install_cmd_str} --disable-pip-version-check -r " + os.path.join(
+            command = f"pip3 install --disable-pip-version-check -r " + os.path.join(
                 self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
@@ -730,7 +725,9 @@ class TaskApp(TaskDockerized):
 
             # there was an issue in the SDK that always required this env variable
             # if SLY_CA_CERTS is defined
-            envs["REQUESTS_CA_BUNDLE"] = DEFAULT_CA_BUNDLE_PATH
+            # we also need to define it for pip install to work on all versions of pip
+            envs["REQUESTS_CA_BUNDLE"] = constants.SLY_EXTRA_CA_CERTS_BUNDLE_FILEPATH()
+            envs["SSL_CERT_FILE"] = constants.SLY_EXTRA_CA_CERTS_BUNDLE_FILEPATH()
 
         # Handle case for some dockerimages where env names with dot sumbol are not supported
         final_envs = copy.deepcopy(envs)

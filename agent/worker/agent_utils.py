@@ -12,6 +12,7 @@ import tarfile
 import io
 
 import supervisely_lib as sly
+from supervisely_lib._utils import get_certificates_list
 
 from logging import Logger
 from typing import Callable, List, Optional, Tuple, Union, Container
@@ -812,19 +813,39 @@ def _copy_file_to_container(container, src, dst_dir: str):
     container.put_archive(dst_dir, stream.getvalue())
 
 
+def _write_new_ca_bundle(ca_cert: str):
+    bundle_path = constants.SLY_EXTRA_CA_CERTS_BUNDLE_FILEPATH()
+    certs = get_certificates_list()
+    certs.insert(0, ca_cert)
+
+    with open(bundle_path, "w", encoding="ascii") as f:
+        f.write("\n".join(certs))
+
+
 def _ca_cert_changed(ca_cert) -> str:
+    cert_path = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
+    bundle_path = constants.SLY_EXTRA_CA_CERTS_BUNDLE_FILEPATH()
+
     if ca_cert is None:
+        if os.path.exists(cert_path):
+            os.remove(cert_path)
+
+        if os.path.exists(bundle_path):
+            os.remove(bundle_path)
+
         return None
 
     ca_cert = ca_cert.replace("\r\n", "\n")
 
-    cert_path = constants.SLY_EXTRA_CA_CERTS_FILEPATH()
     cur_path = constants.SLY_EXTRA_CA_CERTS()
     if cert_path == cur_path and os.path.exists(cert_path):
         with open(cert_path, "r", encoding="utf-8") as f:
             ca_file_contents = f.read().replace("\r\n", "\n")
             sly.logger.debug(f"Checking if existing certificates on disk need to be updated")
             if ca_file_contents == ca_cert:
+                if not os.path.exists(bundle_path):
+                    _write_new_ca_bundle(ca_cert)
+
                 sly.logger.debug(f"Certificates are equal, skipping the update")
                 return None
             else:
@@ -834,8 +855,10 @@ def _ca_cert_changed(ca_cert) -> str:
     container_info = get_container_info()
 
     Path(cert_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cert_path, "w", encoding="utf-8") as f:
+    with open(cert_path, "w", encoding="ascii") as f:
         f.write(ca_cert)
+
+    _write_new_ca_bundle(ca_cert)
 
     # initialize certs volume and copy the new certificate
     if not _is_bind_attached(get_container_info(), constants.SLY_EXTRA_CA_CERTS_DIR()):
@@ -853,6 +876,7 @@ def _ca_cert_changed(ca_cert) -> str:
         )
 
         _copy_file_to_container(tmp_container, cert_path, constants.SLY_EXTRA_CA_CERTS_DIR())
+        _copy_file_to_container(tmp_container, bundle_path, constants.SLY_EXTRA_CA_CERTS_DIR())
         tmp_container.remove(force=True)
 
     return cert_path

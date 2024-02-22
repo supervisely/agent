@@ -669,6 +669,10 @@ def SLY_EXTRA_CA_CERTS_FILEPATH():
     return os.path.join(SLY_EXTRA_CA_CERTS_DIR(), "instance_ca_chain.crt")
 
 
+def SLY_EXTRA_CA_CERTS_BUNDLE_FILEPATH():
+    return os.path.join(SLY_EXTRA_CA_CERTS_DIR(), "bundle.crt")
+
+
 def SLY_EXTRA_CA_CERTS_VOLUME_NAME():
     return read_optional_setting(_SLY_EXTRA_CA_CERTS_VOLUME_NAME)
 
