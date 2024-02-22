@@ -562,6 +562,7 @@ class TaskApp(TaskDockerized):
                 "PYTHONUNBUFFERED": "1",
                 constants._HTTP_PROXY: constants.HTTP_PROXY(),
                 constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
+                constants._NO_PROXY: constants.NO_PROXY(),
                 "HOST_TASK_DIR": self.dir_task_host,
                 "TASK_ID": self.info["task_id"],
                 "SERVER_ADDRESS": self.info["server_address"],
@@ -602,8 +603,14 @@ class TaskApp(TaskDockerized):
                 "Installing app requirements...", 1, ext_logger=self.logger
             )
             progress_dummy.iter_done_report()
+
+            install_cmd_str = "pip3 install"
+
+            if constants.SLY_EXTRA_CA_CERTS() and os.path.exists(constants.SLY_EXTRA_CA_CERTS()):
+                install_cmd_str += f" --cert {constants.SLY_EXTRA_CA_CERTS_FILEPATH()}"
+
             # --root-user-action=ignore
-            command = "pip3 install --disable-pip-version-check -r " + os.path.join(
+            command = f"{install_cmd_str} --disable-pip-version-check -r " + os.path.join(
                 self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
