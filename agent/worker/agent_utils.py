@@ -247,8 +247,8 @@ class AppDirCleaner:
         cleaned_space = 0
         for p in Path(cache_dir).iterdir():
             if p.is_dir():
-                sly.fs.remove_dir(p)
                 cleaned_space += sly.fs.get_directory_size(p.as_posix())
+                sly.fs.remove_dir(p)
             else:
                 cleaned_space += sly.fs.get_file_size(p.as_posix())
                 p.unlink()
