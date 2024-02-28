@@ -255,7 +255,7 @@ class AppDirCleaner:
         working_apps: Optional[Container[int]],
         auto: bool = False,
         clean_pip: bool = True,
-        clean_apps_cache: bool = True,
+        clean_apps_cache: bool = False,
     ):
         cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
         if auto is False:
