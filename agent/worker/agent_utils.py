@@ -244,11 +244,15 @@ class AppDirCleaner:
 
     def clean_apps_cache(self):
         cache_dir = constants.AGENT_APPS_CACHE_DIR()
+        cleaned_space = 0
         for p in Path(cache_dir).iterdir():
             if p.is_dir():
-                sly.fs.remove_dir(cache_dir)
+                sly.fs.remove_dir(p)
+                cleaned_space += sly.fs.get_directory_size(p.as_posix())
             else:
+                cleaned_space += sly.fs.get_file_size(p.as_posix())
                 p.unlink()
+        self.logger.debug("Apps cache cleaned. Space freed: %s bytes", cleaned_space)
 
     def _apps_cleaner(
         self,
