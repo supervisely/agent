@@ -138,7 +138,7 @@ class TaskApp(TaskDockerized):
         self.dir_task_container = "/app"
 
         self.dir_task_src_container = os.path.join(self.dir_task_container, "repo")
-        self.dir_apps_cache_container = "/apps_cache"
+        self.dir_apps_cache_container = constants.APPS_CACHE_DIR()
         self.app_info = self.info["appInfo"]
 
     def download_or_get_repo(self):
@@ -690,6 +690,7 @@ class TaskApp(TaskDockerized):
             "icon": self.app_config.get("icon", "https://cdn.supervise.ly/favicon.ico"),
             "PIP_ROOT_USER_ACTION": "ignore",
             "AGENT_ID": self.agent_id,
+            "APPS_CACHE_DIR": self.dir_apps_cache_container,
         }
 
         if "context.workspaceId" in envs:

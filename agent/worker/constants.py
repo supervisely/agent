@@ -103,6 +103,7 @@ _DOCKER_IMAGE = "DOCKER_IMAGE"
 _CONTAINER_NAME = "CONTAINER_NAME"
 _FORCE_CPU_ONLY = "FORCE_CPU_ONLY"
 _LOG_LEVEL = "LOG_LEVEL"
+_APPS_CACHE_DIR = "APPS_CACHE_DIR"
 
 _NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
 _NET_SERVER_PORT = "NET_SERVER_PORT"
@@ -169,6 +170,7 @@ _OPTIONAL_DEFAULTS = {
     _SLY_EXTRA_CA_CERTS_VOLUME_NAME: f"supervisely-agent-ca-certs-{TOKEN()[:8]}",
     _FORCE_CPU_ONLY: "false",
     _LOG_LEVEL: "INFO",
+    _APPS_CACHE_DIR: "/apps_cache",
 }
 
 
@@ -447,6 +449,14 @@ def AGENT_APPS_CACHE_DIR_HOST():
 def AGENT_APPS_CACHE_DIR():
     """default: /sly_agent/apps_cache"""
     return os.path.join(AGENT_ROOT_DIR(), "apps_cache")
+
+
+def APPS_CACHE_DIR():
+    """
+    Is used to access AGENT_APPS_CACHE_DIR from the app container.
+    default: /apps_cache
+    """
+    return read_optional_setting(_APPS_CACHE_DIR)
 
 
 def GITHUB_TOKEN():
