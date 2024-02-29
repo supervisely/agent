@@ -12,7 +12,9 @@ import tarfile
 import io
 
 import supervisely_lib as sly
-from supervisely_lib._utils import get_certificates_list
+from supervisely_lib._utils import (
+    get_certificates_list,
+)  # pylint: disable=import-error, no-name-in-module
 
 from logging import Logger
 from typing import Callable, List, Optional, Tuple, Union, Container
@@ -239,20 +241,35 @@ class AppDirCleaner:
 
     def clean_all_app_data(self, working_apps: Optional[Container[int]] = None):
         self.logger.info("Cleaning apps data.")
-        self._apps_cleaner(working_apps, auto=False, clean_pip=False)
+        self._apps_cleaner(working_apps, auto=False, clean_pip=False, clean_apps_cache=True)
         self.clean_git_tags()
+
+    def clean_apps_cache(self):
+        cache_dir = constants.AGENT_APPS_CACHE_DIR()
+        cleaned_space = 0
+        for p in Path(cache_dir).iterdir():
+            if p.is_dir():
+                cleaned_space += sly.fs.get_directory_size(p.as_posix())
+                sly.fs.remove_dir(p)
+            else:
+                cleaned_space += sly.fs.get_file_size(p.as_posix())
+                p.unlink()
+        self.logger.debug("Apps cache cleaned. Space freed: %s bytes", cleaned_space)
 
     def _apps_cleaner(
         self,
         working_apps: Optional[Container[int]],
         auto: bool = False,
         clean_pip: bool = True,
+        clean_apps_cache: bool = False,
     ):
         cleaned_sessions = self.clean_app_sessions(auto=auto, working_apps=working_apps)
         if auto is False:
             self.clean_app_files(cleaned_sessions)
         if clean_pip is True:
             self.clean_pip_cache(auto=auto)
+        if clean_apps_cache is True:
+            self.clean_apps_cache()
 
     def _get_log_datetime(self, log_name) -> datetime:
         return datetime.strptime(log_name, "log_%Y-%m-%d_%H:%M:%S.txt")
