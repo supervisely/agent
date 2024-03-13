@@ -48,6 +48,7 @@ class AgentOptionsJsonFields:
     PULL_POLICY = "pullPolicy"
     SUPERVISELY_AGENT_FILES = "slyAppsDataHostDir"
     NO_PROXY = "noProxy"
+    CPU_LIMIT = "cpuLimit"
     MEM_LIMIT = "memLimit"
     HTTP_PROXY = "httpProxy"
     SECURITY_OPT = "securityOpts"
@@ -703,6 +704,11 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         optional_defaults[constants._PULL_POLICY],
     )
     update_env_param(
+        constants._CPU_LIMIT,
+        options.get(AgentOptionsJsonFields.CPU_LIMIT, None),
+        optional_defaults[constants._CPU_LIMIT],
+    )
+    update_env_param(
         constants._MEM_LIMIT,
         options.get(AgentOptionsJsonFields.MEM_LIMIT, None),
         optional_defaults[constants._MEM_LIMIT],
@@ -1046,3 +1052,8 @@ def maybe_update_runtime():
     else:
         sly.logger.debug("NVIDIA runtime is not available.")
         return runtime
+
+
+def convert_millicores_to_cpu_quota(millicores, cpu_period=100000):
+    cpu_quota = (millicores / 1000) * cpu_period
+    return int(cpu_quota)

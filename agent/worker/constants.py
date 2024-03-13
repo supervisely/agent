@@ -54,8 +54,7 @@ _SSL_CERT_FILE = "SSL_CERT_FILE"
 _SLY_EXTRA_CA_CERTS = "SLY_EXTRA_CA_CERTS"
 
 # container limits
-_CPU_PERIOD = "CPU_PERIOD"
-_CPU_QUOTA = "CPU_QUOTA"
+_CPU_LIMIT = "CPU_LIMIT"
 _MEM_LIMIT = "MEM_LIMIT"
 _SHM_SIZE = "SHM_SIZE"
 
@@ -126,8 +125,7 @@ _OPTIONAL_DEFAULTS = {
     _HTTPS_PROXY: "",
     _NO_PROXY: "",
     _PUBLIC_API_RETRY_LIMIT: 100,
-    _CPU_PERIOD: None,
-    _CPU_QUOTA: None,
+    _CPU_LIMIT: None,
     _MEM_LIMIT: None,
     _PULL_POLICY: str(PullPolicy.IF_AVAILABLE),  # str(PullPolicy.NEVER),
     _GIT_LOGIN: None,
@@ -382,16 +380,8 @@ def PUBLIC_API_RETRY_LIMIT():
     return int(read_optional_setting(_PUBLIC_API_RETRY_LIMIT))
 
 
-def CPU_PERIOD():
-    val = read_optional_setting(_CPU_PERIOD)
-    if val is None:
-        return val
-    else:
-        return int(val)
-
-
-def CPU_QUOTA():
-    val = read_optional_setting(_CPU_QUOTA)
+def CPU_LIMIT():
+    val = read_optional_setting(_CPU_LIMIT)
     if val is None:
         return val
     else:
