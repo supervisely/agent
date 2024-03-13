@@ -12,9 +12,9 @@ import tarfile
 import io
 
 import supervisely_lib as sly
-from supervisely_lib._utils import (
+from supervisely_lib._utils import (  # pylint: disable=import-error, no-name-in-module
     get_certificates_list,
-)  # pylint: disable=import-error, no-name-in-module
+)
 
 from logging import Logger
 from typing import Callable, List, Optional, Tuple, Union, Container
