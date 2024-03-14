@@ -19,6 +19,7 @@ from worker.agent_utils import (
     filter_log_line,
     pip_req_satisfied_filter,
     post_get_request_filter,
+    convert_millicores_to_cpu_quota,
 )
 from worker.task_sly import TaskSly
 
@@ -226,6 +227,17 @@ class TaskDockerized(TaskSly):
             self._container_name = "sly_task_{}_{}".format(
                 self.info["task_id"], constants.TASKS_DOCKER_LABEL()
             )
+
+            cpu_quota = self.info.get("limits", {}).get("cpu", None)
+            if cpu_quota is None:
+                cpu_quota = constants.CPU_LIMIT()
+            if cpu_quota is not None:
+                cpu_quota = convert_millicores_to_cpu_quota(cpu_quota)
+
+            mem_limit = self.info.get("limits", {}).get("memory", None)
+            if mem_limit is None:
+                mem_limit = constants.MEM_LIMIT()
+
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
@@ -244,10 +256,9 @@ class TaskDockerized(TaskSly):
                 shm_size=constants.SHM_SIZE(),
                 stdin_open=False,
                 tty=False,
-                cpu_period=constants.CPU_PERIOD(),
-                cpu_quota=constants.CPU_QUOTA(),
-                mem_limit=constants.MEM_LIMIT(),
-                memswap_limit=constants.MEM_LIMIT(),
+                cpu_quota=cpu_quota,
+                mem_limit=mem_limit,
+                memswap_limit=mem_limit,
                 network=constants.DOCKER_NET(),
                 ipc_mode=ipc_mode,
                 security_opt=constants.SECURITY_OPT(),

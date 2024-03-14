@@ -253,6 +253,7 @@ class Agent:
             ),  # for debug
             "agent_version": config.get("Labels", {}).get("VERSION", "agent:6.999.0"),  # for debug
             "agent_image_digest": get_self_docker_image_digest(),
+            "server_address": constants.SERVER_ADDRESS(),
             "environ": {
                 constants._SUPERVISELY_AGENT_FILES: constants.SUPERVISELY_AGENT_FILES(),
                 constants._DOCKER_NET: constants.DOCKER_NET(),

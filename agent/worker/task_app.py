@@ -105,6 +105,7 @@ class TaskApp(TaskDockerized):
         self._need_sync_pip_cache = False
         self._requirements_path_relative = None
         self.host_data_dir = None
+        self.tmp_data_dir = None
         self.data_dir = None
         self.agent_id = None
         self._gpu_config: Optional[GPUFlag] = None
@@ -303,6 +304,17 @@ class TaskApp(TaskDockerized):
             raise RuntimeError("App config is not initialized")
         return True  # self.app_config.get(_ISOLATE, True)
 
+    def clean_task_dir(self):
+        super().clean_task_dir()
+
+        tmp_data_dir = os.path.join(
+            constants.SUPERVISELY_AGENT_FILES_CONTAINER(),
+            "app_tmp_data", str(self.info["task_id"])
+        )
+
+        if sly.fs.dir_exists(tmp_data_dir):
+            remove_dir(tmp_data_dir)
+
     def _get_task_volumes(self):
         res = {}
         res[self.dir_task_host] = {"bind": self.dir_task_container, "mode": "rw"}
@@ -393,6 +405,30 @@ class TaskApp(TaskDockerized):
                     "bind": _MOUNT_FOLDER_IN_CONTAINER,
                     "mode": mode,
                 }
+
+        useTmpFromFiles = self.info.get("useTmpFromFiles", False)
+
+        if useTmpFromFiles is True:
+            relative_app_tmp_data_dir = os.path.join(
+                "app_tmp_data", str(self.info["task_id"])
+            )
+
+            host_tmp_data_dir = os.path.join(
+                constants.SUPERVISELY_AGENT_FILES(),
+                relative_app_tmp_data_dir,
+            )
+
+            self.tmp_data_dir = os.path.join(
+                constants.SUPERVISELY_AGENT_FILES_CONTAINER(),
+                relative_app_tmp_data_dir,
+            )
+
+            res[host_tmp_data_dir] = {"bind": "/tmp", "mode": "rw"}
+
+            if sly.fs.dir_exists(self.tmp_data_dir):
+                remove_dir(self.tmp_data_dir)
+
+            mkdir(self.tmp_data_dir)
 
         return res
 
@@ -636,7 +672,14 @@ class TaskApp(TaskDockerized):
         self.find_or_run_container()
         self.exec_command(add_envs=self.main_step_envs())
         self.process_logs()
-        self.drop_container_and_check_status()
+
+        try:
+            self.drop_container_and_check_status()
+        except:
+            if self.tmp_data_dir is not None and sly.fs.dir_exists(self.tmp_data_dir):
+                remove_dir(self.tmp_data_dir)
+            raise
+
         # if exit_code != 0 next code will never execute
         if self.data_dir is not None and sly.fs.dir_exists(self.data_dir):
             parent_app_dir = Path(self.data_dir).parent
