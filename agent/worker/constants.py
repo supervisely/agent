@@ -382,8 +382,8 @@ def PUBLIC_API_RETRY_LIMIT():
 
 def CPU_LIMIT():
     val = read_optional_setting(_CPU_LIMIT)
-    if val is None:
-        return val
+    if val is None or val.strip() == "":
+        return None
     else:
         return int(val)
 
