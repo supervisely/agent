@@ -308,8 +308,7 @@ class TaskApp(TaskDockerized):
         super().clean_task_dir()
 
         tmp_data_dir = os.path.join(
-            constants.SUPERVISELY_AGENT_FILES_CONTAINER(),
-            "app_tmp_data", str(self.info["task_id"])
+            constants.SUPERVISELY_AGENT_FILES_CONTAINER(), "app_tmp_data", str(self.info["task_id"])
         )
 
         if sly.fs.dir_exists(tmp_data_dir):
@@ -409,9 +408,7 @@ class TaskApp(TaskDockerized):
         useTmpFromFiles = self.info.get("useTmpFromFiles", False)
 
         if useTmpFromFiles is True:
-            relative_app_tmp_data_dir = os.path.join(
-                "app_tmp_data", str(self.info["task_id"])
-            )
+            relative_app_tmp_data_dir = os.path.join("app_tmp_data", str(self.info["task_id"]))
 
             host_tmp_data_dir = os.path.join(
                 constants.SUPERVISELY_AGENT_FILES(),
@@ -806,11 +803,25 @@ class TaskApp(TaskDockerized):
             if lvl_int != -1:
                 self.logger.log(lvl_int, msg, extra=res_log)
 
+        def _decode(bytes: bytes):
+            decode_args = [
+                ("utf-8", "strict"),
+                ("cp1252", "strict"),
+                ("utf-8", "replace"),
+            ]
+            for args in decode_args:
+                try:
+                    return bytes.decode(*args)
+                except UnicodeDecodeError:
+                    continue
+            # if all decodings failed, return the first one to raise error
+            return bytes.decode(*decode_args[0])
+
         # @TODO: parse multiline logs correctly (including exceptions)
         log_line = ""
 
         for log_line_arr in self._logs_output:
-            for log_part in log_line_arr.decode("utf-8").splitlines():
+            for log_part in _decode(log_line_arr).splitlines():
                 logs_found = True
                 _process_line(log_part)
 
