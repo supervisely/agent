@@ -34,12 +34,6 @@ jobs:
           fi
           echo "LABEL_VERSION=$TAG" >> $GITHUB_ENV
 
-      - name: Remove 'v' prefix from version tags
-        run: |
-          if [[ "${{ env.LABEL_VERSION }}" =~ ^v[0-9]+ ]]; then
-            echo "LABEL_VERSION=${{ env.LABEL_VERSION:1 }}" >> $GITHUB_ENV
-          fi
-
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
