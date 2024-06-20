@@ -32,7 +32,12 @@ jobs:
         run: echo ${{ github.event.inputs.tag_version }}
       -
         name: Write Tag to ENV variable        
-        run: echo "LABEL_VERSION=${{ github.event.inputs.tag_version }}" >> $GITHUB_ENV
+        run: |
+          TAG=${{ github.event.release.tag_name }}
+          if [[ "$TAG" =~ ^v[0-9]+ ]]; then
+            TAG=${TAG:1}
+          fi
+          echo "LABEL_VERSION=$TAG" >> $GITHUB_ENV
       -
         name: Login to DockerHub
         uses: docker/login-action@v3
