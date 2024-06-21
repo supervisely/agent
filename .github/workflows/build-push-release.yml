@@ -27,8 +27,8 @@ jobs:
         run: echo ${{ github.event.release.tag_name }}
 
       - name: Write version to ENV variable
-        run:
-            $TAG_NAME=${{ github.event.release.tag_name }}
+        run: |
+            TAG_NAME=${{ github.event.release.tag_name }}
             echo "LABEL_VERSION=${TAG_NAME:1}" >> $GITHUB_ENV
 
       - name: Login to DockerHub
