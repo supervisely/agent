@@ -39,7 +39,9 @@ RUN apt-get update \
 #COPY supervisely_lib /workdir/supervisely_lib
 
 COPY requirements.txt /workdir/requirements.txt
-RUN pip install --no-cache-dir -r /workdir/requirements.txt
+RUN python3.8 -m pip install --upgrade pip
+RUN python3.8 -m pip install chardet
+RUN python3.8 -m pip install --no-cache-dir -r /workdir/requirements.txt
 
 COPY . /workdir
 
