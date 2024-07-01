@@ -16,7 +16,6 @@ httpx>=0.26.0
 filelock==3.13.1
 torch==1.7.1+cu110
 torchvision==0.8.2+cu110
-protobuf==3.20.3
 -f https://download.pytorch.org/whl/torch_stable.html
 # supervisely==6.73.111
 # for development
