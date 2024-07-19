@@ -8,7 +8,7 @@ scandir==1.10.0
 grpcio==1.47.0
 grpcio-tools==1.47.0
 py3exiv2==0.9.3
-packaging==21.2
+packaging==22.0
 version-parser==1.0.1
 python-slugify==6.1.2
 nvidia-ml-py==12.535.77
