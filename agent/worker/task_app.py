@@ -637,6 +637,11 @@ class TaskApp(TaskDockerized):
             )
             progress_dummy.iter_done_report()
 
+            command = "pip3 install --disable-pip-version-check --upgrade setuptools==70.3.0"
+            self.logger.info(f"PIP command: {command}")
+            self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
+            self.process_logs()
+
             # --root-user-action=ignore
             command = f"pip3 install --disable-pip-version-check -r " + os.path.join(
                 self.dir_task_src_container, self._requirements_path_relative
