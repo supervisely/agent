@@ -47,6 +47,7 @@ class AgentOptionsJsonFields:
     OFFLINE_MODE = "offlineMode"
     PULL_POLICY = "pullPolicy"
     SUPERVISELY_AGENT_FILES = "slyAppsDataHostDir"
+    SLY_APPS_DOCKER_REGISTRY = "slyAppsDockerRegistry"
     NO_PROXY = "noProxy"
     CPU_LIMIT = "cpuLimit"
     MEM_LIMIT = "memLimit"
@@ -660,6 +661,11 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         constants._SUPERVISELY_AGENT_FILES,
         options.get(AgentOptionsJsonFields.SUPERVISELY_AGENT_FILES, None),
         optional_defaults[constants._SUPERVISELY_AGENT_FILES],
+    )
+    update_env_param(
+        constants._SLY_APPS_DOCKER_REGISTRY,
+        options.get(AgentOptionsJsonFields.SLY_APPS_DOCKER_REGISTRY, None),
+        optional_defaults[constants._SLY_APPS_DOCKER_REGISTRY],
     )
     update_env_param(
         constants._DELETE_TASK_DIR_ON_FAILURE,
