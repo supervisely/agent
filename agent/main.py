@@ -135,13 +135,13 @@ def _start_net_client(docker_api=None):
             devices=["/dev/net/tun:/dev/net/tun"],
             detach=True,
         )
-        for container in docker_api.containers.list(all=True):
+        for container in docker_api.containers.list(all=True, sparse=False, ignore_removed=True):
             if container.name.startswith(net_container_name) and container.id != net_container.id:
                 container.remove(force=True)
         net_container.rename(net_container_name)
         sly.logger.info("Sly-net-client is started")
     except:
-        for container in docker_api.containers.list():
+        for container in docker_api.containers.list(sparse=False, ignore_removed=True):
             if (
                 container.name.startswith(net_container_name)
                 and not container.name == net_container_name

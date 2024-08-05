@@ -128,7 +128,7 @@ class Agent:
 
         agent_utils.check_and_remove_agent_with_old_name(dc)
 
-        for cont in dc.containers.list():
+        for cont in dc.containers.list(sparse=False, ignore_removed=True):
             if cont.name.startswith(agent_name_start):
                 agent_same_token.append(cont)
 
@@ -149,7 +149,7 @@ class Agent:
         sly_net_client_image_name = constants.NET_CLIENT_DOCKER_IMAGE()
         sly_net_container = None
 
-        for container in dc.containers.list():
+        for container in dc.containers.list(sparse=False, ignore_removed=True):
             if container.name == net_container_name:
                 sly_net_container: Container = container
                 break
@@ -219,7 +219,7 @@ class Agent:
     def _validate_duplicated_agents(self):
         dc = docker.from_env()
         agent_same_token = []
-        for cont in dc.containers.list():
+        for cont in dc.containers.list(sparse=False, ignore_removed=True):
             if constants.CONTAINER_NAME() in cont.name:
                 agent_same_token.append(cont)
         if len(agent_same_token) > 1:
@@ -417,7 +417,7 @@ class Agent:
     @staticmethod
     def _remove_containers(label_filter):
         dc = docker.from_env()
-        stop_list = dc.containers.list(all=True, filters=label_filter)
+        stop_list = dc.containers.list(all=True, filters=label_filter, sparse=False, ignore_removed=True)
         for cont in stop_list:
             cont.remove(force=True)
         return stop_list
@@ -606,7 +606,7 @@ class Agent:
         net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         sly_net_container = None
 
-        for container in self.docker_api.containers.list():
+        for container in self.docker_api.containers.list(sparse=False, ignore_removed=True):
             if container.name == net_container_name:
                 sly_net_container: Container = container
                 break

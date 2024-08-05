@@ -930,7 +930,7 @@ def check_and_remove_agent_with_old_name(dc: DockerClient):
     agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
     cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)
 
-    for cont in dc.containers.list():
+    for cont in dc.containers.list(sparse=False, ignore_removed=True):
         if cont.name.startswith(agent_name_start):
             agent_same_token.append(cont)
 
