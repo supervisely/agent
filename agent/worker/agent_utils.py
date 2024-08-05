@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import queue
 import re
+import time
 import requests
 import docker
 import shutil
@@ -392,10 +393,16 @@ class DockerImagesCleaner:
         lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
 
         if sly.fs.file_exists(lock_file):
-            self.logger.info(
-                "Skip DockerImagesCleaner task: another agent is already working on this task"
-            )
-            return
+            if os.path.getctime(lock_file) < datetime.now().timestamp() - 60*60*24:
+                self.logger.info(
+                    "Skip DockerImagesCleaner task: lock file is too old. Will try to remove it."
+                )
+                sly.fs.silent_remove(lock_file)
+            else:
+                self.logger.info(
+                    "Skip DockerImagesCleaner task: another agent is already working on this task"
+                )
+                return
 
         self.logger.info("DockerImagesCleaner started: old images will be removed.")
         sly.fs.touch(lock_file)
