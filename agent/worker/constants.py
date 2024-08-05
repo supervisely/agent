@@ -601,7 +601,11 @@ def SECURITY_OPT():
 
 
 def SLY_APPS_DOCKER_REGISTRY():
-    return read_optional_setting(_SLY_APPS_DOCKER_REGISTRY)
+    value = read_optional_setting(_SLY_APPS_DOCKER_REGISTRY)
+    if value == "":
+        return None
+
+    return value
 
 
 def NET_CLIENT_DOCKER_IMAGE():
