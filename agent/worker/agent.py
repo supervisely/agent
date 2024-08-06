@@ -29,6 +29,7 @@ import torch
 
 from worker import constants
 from worker import agent_utils
+from worker import docker_utils
 from worker.task_sly import TaskSly
 from worker.task_factory import create_task, is_task_type
 from worker.logs_to_rpc import add_task_handler
@@ -41,7 +42,9 @@ from worker.system_info import (
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
-from supervisely_lib._utils import _remove_sensitive_information  # pylint: disable=import-error, no-name-in-module
+from supervisely_lib._utils import (
+    _remove_sensitive_information,
+)  # pylint: disable=import-error, no-name-in-module
 
 
 class Agent:
@@ -417,7 +420,9 @@ class Agent:
     @staticmethod
     def _remove_containers(label_filter):
         dc = docker.from_env()
-        stop_list = dc.containers.list(all=True, filters=label_filter, sparse=False, ignore_removed=True)
+        stop_list = dc.containers.list(
+            all=True, filters=label_filter, sparse=False, ignore_removed=True
+        )
         for cont in stop_list:
             cont.remove(force=True)
         return stop_list
@@ -645,10 +650,10 @@ class Agent:
                     )
                     image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-                sly.docker_utils.docker_pull_if_needed(
+                docker_utils.docker_pull_if_needed(
                     self.docker_api,
                     image,
-                    policy=sly.docker_utils.PullPolicy.ALWAYS,
+                    policy=docker_utils.PullPolicy.ALWAYS,
                     logger=self.logger,
                     progress=False,
                 )
