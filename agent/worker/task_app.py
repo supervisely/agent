@@ -46,6 +46,7 @@ from supervisely_lib.io.exception_handlers import (  # pylint: disable=import-er
 )
 
 from worker import constants
+from worker import docker_utils
 from worker.agent_utils import (
     filter_log_line,
     pip_req_satisfied_filter,
@@ -520,7 +521,7 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
-        sly.docker_utils.docker_pull_if_needed(
+        docker_utils.docker_pull_if_needed(
             self._docker_api,
             self.docker_image_name,
             constants.PULL_POLICY(),

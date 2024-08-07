@@ -13,6 +13,7 @@ from docker.models.images import ImageCollection
 from docker.errors import DockerException, ImageNotFound
 from worker import constants
 from worker import agent_utils
+from worker import docker_utils
 from worker.system_info import get_container_info
 
 
@@ -57,15 +58,15 @@ class TaskUpdate(TaskSly):
             image = envs[constants._DOCKER_IMAGE]
 
         # Pull new image if needed
-        if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
-            sly.docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
+        if envs.get(constants._PULL_POLICY) != str(docker_utils.PullPolicy.NEVER):
+            docker_utils._docker_pull_progress(self._docker_api, image, self.logger)
 
         # Pull net-client if needed
         net_container_name = constants.NET_CLIENT_CONTAINER_NAME()
         try:
             sly_net_container = self._docker_api.containers.get(net_container_name)
 
-            if envs.get(constants._PULL_POLICY) != str(sly.docker_utils.PullPolicy.NEVER):
+            if envs.get(constants._PULL_POLICY) != str(docker_utils.PullPolicy.NEVER):
                 sly_net_client_image_name = None
 
                 if use_options:
@@ -132,5 +133,5 @@ def check_and_pull_sly_net_if_needed(
         return False
     else:
         logger.info("Found new version of sly-net-client. Pulling...")
-        sly.docker_utils._docker_pull_progress(dc, sly_net_client_image_name, logger)
+        docker_utils._docker_pull_progress(dc, sly_net_client_image_name, logger)
         return True
