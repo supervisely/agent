@@ -98,10 +98,11 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
         )
     except DockerException as e:
         if raise_exception is True:
-            raise DockerException(
-                "Unable to pull image: see actual error above. "
-                "Please, run the task again or contact support team."
-            )
+            raise e
+            # raise DockerException(
+            #     "Unable to pull image: see actual error above. "
+            #     "Please, run the task again or contact support team."
+            # )
         else:
             logger.warn("Pulling step is skipped. Unable to pull image: {!r}.".format(str(e)))
 
