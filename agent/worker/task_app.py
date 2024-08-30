@@ -15,6 +15,7 @@ from docker.errors import APIError, NotFound, DockerException
 from slugify import slugify
 from pathlib import Path
 from packaging import version
+from worker import agent_utils
 from version_parser import Version
 from enum import Enum
 from typing import Optional
@@ -521,12 +522,28 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
-        docker_utils.docker_pull_if_needed(
-            self._docker_api,
-            self.docker_image_name,
-            constants.PULL_POLICY(),
-            self.logger,
-        )
+        try:
+            docker_utils.docker_pull_if_needed(
+                self._docker_api,
+                self.docker_image_name,
+                constants.PULL_POLICY(),
+                self.logger,
+            )
+        except DockerException as e:
+            if "no basic auth credentials" in str(e).lower():
+                self.logger.warn(
+                    f"Failed to pull docker image '{self.docker_image_name}'. Will try to login and pull again",
+                    exc_info=True,
+                )
+                agent_utils.docker_login(self.docker_api, self.logger)
+                docker_utils.docker_pull_if_needed(
+                    self._docker_api,
+                    self.docker_image_name,
+                    constants.PULL_POLICY(),
+                    self.logger,
+                )
+            else:
+                raise e
         self.sync_pip_cache()
         if self._container is None:
             try:

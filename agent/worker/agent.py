@@ -17,6 +17,7 @@ from typing import Dict, List
 from pathlib import Path
 from filelock import FileLock
 from datetime import datetime
+from docker.errors import DockerException
 
 import supervisely_lib as sly
 
@@ -450,22 +451,7 @@ class Agent:
             )
 
     def _docker_login(self):
-        doc_logs = constants.DOCKER_LOGIN().split(",")
-        doc_pasws = constants.DOCKER_PASSWORD().split(",")
-        doc_regs = constants.DOCKER_REGISTRY().split(",")
-
-        for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
-            if registry:
-                try:
-                    doc_login = self.docker_api.login(
-                        username=login, password=password, registry=registry
-                    )
-                    self.logger.info(
-                        "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
-                    )
-                except Exception as e:
-                    if not constants.OFFLINE_MODE():
-                        raise e
+        agent_utils.docker_login(self.docker_api, self.logger)
 
     def submit_log(self):
         while True:
@@ -652,13 +638,31 @@ class Agent:
                     )
                     image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-                docker_utils.docker_pull_if_needed(
-                    self.docker_api,
-                    image,
-                    policy=docker_utils.PullPolicy.ALWAYS,
-                    logger=self.logger,
-                    progress=False,
-                )
+                try:
+                    docker_utils.docker_pull_if_needed(
+                        self.docker_api,
+                        image,
+                        policy=docker_utils.PullPolicy.ALWAYS,
+                        logger=self.logger,
+                        progress=False,
+                    )
+                except DockerException as e:
+                    if "no basic auth credentials" in str(e).lower():
+                        self.logger.warn(
+                            f"Failed to pull docker image '{image}'. Will try to login and pull again",
+                            exc_info=True,
+                        )
+                        self._docker_login()
+                        docker_utils.docker_pull_if_needed(
+                            self.docker_api,
+                            image,
+                            policy=docker_utils.PullPolicy.ALWAYS,
+                            logger=self.logger,
+                            progress=False,
+                        )
+                    else:
+                        raise e
+
                 self.logger.info(f"Docker image '{image}' has been pulled successfully")
                 pulled.append(image)
             except:

@@ -1,7 +1,9 @@
 # coding: utf-8
+from docker.errors import DockerException
 from packaging import version
 import supervisely_lib as sly
 
+from worker import agent_utils
 from worker import constants
 from worker import docker_utils
 from worker.task_sly import TaskSly
@@ -29,9 +31,22 @@ class TaskPullDockerImage(TaskSly):
 
     def task_main_func(self):
         self.logger.info("TASK_START", extra={"event_type": sly.EventType.TASK_STARTED})
-        docker_utils.docker_pull_if_needed(
-            self._docker_api, self.docker_image_name, self.info["pull_policy"], self.logger
-        )
+        try:
+            docker_utils.docker_pull_if_needed(
+                self._docker_api, self.docker_image_name, self.info["pull_policy"], self.logger
+            )
+        except DockerException as e:
+            if "no basic auth credentials" in str(e).lower():
+                self.logger.warn(
+                    f"Failed to pull docker image '{self.docker_image_name}'. Will try to login and pull again",
+                    exc_info=True,
+                )
+                agent_utils.docker_login(self.docker_api, self.logger)
+                docker_utils.docker_pull_if_needed(
+                    self._docker_api, self.docker_image_name, self.info["pull_policy"], self.logger
+                )
+            else:
+                raise e
         docker_img = self._docker_api.images.get(self.docker_image_name)
         if constants.CHECK_VERSION_COMPATIBILITY():
             self._validate_version(
