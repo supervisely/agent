@@ -3,7 +3,7 @@ from docker.errors import DockerException
 from packaging import version
 import supervisely_lib as sly
 
-from agent.worker import agent_utils
+from worker import agent_utils
 from worker import constants
 from worker import docker_utils
 from worker.task_sly import TaskSly

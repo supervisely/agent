@@ -15,7 +15,7 @@ from docker.errors import APIError, NotFound, DockerException
 from slugify import slugify
 from pathlib import Path
 from packaging import version
-from agent.worker import agent_utils
+from worker import agent_utils
 from version_parser import Version
 from enum import Enum
 from typing import Optional
