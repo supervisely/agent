@@ -536,6 +536,12 @@ class Agent:
                 sly.function_wrapper_external_logger, self.update_base_layers, self.logger
             )
         )
+        if constants.SHOULD_CLEAN_APPS_DATA:
+            self.thread_list.append(
+                self.thread_pool.submit(
+                    sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
+                )
+            )
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
                 self.thread_pool.submit(
@@ -670,3 +676,13 @@ class Agent:
         self.logger.info(
             f"Background task finished: base images have been pulled. Images: [{', '.join([image for image in pulled])}]"
         )
+
+    def task_clear_apps_data(self):
+        self.logger.info("Start background task: Clearing apps data")
+        try:
+            cleaner = AppDirCleaner()
+            cleaner.clean_apps_cache()
+        except:
+            self.logger.warn("Background task finished: Failed to clear apps data", exc_info=True)
+        else:
+            self.logger.info("Background task finished: Apps data has been cleared")

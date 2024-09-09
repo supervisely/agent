@@ -101,6 +101,7 @@ _CONTAINER_NAME = "CONTAINER_NAME"
 _FORCE_CPU_ONLY = "FORCE_CPU_ONLY"
 _LOG_LEVEL = "LOG_LEVEL"
 _APPS_CACHE_DIR = "APPS_CACHE_DIR"
+_SHOULD_CLEAN_APPS_DATA = "SHOULD_CLEAN_APPS_DATA"
 
 _NET_CLIENT_DOCKER_IMAGE = "NET_CLIENT_DOCKER_IMAGE"
 _NET_SERVER_PORT = "NET_SERVER_PORT"
@@ -167,6 +168,7 @@ _OPTIONAL_DEFAULTS = {
     _FORCE_CPU_ONLY: "false",
     _LOG_LEVEL: "INFO",
     _APPS_CACHE_DIR: "/apps_cache",
+    _SHOULD_CLEAN_APPS_DATA: "false",
 }
 
 
@@ -685,6 +687,10 @@ def FORCE_CPU_ONLY():
 
 def LOG_LEVEL():
     return read_optional_setting(_LOG_LEVEL)
+
+
+def SHOULD_CLEAN_APPS_DATA():
+    return sly.env.flag_from_env(read_optional_setting(_SHOULD_CLEAN_APPS_DATA))
 
 
 def init_constants():
