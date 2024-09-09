@@ -211,8 +211,10 @@ class AppDirCleaner:
                 if sly.fs.dir_empty(app_path):
                     sly.fs.remove_dir(app_path)
 
-    def clean_pip_cache(self, auto=False):
-        root_path = Path(constants.APPS_PIP_CACHE_DIR())
+    def clean_pip_cache(self, auto=False, pip_cache_dir: str = None):
+        if pip_cache_dir is None:
+            pip_cache_dir = constants.APPS_PIP_CACHE_DIR()
+        root_path = Path(pip_cache_dir)
         removed = []
 
         for module_id in os.listdir(root_path):
@@ -250,10 +252,11 @@ class AppDirCleaner:
         self._apps_cleaner(working_apps, auto=False, clean_pip=False, clean_apps_cache=True)
         self.clean_git_tags()
 
-    def clean_apps_cache(self):
-        cache_dir = constants.AGENT_APPS_CACHE_DIR()
+    def clean_apps_cache(self, apps_cache_dir: str = None):
+        if apps_cache_dir is None:
+            apps_cache_dir = constants.AGENT_APPS_CACHE_DIR()
         cleaned_space = 0
-        for p in Path(cache_dir).iterdir():
+        for p in Path(apps_cache_dir).iterdir():
             if p.is_dir():
                 cleaned_space += sly.fs.get_directory_size(p.as_posix())
                 sly.fs.remove_dir(p)
