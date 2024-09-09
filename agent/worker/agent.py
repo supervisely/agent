@@ -536,10 +536,16 @@ class Agent:
                 sly.function_wrapper_external_logger, self.update_base_layers, self.logger
             )
         )
-        if constants.SHOULD_CLEAN_APPS_DATA:
+        if any(
+            (
+                constants.SHOULD_CLEAN_TASKS_DATA(),
+                constants.SHOULD_CLEAN_PIP_CACHE(),
+                constants.SHOULD_CLEAN_APPS_DATA(),
+            )
+        ):
             self.thread_list.append(
                 self.thread_pool.submit(
-                    sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
+                    sly.function_wrapper_external_logger, self.task_clear_agent_data, self.logger
                 )
             )
         if constants.DISABLE_TELEMETRY() is None:
@@ -677,12 +683,36 @@ class Agent:
             f"Background task finished: base images have been pulled. Images: [{', '.join([image for image in pulled])}]"
         )
 
-    def task_clear_apps_data(self):
-        self.logger.info("Start background task: Clearing apps data")
-        try:
-            cleaner = AppDirCleaner()
-            cleaner.clean_apps_cache()
-        except:
-            self.logger.warn("Background task finished: Failed to clear apps data", exc_info=True)
+    def task_clear_agent_data(self):
+        self.logger.info("Start background task: Clearing agent data")
+        failed = False
+        if constants.SHOULD_CLEAN_TASKS_DATA():
+            try:
+                task_dir = constants.AGENT_TASKS_DIR()
+                task_names = os.listdir(task_dir)
+                for subdir_n in task_names:
+                    dir_task = os.path.join(task_dir, subdir_n)
+                    TaskDirCleaner(dir_task).clean_forced()
+            except:
+                self.logger.warn("Background task error: Failed to clear tasks data", exc_info=True)
+                failed = True
+        if constants.SHOULD_CLEAN_PIP_CACHE():
+            try:
+                cleaner = AppDirCleaner(self.logger)
+                cleaner.clean_pip_cache()
+            except:
+                self.logger.warn("Background task error: Failed to clear pip cache", exc_info=True)
+                failed = True
+        if constants.SHOULD_CLEAN_APPS_DATA():
+            try:
+                cleaner = AppDirCleaner(self.logger)
+                cleaner.clean_apps_cache()
+            except:
+                self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
+                failed = True
+        if failed:
+            self.logger.info(
+                "Background task finished: Erros occured while clearing agent data. See logs above for details"
+            )
         else:
-            self.logger.info("Background task finished: Apps data has been cleared")
+            self.logger.info("Background task finished: Agent data has been cleared successfully")

@@ -60,6 +60,8 @@ class AgentOptionsJsonFields:
     DOCKER_IMAGE = "dockerImage"
     FORCE_CPU_ONLY = "forceCPUOnly"
     LOG_LEVEL = "logLevel"
+    SHOULD_CLEAN_TASKS_DATA = "shouldCleanTasksData"
+    SHOULD_CLEAN_PIP_CACHE = "shouldCleanPipCache"
     SHOULD_CLEAN_APPS_DATA = "shouldCleanAppsData"
 
 
@@ -764,9 +766,19 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         optional_defaults[constants._LOG_LEVEL],
     )
     update_env_param(
+        constants._SHOULD_CLEAN_TASKS_DATA,
+        options.get(AgentOptionsJsonFields.SHOULD_CLEAN_TASKS_DATA, None),
+        optional_defaults[constants._SHOULD_CLEAN_TASKS_DATA],
+    )
+    update_env_param(
+        constants._SHOULD_CLEAN_PIP_CACHE,
+        options.get(AgentOptionsJsonFields.SHOULD_CLEAN_PIP_CACHE, None),
+        optional_defaults[constants._SHOULD_CLEAN_PIP_CACHE],
+    )
+    update_env_param(
         constants._SHOULD_CLEAN_APPS_DATA,
         options.get(AgentOptionsJsonFields.SHOULD_CLEAN_APPS_DATA, None),
-        False
+        optional_defaults[constants._SHOULD_CLEAN_APPS_DATA],
     )
 
     agent_host_dir = options.get(AgentOptionsJsonFields.AGENT_HOST_DIR, "").strip()
