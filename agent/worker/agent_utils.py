@@ -393,7 +393,7 @@ class DockerImagesCleaner:
         lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
 
         if sly.fs.file_exists(lock_file):
-            if os.path.getctime(lock_file) < datetime.now().timestamp() - 60*60*24:
+            if os.path.getctime(lock_file) < datetime.now().timestamp() - 60 * 60 * 24:
                 self.logger.info(
                     "Skip DockerImagesCleaner task: lock file is too old. Will try to remove it."
                 )
@@ -417,6 +417,7 @@ class DockerImagesCleaner:
                 except (APIError, ImageNotFound) as exc:
                     reason = exc.response.json().get("message")
                     self.logger.info(f"Skip {image}: {reason}")
+            self.docker_api.api.prune_images({"dangling": True})
         finally:
             sly.fs.silent_remove(lock_file)
             self.logger.info("DockerImagesCleaner finished.")
@@ -1080,9 +1081,7 @@ def docker_login(docker_api, logger):
     for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
         if registry:
             try:
-                doc_login = docker_api.login(
-                    username=login, password=password, registry=registry
-                )
+                doc_login = docker_api.login(username=login, password=password, registry=registry)
                 logger.info(
                     "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
                 )
