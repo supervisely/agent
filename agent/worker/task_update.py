@@ -53,13 +53,13 @@ class TaskUpdate(TaskSly):
 
         optional_defaults = constants.get_optional_defaults()
         envs[constants._SHOULD_CLEAN_TASKS_DATA] = self.info["config"].get(
-            "shouldCleanTasksData", optional_defaults[constants._SHOULD_CLEAN_TASKS_DATA]
+            "should_clean_tasks_data", optional_defaults[constants._SHOULD_CLEAN_TASKS_DATA]
         )
         envs[constants._SHOULD_CLEAN_PIP_CACHE] = self.info["config"].get(
-            "shouldCleanPipCache", optional_defaults[constants._SHOULD_CLEAN_PIP_CACHE]
+            "should_сlean_pip_cache", optional_defaults[constants._SHOULD_CLEAN_PIP_CACHE]
         )
         envs[constants._SHOULD_CLEAN_APPS_DATA] = self.info["config"].get(
-            "shouldCleanAppsData", optional_defaults[constants._SHOULD_CLEAN_APPS_DATA]
+            "should_clean_apps_data", optional_defaults[constants._SHOULD_CLEAN_APPS_DATA]
         )
 
         image = container_info["Config"]["Image"]
