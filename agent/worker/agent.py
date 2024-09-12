@@ -689,14 +689,14 @@ class Agent:
         )
 
     def task_clear_tasks_dir(self):
-        if os.path.exists(constants.AGENT_TASKS_DIR() + "_to_remove"):
+        tmp_dir = constants.AGENT_TASKS_DIR() + "_to_remove"
+        if os.path.exists(tmp_dir):
             self.logger.info(
                 "Start background task: Clearing Tasks data [_to_remove directory detected]"
             )
             try:
-                task_dir = constants.AGENT_TASKS_DIR() + "_to_remove"
-                for subdir_n in os.listdir(task_dir):
-                    dir_task = os.path.join(task_dir, subdir_n)
+                for subdir_n in os.listdir(tmp_dir):
+                    dir_task = os.path.join(tmp_dir, subdir_n)
                     TaskDirCleaner(dir_task).clean_forced()
             except:
                 self.logger.warn("Background task error: Failed to clear tasks data", exc_info=True)
@@ -708,7 +708,6 @@ class Agent:
             self.logger.info("Start background task: Clearing Tasks data")
             try:
                 task_dir = constants.AGENT_TASKS_DIR()
-                tmp_dir = constants.AGENT_TASKS_DIR() + "_to_remove"
                 shutil.move(task_dir, tmp_dir)
                 os.makedirs(task_dir)
                 for subdir_n in os.listdir(tmp_dir):
