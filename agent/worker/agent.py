@@ -695,9 +695,7 @@ class Agent:
                 "Start background task: Clearing Tasks data [_to_remove directory detected]"
             )
             try:
-                for subdir_n in os.listdir(tmp_dir):
-                    dir_task = os.path.join(tmp_dir, subdir_n)
-                    TaskDirCleaner(dir_task).clean_forced()
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear tasks data", exc_info=True)
             else:
@@ -710,9 +708,7 @@ class Agent:
                 task_dir = constants.AGENT_TASKS_DIR()
                 shutil.move(task_dir, tmp_dir)
                 os.makedirs(task_dir)
-                for subdir_n in os.listdir(tmp_dir):
-                    dir_task = os.path.join(tmp_dir, subdir_n)
-                    TaskDirCleaner(dir_task).clean_forced()
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear tasks data", exc_info=True)
             else:
@@ -727,8 +723,7 @@ class Agent:
                 "Start background task: Clearing pip cache [_to_remove directory detected]"
             )
             try:
-                cleaner = AppDirCleaner(self.logger)
-                cleaner.clean_pip_cache(pip_cache_dir=tmp_dir)
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear pip cache", exc_info=True)
             else:
@@ -740,8 +735,7 @@ class Agent:
             try:
                 shutil.move(constants.APPS_PIP_CACHE_DIR(), tmp_dir)
                 os.makedirs(constants.APPS_PIP_CACHE_DIR())
-                cleaner = AppDirCleaner(self.logger)
-                cleaner.clean_pip_cache(pip_cache_dir=tmp_dir)
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear pip cache", exc_info=True)
             else:
@@ -756,8 +750,7 @@ class Agent:
                 "Start background task: Clearing apps data [_to_remove directory detected]"
             )
             try:
-                cleaner = AppDirCleaner(self.logger)
-                cleaner.clean_apps_cache(apps_cache_dir=tmp_dir)
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
             else:
@@ -769,8 +762,7 @@ class Agent:
             try:
                 shutil.move(constants.AGENT_APPS_CACHE_DIR(), tmp_dir)
                 os.makedirs(constants.AGENT_APPS_CACHE_DIR())
-                cleaner = AppDirCleaner(self.logger)
-                cleaner.clean_apps_cache(apps_cache_dir=tmp_dir)
+                shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
             else:
