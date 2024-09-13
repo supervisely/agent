@@ -51,6 +51,17 @@ class TaskUpdate(TaskSly):
             envs = agent_utils.envs_list_to_dict(container_info["Config"]["Env"])
             volumes = agent_utils.binds_to_volumes_dict(container_info["HostConfig"]["Binds"])
 
+        optional_defaults = constants.get_optional_defaults()
+        envs[constants._SHOULD_CLEAN_TASKS_DATA] = self.info["config"].get(
+            "should_clean_tasks_data", optional_defaults[constants._SHOULD_CLEAN_TASKS_DATA]
+        )
+        envs[constants._SHOULD_CLEAN_PIP_CACHE] = self.info["config"].get(
+            "should_clean_pip_cache", optional_defaults[constants._SHOULD_CLEAN_PIP_CACHE]
+        )
+        envs[constants._SHOULD_CLEAN_APPS_DATA] = self.info["config"].get(
+            "should_clean_apps_data", optional_defaults[constants._SHOULD_CLEAN_APPS_DATA]
+        )
+
         image = container_info["Config"]["Image"]
         if self.info.get("docker_image", None):
             image = self.info["docker_image"]

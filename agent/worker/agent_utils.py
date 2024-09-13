@@ -208,8 +208,10 @@ class AppDirCleaner:
                 if sly.fs.dir_empty(app_path):
                     sly.fs.remove_dir(app_path)
 
-    def clean_pip_cache(self, auto=False):
-        root_path = Path(constants.APPS_PIP_CACHE_DIR())
+    def clean_pip_cache(self, auto=False, pip_cache_dir: str = None):
+        if pip_cache_dir is None:
+            pip_cache_dir = constants.APPS_PIP_CACHE_DIR()
+        root_path = Path(pip_cache_dir)
         removed = []
 
         for module_id in os.listdir(root_path):
@@ -247,10 +249,11 @@ class AppDirCleaner:
         self._apps_cleaner(working_apps, auto=False, clean_pip=False, clean_apps_cache=True)
         self.clean_git_tags()
 
-    def clean_apps_cache(self):
-        cache_dir = constants.AGENT_APPS_CACHE_DIR()
+    def clean_apps_cache(self, apps_cache_dir: str = None):
+        if apps_cache_dir is None:
+            apps_cache_dir = constants.AGENT_APPS_CACHE_DIR()
         cleaned_space = 0
-        for p in Path(cache_dir).iterdir():
+        for p in Path(apps_cache_dir).iterdir():
             if p.is_dir():
                 cleaned_space += sly.fs.get_directory_size(p.as_posix())
                 sly.fs.remove_dir(p)
@@ -393,7 +396,7 @@ class DockerImagesCleaner:
         lock_file = os.path.join(self.path_to_history, "docker-images-lock.txt")
 
         if sly.fs.file_exists(lock_file):
-            if os.path.getctime(lock_file) < datetime.now().timestamp() - 60*60*24:
+            if os.path.getctime(lock_file) < datetime.now().timestamp() - 60 * 60 * 24:
                 self.logger.info(
                     "Skip DockerImagesCleaner task: lock file is too old. Will try to remove it."
                 )
@@ -417,6 +420,7 @@ class DockerImagesCleaner:
                 except (APIError, ImageNotFound) as exc:
                     reason = exc.response.json().get("message")
                     self.logger.info(f"Skip {image}: {reason}")
+            self.docker_api.api.prune_images({"dangling": True})
         finally:
             sly.fs.silent_remove(lock_file)
             self.logger.info("DockerImagesCleaner finished.")
@@ -1080,9 +1084,7 @@ def docker_login(docker_api, logger):
     for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
         if registry:
             try:
-                doc_login = docker_api.login(
-                    username=login, password=password, registry=registry
-                )
+                doc_login = docker_api.login(username=login, password=password, registry=registry)
                 logger.info(
                     "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
                 )
