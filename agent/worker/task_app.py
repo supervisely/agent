@@ -290,7 +290,9 @@ class TaskApp(TaskDockerized):
                 f'Dockerimage not found in config.json, so it is set to default: {self.info["docker_image"]}'
             )
 
-        if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+        if constants.SLY_APPS_DOCKER_REGISTRY() is not None and self.info[
+            "docker_image"
+        ].startswith("supervisely/"):
             self.logger.info(
                 "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
                     self.info["docker_image"],
