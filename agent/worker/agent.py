@@ -646,7 +646,9 @@ class Agent:
         pulled = []
         for image in constants.BASE_IMAGES():
             try:
-                if constants.SLY_APPS_DOCKER_REGISTRY() is not None:
+                if constants.SLY_APPS_DOCKER_REGISTRY() is not None and image.startswith(
+                    "supervisely/"
+                ):
                     self.logger.info(
                         "NON DEFAULT DOCKER REGISTRY: docker image {!r} is replaced with {!r}".format(
                             image,
