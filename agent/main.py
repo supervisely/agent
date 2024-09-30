@@ -3,7 +3,7 @@
 import os
 import sys
 import docker
-import urllib
+from urllib.parse import urljoin
 from docker.models.containers import Container
 from docker.types import LogConfig
 from dotenv import load_dotenv
@@ -78,13 +78,10 @@ def _start_net_client(docker_api=None):
         if net_server_port is None:
             raise RuntimeError(f"{constants._NET_SERVER_PORT} is not defined")
 
-        server_addr_url_obj = urllib.parse.urlparse(constants.SERVER_ADDRESS())
-        net_server_address = f"{server_addr_url_obj.hostname}:{net_server_port}"
-
         command = [
             constants.TOKEN(),
-            os.path.join(constants.SERVER_ADDRESS(), "net/"),
-            net_server_address,
+            urljoin(constants.SERVER_ADDRESS(), "net/"),
+            constants.NET_SERVER_ADDRESS(),
         ]
         envs = [
             f"{constants._SLY_NET_CLIENT_PING_INTERVAL}={constants.SLY_NET_CLIENT_PING_INTERVAL()}",

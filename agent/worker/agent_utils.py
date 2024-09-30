@@ -56,6 +56,7 @@ class AgentOptionsJsonFields:
     SECURITY_OPT = "securityOpts"
     NET_OPTIONS = "netClientOptions"
     NET_CLIENT_DOCKER_IMAGE = "dockerImage"
+    NET_SERVER_ADDRESS = "netServerAddress"
     NET_SERVER_PORT = "netServerPort"
     DOCKER_IMAGE = "dockerImage"
     FORCE_CPU_ONLY = "forceCPUOnly"
@@ -748,6 +749,11 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         optional_defaults[constants._NET_CLIENT_DOCKER_IMAGE],
     )
     update_env_param(
+        constants._NET_SERVER_ADDRESS,
+        net_options.get(AgentOptionsJsonFields.NET_SERVER_ADDRESS, None),
+        optional_defaults[constants._NET_SERVER_ADDRESS],
+    )
+    update_env_param(
         constants._NET_SERVER_PORT,
         net_options.get(AgentOptionsJsonFields.NET_SERVER_PORT, None),
         optional_defaults[constants._NET_SERVER_PORT],
@@ -758,7 +764,7 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     update_env_param(
         constants._FORCE_CPU_ONLY,
         str(options.get(AgentOptionsJsonFields.FORCE_CPU_ONLY, False)).lower(),
-        optional_defaults[constants._NET_SERVER_PORT],
+        optional_defaults[constants._FORCE_CPU_ONLY],
     )
     update_env_param(
         constants._LOG_LEVEL,

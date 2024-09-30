@@ -10,6 +10,7 @@ from worker.docker_utils import PullPolicy
 
 
 _SERVER_ADDRESS = "SERVER_ADDRESS"
+_NET_SERVER_ADDRESS = "NET_SERVER_ADDRESS"
 _ACCESS_TOKEN = "ACCESS_TOKEN"
 _DOCKER_LOGIN = "DOCKER_LOGIN"
 _DOCKER_PASSWORD = "DOCKER_PASSWORD"
@@ -159,7 +160,8 @@ _OPTIONAL_DEFAULTS = {
     _REMOVE_OLD_AGENT: None,
     _UPDATE_SLY_NET_AFTER_RESTART: "false",
     _DOCKER_IMAGE: None,
-    _NET_SERVER_PORT: None,
+    _NET_SERVER_ADDRESS: None,
+    _NET_SERVER_PORT: 51822,
     _NET_CLIENT_CONTAINER_NAME: f"supervisely-net-client-{TOKEN()[:8]}",
     _NET_CLIENT_NETWORK: f"supervisely-net-{TOKEN()[:8]}",
     _CONTAINER_NAME: f"supervisely-agent-{TOKEN()[:8]}",
@@ -208,10 +210,25 @@ def _agent_to_host_path(local_path):
 def SERVER_ADDRESS():
     str_url = os.environ[_SERVER_ADDRESS]
     if ("http://" not in str_url) and ("https://" not in str_url):
-        str_url = os.path.join("http://", str_url)  # @TODO: raise with error
+        str_url = f"http://{str_url}"  # @TODO: raise with error
     parsed_uri = urlparse(str_url)
     server_address = "{uri.scheme}://{uri.netloc}/".format(uri=parsed_uri)
     return server_address
+
+
+def NET_SERVER_ADDRESS():
+    str_url = os.environ.get(_NET_SERVER_ADDRESS, None)
+    if str_url is None or str_url.strip() == "":
+        server_addr = SERVER_ADDRESS()
+        parsed_uri = urlparse(server_addr)
+        net_server_port = NET_SERVER_PORT()
+        return f"{parsed_uri.hostname}:{net_server_port}"
+
+    if ("http://" not in str_url) and ("https://" not in str_url):
+        str_url = f"http://{str_url}"
+
+    parsed_uri = urlparse(str_url)
+    return parsed_uri.netloc
 
 
 def PUBLIC_API_SERVER_ADDRESS():
