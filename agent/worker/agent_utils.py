@@ -638,8 +638,9 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 def get_instance_version(server_address=None, timeout=60):
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
+    token = constants.TOKEN()
 
-    api = sly.Api(server_address=server_address, token="")
+    api = sly.Api(server_address=server_address, token=token)
     resp = api.get("instance.version", {})
     if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         if resp.status_code in (400, 401, 403, 404):
