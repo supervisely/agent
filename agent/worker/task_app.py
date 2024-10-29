@@ -588,7 +588,12 @@ class TaskApp(TaskDockerized):
     def get_spawn_entrypoint(self):
         inf_command = " while true; do sleep 30; done;"
         self.logger.info("Infinite command", extra={"command": inf_command})
-        return ["/usr/bin/timeout", timeout, "sh", "-c", inf_command]
+        entrypoint = ["sh", "-c", inf_command]
+        timeout = self.info.get("activeDeadlineSeconds", None)
+        if timeout is not None:
+            self.logger.info("Task Timeout is set to %d seconds", timeout)
+            entrypoint = ["/usr/bin/timeout", timeout] + entrypoint
+        return entrypoint
 
     def _exec_command(self, command, add_envs=None, container_id=None):
         add_envs = sly.take_with_default(add_envs, {})
