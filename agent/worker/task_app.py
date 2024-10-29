@@ -524,7 +524,6 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
-        self._docker_api.api.pull(auth_config={"username": "", "password": ""})
         docker_utils.docker_pull_if_needed(
             self._docker_api,
             self.docker_image_name,
@@ -590,9 +589,9 @@ class TaskApp(TaskDockerized):
         self.logger.info("Infinite command", extra={"command": inf_command})
         entrypoint = ["sh", "-c", inf_command]
         timeout = self.info.get("activeDeadlineSeconds", None)
-        if timeout is not None:
+        if timeout is not None and timeout > 0:
             self.logger.info("Task Timeout is set to %d seconds", timeout)
-            entrypoint = ["/usr/bin/timeout", timeout] + entrypoint
+            entrypoint = ["/usr/bin/timeout", f"{timeout}s", "--kill-after", "30s"] + entrypoint
         return entrypoint
 
     def _exec_command(self, command, add_envs=None, container_id=None):
