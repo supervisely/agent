@@ -524,6 +524,7 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
+        self._docker_api.api.pull(auth_config={"username": "", "password": ""})
         try:
             docker_utils.docker_pull_if_needed(
                 self._docker_api,

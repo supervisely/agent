@@ -50,7 +50,7 @@ _task_class_mapping: Dict[str, Type[TaskSly]] = {
 }
 
 
-def create_task(task_msg, docker_api: DockerClient) -> TaskSly:
+def create_task(task_msg, docker_api: DockerClient, docker_auths: Dict = None) -> TaskSly:
     task_id = task_msg.get("task_id", None)
     task_type = get_run_mode(docker_api, task_msg)
     task_cls = _task_class_mapping.get(task_type, None)
@@ -60,6 +60,7 @@ def create_task(task_msg, docker_api: DockerClient) -> TaskSly:
     task_obj = task_cls(task_msg)
     if issubclass(task_cls, TaskDockerized) or (task_msg["task_type"] == "update_agent"):
         task_obj.docker_api = docker_api
+        task_obj.docker_auths = docker_auths
     return task_obj
 
 

@@ -72,6 +72,7 @@ class Agent:
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
         self.daemons_list = []
+        self.docker_auths = {}
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -372,7 +373,9 @@ class Agent:
                                 break
 
                     if need_skip is False:
-                        self.task_pool[task_id] = create_task(task, self.docker_api)
+                        self.task_pool[task_id] = create_task(
+                            task, self.docker_api, docker_auths=self.docker_auths
+                        )
                         self.task_pool[task_id].start()
                     else:
                         self.logger.warning(
@@ -452,7 +455,12 @@ class Agent:
             )
 
     def _docker_login(self):
-        agent_utils.docker_login(self.docker_api, self.logger)
+        doc_logs = constants.DOCKER_LOGIN().split(",")
+        doc_pasws = constants.DOCKER_PASSWORD().split(",")
+        doc_regs = constants.DOCKER_REGISTRY().split(",")
+        for login, pasw, reg in zip(doc_logs, doc_pasws, doc_regs):
+            self.docker_auths.update({reg: {"username": login, "password": pasw}})
+        agent_utils.docker_login(self.docker_api, self.logger)  # TODO: shoild delete?
 
     def submit_log(self):
         while True:
@@ -664,6 +672,7 @@ class Agent:
                         policy=docker_utils.PullPolicy.ALWAYS,
                         logger=self.logger,
                         progress=False,
+                        docker_auths=self.docker_auths,
                     )
                 except DockerException as e:
                     if "no basic auth credentials" in str(e).lower():
@@ -678,6 +687,7 @@ class Agent:
                             policy=docker_utils.PullPolicy.ALWAYS,
                             logger=self.logger,
                             progress=False,
+                            docker_auths=self.docker_auths,
                         )
                     else:
                         raise e

@@ -42,7 +42,9 @@ class PullStatus(Enum):
         return dct.get(status, PullStatus.OTHER)
 
 
-def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
+def docker_pull_if_needed(
+    docker_api, docker_image_name, policy, logger, progress=True, docker_auths=None
+):
     logger.info(
         "docker_pull_if_needed args",
         extra={
@@ -56,22 +58,36 @@ def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progres
     )
     if str(policy) == str(PullPolicy.ALWAYS):
         if progress is False:
-            _docker_pull(docker_api, docker_image_name, logger)
+            _docker_pull(docker_api, docker_image_name, logger, docker_auths=docker_auths)
         else:
-            _docker_pull_progress(docker_api, docker_image_name, logger)
+            _docker_pull_progress(docker_api, docker_image_name, logger, docker_auths=docker_auths)
     elif str(policy) == str(PullPolicy.NEVER):
         pass
     elif str(policy) == str(PullPolicy.IF_NOT_PRESENT):
         if not _docker_image_exists(docker_api, docker_image_name):
             if progress is False:
-                _docker_pull(docker_api, docker_image_name, logger)
+                _docker_pull(docker_api, docker_image_name, logger, docker_auths=docker_auths)
             else:
-                _docker_pull_progress(docker_api, docker_image_name, logger)
+                _docker_pull_progress(
+                    docker_api, docker_image_name, logger, docker_auths=docker_auths
+                )
     elif str(policy) == str(PullPolicy.IF_AVAILABLE):
         if progress is False:
-            _docker_pull(docker_api, docker_image_name, logger, raise_exception=True)
+            _docker_pull(
+                docker_api,
+                docker_image_name,
+                logger,
+                raise_exception=True,
+                docker_auths=docker_auths,
+            )
         else:
-            _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception=True)
+            _docker_pull_progress(
+                docker_api,
+                docker_image_name,
+                logger,
+                raise_exception=True,
+                docker_auths=docker_auths,
+            )
     else:
         raise RuntimeError(f"Unknown pull policy {str(policy)}")
     if not _docker_image_exists(docker_api, docker_image_name):
@@ -84,14 +100,27 @@ def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progres
         )
 
 
-def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
+def resolve_registry(docker_image_name):
+    from docker.utils import parse_repository_tag
+    from docker.auth import resolve_repository_name
+
+    repository, _ = parse_repository_tag(docker_image_name)
+    registry, _ = resolve_repository_name(repository)
+    return registry
+
+
+def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True, docker_auths=None):
     from docker.errors import DockerException
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     progress_dummy = Progress("Pulling image...", 1, ext_logger=logger)
     progress_dummy.iter_done_report()
     try:
-        pulled_img = docker_api.images.pull(docker_image_name)
+        registry = resolve_registry(docker_image_name)
+        if docker_auths is None:
+            docker_auths = {}
+        auth = docker_auths.get(registry, None)
+        pulled_img = docker_api.images.pull(docker_image_name, auth_config=auth)
         logger.info(
             "Docker image has been pulled",
             extra={"pulled": {"tags": pulled_img.tags, "id": pulled_img.id}},
@@ -107,11 +136,18 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
             logger.warn("Pulling step is skipped. Unable to pull image: {!r}.".format(str(e)))
 
 
-def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception=True):
+def _docker_pull_progress(
+    docker_api, docker_image_name, logger, raise_exception=True, docker_auths=None
+):
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     from docker.errors import DockerException
 
     try:
+        registry = resolve_registry(docker_image_name)
+        if docker_auths is None:
+            docker_auths = {}
+        auth = docker_auths.get(registry, None)
+
         layers_total_load = {}
         layers_current_load = {}
         layers_total_extract = {}
@@ -124,7 +160,9 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
         progres_ext = Progress("Extracting layers", 1, is_size=True, ext_logger=logger)
         progress_load = Progress("Downloading layers", 1, is_size=True, ext_logger=logger)
 
-        for line in docker_api.api.pull(docker_image_name, stream=True, decode=True):
+        for line in docker_api.api.pull(
+            docker_image_name, stream=True, decode=True, auth_config=auth
+        ):
             status = PullStatus.from_str(line.get("status", None))
             layer_id = line.get("id", None)
             progress_details = line.get("progressDetail", {})

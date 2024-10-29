@@ -59,6 +59,7 @@ class TaskDockerized(TaskSly):
         self.task_dir_cleaner = TaskDirCleaner(self.dir_task)
 
         self._docker_api: docker.DockerClient = None  # must be set by someone
+        self._docker_auths = None
 
         self._container = None
         self._container_lock = Lock()  # to drop container from different threads
@@ -92,6 +93,14 @@ class TaskDockerized(TaskSly):
     @docker_api.setter
     def docker_api(self, val):
         self._docker_api = val
+
+    @property
+    def docker_auths(self):
+        return self._docker_auths
+
+    @docker_auths.setter
+    def docker_auths(self, val):
+        self._docker_auths = val
 
     def report_step_done(self, curr_step):
         if self.completed_step.value < curr_step.value:
