@@ -525,28 +525,13 @@ class TaskApp(TaskDockerized):
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
         self._docker_api.api.pull(auth_config={"username": "", "password": ""})
-        try:
-            docker_utils.docker_pull_if_needed(
-                self._docker_api,
-                self.docker_image_name,
-                constants.PULL_POLICY(),
-                self.logger,
-            )
-        except DockerException as e:
-            if "no basic auth credentials" in str(e).lower():
-                self.logger.warn(
-                    f"Failed to pull docker image '{self.docker_image_name}'. Will try to login and pull again",
-                    exc_info=True,
-                )
-                agent_utils.docker_login(self.docker_api, self.logger)
-                docker_utils.docker_pull_if_needed(
-                    self._docker_api,
-                    self.docker_image_name,
-                    constants.PULL_POLICY(),
-                    self.logger,
-                )
-            else:
-                raise e
+        docker_utils.docker_pull_if_needed(
+            self._docker_api,
+            self.docker_image_name,
+            constants.PULL_POLICY(),
+            self.logger,
+        )
+
         self.sync_pip_cache()
         if self._container is None:
             try:
@@ -601,9 +586,9 @@ class TaskApp(TaskDockerized):
                 self.logger.info("pip second install for old agents is finished")
 
     def get_spawn_entrypoint(self):
-        inf_command = "while true; do sleep 30; done;"
+        inf_command = " while true; do sleep 30; done;"
         self.logger.info("Infinite command", extra={"command": inf_command})
-        return ["sh", "-c", inf_command]
+        return ["/usr/bin/timeout", timeout, "sh", "-c", inf_command]
 
     def _exec_command(self, command, add_envs=None, container_id=None):
         add_envs = sly.take_with_default(add_envs, {})

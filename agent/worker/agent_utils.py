@@ -1107,20 +1107,3 @@ def maybe_update_runtime():
 def convert_millicores_to_cpu_quota(millicores, cpu_period=100000):
     cpu_quota = (millicores / 1000) * cpu_period
     return int(cpu_quota)
-
-
-def docker_login(docker_api, logger):
-    doc_logs = constants.DOCKER_LOGIN().split(",")
-    doc_pasws = constants.DOCKER_PASSWORD().split(",")
-    doc_regs = constants.DOCKER_REGISTRY().split(",")
-
-    for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
-        if registry:
-            try:
-                doc_login = docker_api.login(username=login, password=password, registry=registry)
-                logger.info(
-                    "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
-                )
-            except Exception as e:
-                if not constants.OFFLINE_MODE():
-                    raise e

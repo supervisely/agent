@@ -3,13 +3,17 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import Optional
+import time
+from typing import Dict, Optional
 
 from supervisely.app import DialogWindowError
 from supervisely.task.progress import Progress
 
+from worker import constants
 
-PULL_RETRIES = 1
+
+PULL_RETRIES = 5
+PULL_RETRY_DELAY = 5
 
 
 class PullPolicy(Enum):
@@ -45,9 +49,22 @@ class PullStatus(Enum):
         return dct.get(status, PullStatus.OTHER)
 
 
-def docker_pull_if_needed(
-    docker_api, docker_image_name, policy, logger, progress=True, docker_auths=None
-):
+def _auths_from_env() -> Dict:
+    doc_logs = constants.DOCKER_LOGIN().split(",")
+    doc_pasws = constants.DOCKER_PASSWORD().split(",")
+    doc_regs = constants.DOCKER_REGISTRY().split(",")
+    auths = {}
+    for login, pasw, reg in zip(doc_logs, doc_pasws, doc_regs):
+        auths.update({reg: {"username": login, "password": pasw}})
+    return auths
+
+
+def _registry_auth_from_env(registry: str) -> Dict:
+    auths = _auths_from_env()
+    return auths.get(registry, None)
+
+
+def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
     logger.info(
         "docker_pull_if_needed args",
         extra={
@@ -61,19 +78,17 @@ def docker_pull_if_needed(
     )
     if str(policy) == str(PullPolicy.ALWAYS):
         if progress is False:
-            _docker_pull(docker_api, docker_image_name, logger, docker_auths=docker_auths)
+            _docker_pull(docker_api, docker_image_name, logger)
         else:
-            _docker_pull_progress(docker_api, docker_image_name, logger, docker_auths=docker_auths)
+            _docker_pull_progress(docker_api, docker_image_name, logger)
     elif str(policy) == str(PullPolicy.NEVER):
         pass
     elif str(policy) == str(PullPolicy.IF_NOT_PRESENT):
         if not _docker_image_exists(docker_api, docker_image_name):
             if progress is False:
-                _docker_pull(docker_api, docker_image_name, logger, docker_auths=docker_auths)
+                _docker_pull(docker_api, docker_image_name, logger)
             else:
-                _docker_pull_progress(
-                    docker_api, docker_image_name, logger, docker_auths=docker_auths
-                )
+                _docker_pull_progress(docker_api, docker_image_name, logger)
     elif str(policy) == str(PullPolicy.IF_AVAILABLE):
         if progress is False:
             _docker_pull(
@@ -81,7 +96,6 @@ def docker_pull_if_needed(
                 docker_image_name,
                 logger,
                 raise_exception=True,
-                docker_auths=docker_auths,
             )
         else:
             _docker_pull_progress(
@@ -89,7 +103,6 @@ def docker_pull_if_needed(
                 docker_image_name,
                 logger,
                 raise_exception=True,
-                docker_auths=docker_auths,
             )
     else:
         raise RuntimeError(f"Unknown pull policy {str(policy)}")
@@ -115,14 +128,14 @@ def resolve_registry(docker_image_name):
         return None
 
 
-def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True, docker_auths=None):
+def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
     from docker.errors import DockerException
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
     if docker_auths is None:
         docker_auths = {}
-    auth = docker_auths.get(registry, None)
+    auth = _registry_auth_from_env(registry)
     for i in range(0, PULL_RETRIES + 1):
         progress_dummy = Progress(
             "Pulling image..." + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
@@ -152,18 +165,18 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True, do
                     )
                     return
             logger.warning("Unable to pull image: %s", str(e))
+            logger.info("Retrying in %d seconds...", PULL_RETRY_DELAY)
+            time.sleep(PULL_RETRY_DELAY)
 
 
-def _docker_pull_progress(
-    docker_api, docker_image_name, logger, raise_exception=True, docker_auths=None
-):
+def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception=True):
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     from docker.errors import DockerException
 
     registry = resolve_registry(docker_image_name)
     if docker_auths is None:
         docker_auths = {}
-    auth = docker_auths.get(registry, None)
+    auth = _registry_auth_from_env(registry)
     for i in range(0, PULL_RETRIES + 1):
         try:
             layers_total_load = {}
@@ -261,6 +274,8 @@ def _docker_pull_progress(
                     )
                     return
             logger.warning("Unable to pull image: %s", str(e))
+            logger.info("Retrying in %d seconds...", PULL_RETRY_DELAY)
+            time.sleep(PULL_RETRY_DELAY)
 
 
 def _docker_image_exists(docker_api, docker_image_name):

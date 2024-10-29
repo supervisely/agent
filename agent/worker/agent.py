@@ -72,7 +72,6 @@ class Agent:
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
         self.daemons_list = []
-        self.docker_auths = {}
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -85,7 +84,6 @@ class Agent:
         self.docker_api = docker.from_env(
             version="auto", timeout=constants.DOCKER_API_CALL_TIMEOUT()
         )
-        self._docker_login()
 
         self.logger.info("Agent is ready to get tasks.")
         self.api = sly.AgentAPI(
@@ -373,9 +371,7 @@ class Agent:
                                 break
 
                     if need_skip is False:
-                        self.task_pool[task_id] = create_task(
-                            task, self.docker_api, docker_auths=self.docker_auths
-                        )
+                        self.task_pool[task_id] = create_task(task, self.docker_api)
                         self.task_pool[task_id].start()
                     else:
                         self.logger.warning(
@@ -453,14 +449,6 @@ class Agent:
                     "task_id": int(cont.labels["task_id"]),
                 },
             )
-
-    def _docker_login(self):
-        doc_logs = constants.DOCKER_LOGIN().split(",")
-        doc_pasws = constants.DOCKER_PASSWORD().split(",")
-        doc_regs = constants.DOCKER_REGISTRY().split(",")
-        for login, pasw, reg in zip(doc_logs, doc_pasws, doc_regs):
-            self.docker_auths.update({reg: {"username": login, "password": pasw}})
-        agent_utils.docker_login(self.docker_api, self.logger)  # TODO: shoild delete?
 
     def submit_log(self):
         while True:
@@ -665,32 +653,13 @@ class Agent:
                     )
                     image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-                try:
-                    docker_utils.docker_pull_if_needed(
-                        self.docker_api,
-                        image,
-                        policy=docker_utils.PullPolicy.ALWAYS,
-                        logger=self.logger,
-                        progress=False,
-                        docker_auths=self.docker_auths,
-                    )
-                except DockerException as e:
-                    if "no basic auth credentials" in str(e).lower():
-                        self.logger.warn(
-                            f"Failed to pull docker image '{image}'. Will try to login and pull again",
-                            exc_info=True,
-                        )
-                        self._docker_login()
-                        docker_utils.docker_pull_if_needed(
-                            self.docker_api,
-                            image,
-                            policy=docker_utils.PullPolicy.ALWAYS,
-                            logger=self.logger,
-                            progress=False,
-                            docker_auths=self.docker_auths,
-                        )
-                    else:
-                        raise e
+                docker_utils.docker_pull_if_needed(
+                    self.docker_api,
+                    image,
+                    policy=docker_utils.PullPolicy.ALWAYS,
+                    logger=self.logger,
+                    progress=False,
+                )
 
                 self.logger.info(f"Docker image '{image}' has been pulled successfully")
                 pulled.append(image)
