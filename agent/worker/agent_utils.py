@@ -610,35 +610,19 @@ def volumes_dict_to_binds(volumes: dict) -> List[str]:
     return binds
 
 
-def maybe_https_redirect(server_address, logger=None):
-    response = requests.get(server_address, allow_redirects=False)
-    if (300 <= response.status_code < 400) or (
-        response.headers.get("Location", "").startswith("https://")
-    ):
-        server_address = server_address.replace("http://", "https://")
-        if logger:
-            msg = (
-                "You're using HTTP server address while the server requires HTTPS. "
-                "Supervisely automatically changed the server address to HTTPS for you. "
-                f"Consider updating your server address to {server_address}"
-            )
-            logger.warn(msg)
-    return server_address
-
-
 def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
-        url = constants.PUBLIC_API_SERVER_ADDRESS()
-    else:
-        url = server_address.rstrip("/") + "public/api/v3/"
     if token is None:
         token = constants.TOKEN()
 
-    url = url.replace(server_address, maybe_https_redirect(server_address))
-    url = url.rstrip("/") + "/agents.options.info"
+    api = sly.Api(server_address=server_address, token=token)
+    method = "agents.options.info"
 
-    resp = requests.post(url=url, json={"token": token}, timeout=timeout)
+    resp = api.post(
+        method,
+        data={"token": token},
+    )
     if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         try:
             text = resp.text
@@ -654,14 +638,9 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 def get_instance_version(server_address=None, timeout=60):
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
-        url = constants.PUBLIC_API_SERVER_ADDRESS()
-    else:
-        url = server_address.rstrip("/") + "public/api/v3/"
 
-    url = url.replace(server_address, maybe_https_redirect(server_address))
-    url = url.rstrip("/") + "/instance.version"
-
-    resp = requests.get(url=url, timeout=timeout)
+    api = sly.Api(server_address=server_address, token="")
+    resp = api.get("instance.version", {})
     if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         if resp.status_code in (400, 401, 403, 404):
             return None
