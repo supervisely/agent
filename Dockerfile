@@ -46,5 +46,4 @@ COPY agent /workdir/agent
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
 WORKDIR /workdir/agent
 
-ENTRYPOINT ["sh", "-c", "python -u /workdir/agent/main.py"]
-
+ENTRYPOINT ["python", "-u", "/workdir/agent/main.py"]

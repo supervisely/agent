@@ -213,12 +213,22 @@ def init_envs():
     try:
         agent_utils.check_instance_version()
         new_envs, new_volumes, ca_cert = agent_utils.updated_agent_options()
-    except agent_utils.AgentOptionsNotAvailable:
-        sly.logger.debug("Can not update agent options", exc_info=True)
-        sly.logger.warning(
-            "Can not update agent options. Agent will be started with current options"
-        )
-        return
+    except Exception as e:
+        if not agent_utils.is_agent_container_ready_to_continue():
+            sly.logger.error(
+                "Agent options are not available. Agent will be stopped. Please, check the connection to the server"
+            )
+            raise
+
+        if isinstance(e, agent_utils.AgentOptionsNotAvailable):
+            sly.logger.debug("Can not update agent options", exc_info=True)
+            sly.logger.warning(
+                "Can not update agent options. Agent will be started with current options"
+            )
+            return
+
+        raise
+
     if new_envs.get(constants._FORCE_CPU_ONLY, "false") == "true":
         runtime = "runc"
         runtime_changed = _is_runtime_changed(runtime)

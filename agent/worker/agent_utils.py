@@ -623,7 +623,7 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
         method,
         data={"token": token},
     )
-    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
+    if resp is None or resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         try:
             text = resp.text
         except:
@@ -641,8 +641,8 @@ def get_instance_version(server_address=None, timeout=60):
 
     api = sly.Api(server_address=server_address)
     resp = api.get("instance.version", {})
-    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
-        if resp.status_code in (400, 401, 403, 404):
+    if resp is None or resp.status_code != requests.codes.ok:  # pylint: disable=no-member
+        if resp is not None and resp.status_code in (400, 401, 403, 404):
             return None
         try:
             text = resp.text
@@ -932,6 +932,20 @@ def _ca_cert_changed(ca_cert) -> str:
         tmp_container.remove(force=True)
 
     return cert_path
+
+
+def is_agent_container_ready_to_continue():
+    container_info = get_container_info()
+    volumes = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+
+    # should contain at least 3 volumes:
+    # docker socket
+    # agent data files
+    # apps data files
+    if len(volumes) < 3:
+        return False
+
+    return True
 
 
 def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
