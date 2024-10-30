@@ -84,7 +84,6 @@ class Agent:
         self.docker_api = docker.from_env(
             version="auto", timeout=constants.DOCKER_API_CALL_TIMEOUT()
         )
-        self._docker_login()
 
         self.logger.info("Agent is ready to get tasks.")
         self.api = sly.AgentAPI(
@@ -451,9 +450,6 @@ class Agent:
                 },
             )
 
-    def _docker_login(self):
-        agent_utils.docker_login(self.docker_api, self.logger)
-
     def submit_log(self):
         while True:
             log_lines = self.log_queue.get_log_batch_nowait()
@@ -657,30 +653,13 @@ class Agent:
                     )
                     image = f"{constants.SLY_APPS_DOCKER_REGISTRY()}/{image}"
 
-                try:
-                    docker_utils.docker_pull_if_needed(
-                        self.docker_api,
-                        image,
-                        policy=docker_utils.PullPolicy.ALWAYS,
-                        logger=self.logger,
-                        progress=False,
-                    )
-                except DockerException as e:
-                    if "no basic auth credentials" in str(e).lower():
-                        self.logger.warn(
-                            f"Failed to pull docker image '{image}'. Will try to login and pull again",
-                            exc_info=True,
-                        )
-                        self._docker_login()
-                        docker_utils.docker_pull_if_needed(
-                            self.docker_api,
-                            image,
-                            policy=docker_utils.PullPolicy.ALWAYS,
-                            logger=self.logger,
-                            progress=False,
-                        )
-                    else:
-                        raise e
+                docker_utils.docker_pull_if_needed(
+                    self.docker_api,
+                    image,
+                    policy=docker_utils.PullPolicy.ALWAYS,
+                    logger=self.logger,
+                    progress=False,
+                )
 
                 self.logger.info(f"Docker image '{image}' has been pulled successfully")
                 pulled.append(image)

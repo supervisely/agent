@@ -110,6 +110,7 @@ class TaskApp(TaskDockerized):
         self.tmp_data_dir = None
         self.data_dir = None
         self.agent_id = None
+        self._logs_output = None
         self._gpu_config: Optional[GPUFlag] = None
         self._log_filters = [pip_req_satisfied_filter]  # post_get_request_filter
 
@@ -524,28 +525,13 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
-        try:
-            docker_utils.docker_pull_if_needed(
-                self._docker_api,
-                self.docker_image_name,
-                constants.PULL_POLICY(),
-                self.logger,
-            )
-        except DockerException as e:
-            if "no basic auth credentials" in str(e).lower():
-                self.logger.warn(
-                    f"Failed to pull docker image '{self.docker_image_name}'. Will try to login and pull again",
-                    exc_info=True,
-                )
-                agent_utils.docker_login(self.docker_api, self.logger)
-                docker_utils.docker_pull_if_needed(
-                    self._docker_api,
-                    self.docker_image_name,
-                    constants.PULL_POLICY(),
-                    self.logger,
-                )
-            else:
-                raise e
+        docker_utils.docker_pull_if_needed(
+            self._docker_api,
+            self.docker_image_name,
+            constants.PULL_POLICY(),
+            self.logger,
+        )
+
         self.sync_pip_cache()
         if self._container is None:
             try:
@@ -602,7 +588,12 @@ class TaskApp(TaskDockerized):
     def get_spawn_entrypoint(self):
         inf_command = "while true; do sleep 30; done;"
         self.logger.info("Infinite command", extra={"command": inf_command})
-        return ["sh", "-c", inf_command]
+        entrypoint = ["sh", "-c", inf_command]
+        timeout = self.info.get("activeDeadlineSeconds", None)
+        if timeout is not None and timeout > 0:
+            self.logger.info(f"Task Timeout is set to {timeout} seconds")
+            entrypoint = ["/usr/bin/timeout", "--kill-after", "30s", f"{timeout}s"] + entrypoint
+        return entrypoint
 
     def _exec_command(self, command, add_envs=None, container_id=None):
         add_envs = sly.take_with_default(add_envs, {})
@@ -677,6 +668,16 @@ class TaskApp(TaskDockerized):
 
             self.logger.info("Requirements are installed")
 
+    def is_container_alive(self):
+        if self._container is None:
+            return False
+
+        try:
+            self._container.reload()
+            return self._container.status == "running"
+        except NotFound:
+            return False
+
     def main_step(self):
         api = Api(self.info["server_address"], self.info["api_token"])
         task_info_from_server = api.task.get_info_by_id(int(self.info["task_id"]))
@@ -691,11 +692,18 @@ class TaskApp(TaskDockerized):
         else:
             self.logger.warn("baseUrl not found in task info")
 
-        self.find_or_run_container()
-        self.exec_command(add_envs=self.main_step_envs())
-        self.process_logs()
-
         try:
+            self.find_or_run_container()
+
+            if self.is_container_alive():
+                self.exec_command(add_envs=self.main_step_envs())
+
+            parsed_logs = self.parse_logs()
+            self._container.reload()
+            self._logs_output = self._container.logs(stream=True)
+            parsed_logs += self.parse_logs()
+
+            self.process_logs(parsed_logs)
             self.drop_container_and_check_status()
         except:
             if self.tmp_data_dir is not None and sly.fs.dir_exists(self.tmp_data_dir):
@@ -804,29 +812,11 @@ class TaskApp(TaskDockerized):
 
         return final_envs
 
-    def process_logs(self):
-        logs_found = False
+    def parse_logs(self):
+        result_logs = []
 
-        def _process_line(log_line):
-            # log_line = log_line.decode("utf-8")
-            msg, res_log, lvl = self.parse_log_line(log_line)
-            if msg is None:
-                self.logger.warn(
-                    "Received empty (none) message in log line, will be handled automatically"
-                )
-                msg = "empty message"
-            self._process_report(msg)
-            output = self.call_event_function(res_log)
-
-            lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
-            if lvl_description is not None:
-                lvl_int = lvl_description.int
-            else:
-                lvl_int = sly.LOGGING_LEVELS["INFO"].int
-
-            lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
-            if lvl_int != -1:
-                self.logger.log(lvl_int, msg, extra=res_log)
+        if self._logs_output is None:
+            return result_logs
 
         def _decode(bytes: bytes):
             decode_args = [
@@ -843,15 +833,45 @@ class TaskApp(TaskDockerized):
             return bytes.decode(*decode_args[0])
 
         # @TODO: parse multiline logs correctly (including exceptions)
-        log_line = ""
 
         for log_line_arr in self._logs_output:
             for log_part in _decode(log_line_arr).splitlines():
-                logs_found = True
-                _process_line(log_part)
+                result_logs.append(log_part)
 
-        if not logs_found:
+        return result_logs
+
+
+    def process_logs(self, logs_arr = None):
+        result_logs = logs_arr
+
+        if logs_arr is None:
+            result_logs = self.parse_logs()
+
+        if len(result_logs) == 0:
             self.logger.warn("No logs obtained from container.")  # check if bug occurred
+        else:
+            for log_line in result_logs:
+                msg, res_log, lvl = self.parse_log_line(log_line)
+                if msg is None:
+                    self.logger.warn(
+                        "Received empty (none) message in log line, will be handled automatically"
+                    )
+                    msg = "empty message"
+                self._process_report(msg)
+                output = self.call_event_function(res_log)
+
+                lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
+                if lvl_description is not None:
+                    lvl_int = lvl_description.int
+                else:
+                    lvl_int = sly.LOGGING_LEVELS["INFO"].int
+
+                lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
+                if lvl_int != -1:
+                    self.logger.log(lvl_int, msg, extra=res_log)
+
+        return result_logs
+
 
     def _stop_wait_container(self):
         if self.is_isolate():
@@ -874,15 +894,32 @@ class TaskApp(TaskDockerized):
             self.exec_stop()
 
     def drop_container_and_check_status(self):
-        status = self._docker_api.api.exec_inspect(self._exec_id)["ExitCode"]
+        self._container.reload()
+        status = self._container.attrs["State"]["ExitCode"]
+
         if self.is_isolate():
             self._drop_container()
+
         self.logger.debug("Task container finished with status: {}".format(str(status)))
+
         if status != 0:
+            last_report = None
             if len(self._task_reports) > 0:
                 last_report = self._task_reports[-1].to_dict()
                 self.logger.debug("Founded error report.", extra=last_report)
+
+            instance_type = self.info.get("instance_type", "")
+            timeout = self.info.get("activeDeadlineSeconds", None)
+            if timeout > 0 and (status == 124 or status == 137):
+                msg = f"Task deadline exceeded. This task is only allowed to run for {timeout} seconds."
+                if instance_type == "community":
+                    msg += " If you require more time, please contact support or run the task on your agent."
+
+                raise RuntimeError(msg)
+
+            if last_report is not None:
                 raise sly.app.exceptions.DialogWindowError(**last_report)
+
             raise RuntimeError(
                 # self.logger.warn(
                 "Task container finished with non-zero status: {}".format(str(status))

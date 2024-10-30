@@ -41,10 +41,9 @@ RUN apt-get update \
 COPY requirements.txt /workdir/requirements.txt
 RUN pip install --no-cache-dir -r /workdir/requirements.txt
 
-COPY . /workdir
+COPY agent /workdir/agent
 
 #ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
 WORKDIR /workdir/agent
 
-ENTRYPOINT ["sh", "-c", "python -u /workdir/agent/main.py"]
-
+ENTRYPOINT ["python", "-u", "/workdir/agent/main.py"]

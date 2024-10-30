@@ -3,10 +3,17 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import Optional
+import time
+from typing import Dict, Optional
 
 from supervisely.app import DialogWindowError
 from supervisely.task.progress import Progress
+
+from worker import constants
+
+
+PULL_RETRIES = 5
+PULL_RETRY_DELAY = 5
 
 
 class PullPolicy(Enum):
@@ -42,6 +49,21 @@ class PullStatus(Enum):
         return dct.get(status, PullStatus.OTHER)
 
 
+def _auths_from_env() -> Dict:
+    doc_logs = constants.DOCKER_LOGIN().split(",")
+    doc_pasws = constants.DOCKER_PASSWORD().split(",")
+    doc_regs = constants.DOCKER_REGISTRY().split(",")
+    auths = {}
+    for login, pasw, reg in zip(doc_logs, doc_pasws, doc_regs):
+        auths.update({reg: {"username": login, "password": pasw}})
+    return auths
+
+
+def _registry_auth_from_env(registry: str) -> Dict:
+    auths = _auths_from_env()
+    return auths.get(registry, None)
+
+
 def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
     logger.info(
         "docker_pull_if_needed args",
@@ -69,9 +91,19 @@ def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progres
                 _docker_pull_progress(docker_api, docker_image_name, logger)
     elif str(policy) == str(PullPolicy.IF_AVAILABLE):
         if progress is False:
-            _docker_pull(docker_api, docker_image_name, logger, raise_exception=True)
+            _docker_pull(
+                docker_api,
+                docker_image_name,
+                logger,
+                raise_exception=True,
+            )
         else:
-            _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception=True)
+            _docker_pull_progress(
+                docker_api,
+                docker_image_name,
+                logger,
+                raise_exception=True,
+            )
     else:
         raise RuntimeError(f"Unknown pull policy {str(policy)}")
     if not _docker_image_exists(docker_api, docker_image_name):
@@ -84,107 +116,162 @@ def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progres
         )
 
 
+def resolve_registry(docker_image_name):
+    from docker.utils import parse_repository_tag
+    from docker.auth import resolve_repository_name
+
+    try:
+        repository, _ = parse_repository_tag(docker_image_name)
+        registry, _ = resolve_repository_name(repository)
+        return registry
+    except Exception:
+        return None
+
+
 def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
     from docker.errors import DockerException
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
-    progress_dummy = Progress("Pulling image...", 1, ext_logger=logger)
-    progress_dummy.iter_done_report()
-    try:
-        pulled_img = docker_api.images.pull(docker_image_name)
-        logger.info(
-            "Docker image has been pulled",
-            extra={"pulled": {"tags": pulled_img.tags, "id": pulled_img.id}},
+    registry = resolve_registry(docker_image_name)
+    auth = _registry_auth_from_env(registry)
+    for i in range(0, PULL_RETRIES + 1):
+        progress_dummy = Progress(
+            "Pulling image..." + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+            1,
+            ext_logger=logger,
         )
-    except DockerException as e:
-        if raise_exception is True:
-            raise e
-            # raise DockerException(
-            #     "Unable to pull image: see actual error above. "
-            #     "Please, run the task again or contact support team."
-            # )
-        else:
-            logger.warn("Pulling step is skipped. Unable to pull image: {!r}.".format(str(e)))
+        progress_dummy.iter_done_report()
+        try:
+
+            pulled_img = docker_api.images.pull(docker_image_name, auth_config=auth)
+            logger.info(
+                "Docker image has been pulled",
+                extra={"pulled": {"tags": pulled_img.tags, "id": pulled_img.id}},
+            )
+            return
+        except DockerException as e:
+            if i >= PULL_RETRIES:
+                if raise_exception is True:
+                    raise e
+                    # raise DockerException(
+                    #     "Unable to pull image: see actual error above. "
+                    #     "Please, run the task again or contact support team."
+                    # )
+                else:
+                    logger.warn(
+                        "Pulling step is skipped. Unable to pull image: {!r}.".format(str(e))
+                    )
+                    return
+            logger.warning("Unable to pull image: %s", str(e))
+            logger.info("Retrying in %d seconds...", PULL_RETRY_DELAY)
+            time.sleep(PULL_RETRY_DELAY)
 
 
 def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception=True):
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     from docker.errors import DockerException
 
-    try:
-        layers_total_load = {}
-        layers_current_load = {}
-        layers_total_extract = {}
-        layers_current_extract = {}
-        started = set()
-        loaded = set()
-        pulled = set()
+    registry = resolve_registry(docker_image_name)
+    auth = _registry_auth_from_env(registry)
+    for i in range(0, PULL_RETRIES + 1):
+        try:
+            layers_total_load = {}
+            layers_current_load = {}
+            layers_total_extract = {}
+            layers_current_extract = {}
+            started = set()
+            loaded = set()
+            pulled = set()
 
-        progress_full = Progress("Preparing dockerimage", 1, ext_logger=logger)
-        progres_ext = Progress("Extracting layers", 1, is_size=True, ext_logger=logger)
-        progress_load = Progress("Downloading layers", 1, is_size=True, ext_logger=logger)
+            progress_full = Progress(
+                "Preparing dockerimage" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                1,
+                ext_logger=logger,
+            )
+            progres_ext = Progress(
+                "Extracting layers" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                1,
+                is_size=True,
+                ext_logger=logger,
+            )
+            progress_load = Progress(
+                "Downloading layers" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                1,
+                is_size=True,
+                ext_logger=logger,
+            )
 
-        for line in docker_api.api.pull(docker_image_name, stream=True, decode=True):
-            status = PullStatus.from_str(line.get("status", None))
-            layer_id = line.get("id", None)
-            progress_details = line.get("progressDetail", {})
-            need_report = True
+            for line in docker_api.api.pull(
+                docker_image_name, stream=True, decode=True, auth_config=auth
+            ):
+                status = PullStatus.from_str(line.get("status", None))
+                layer_id = line.get("id", None)
+                progress_details = line.get("progressDetail", {})
+                need_report = True
 
-            if status is PullStatus.START:
-                started.add(layer_id)
-                need_report = False
-            elif status is PullStatus.DOWNLOAD:
-                layers_current_load[layer_id] = progress_details.get("current", 0)
-                layers_total_load[layer_id] = progress_details.get(
-                    "total", layers_current_load[layer_id]
-                )
-                total_load = sum(layers_total_load.values())
-                current_load = sum(layers_current_load.values())
-                if total_load > progress_load.total:
-                    progress_load.set(current_load, total_load)
-                elif (current_load - progress_load.current) / total_load > 0.01:
-                    progress_load.set(current_load, total_load)
-                else:
+                if status is PullStatus.START:
+                    started.add(layer_id)
                     need_report = False
-            elif status is PullStatus.COMPLETE_LOAD:
-                loaded.add(layer_id)
-            elif status is PullStatus.EXTRACT:
-                layers_current_extract[layer_id] = progress_details.get("current", 0)
-                layers_total_extract[layer_id] = progress_details.get(
-                    "total", layers_current_extract[layer_id]
-                )
-                total_ext = sum(layers_total_extract.values())
-                current_ext = sum(layers_current_extract.values())
-                if total_ext > progres_ext.total:
-                    progres_ext.set(current_ext, total_ext)
-                elif (current_ext - progres_ext.current) / total_ext > 0.01:
-                    progres_ext.set(current_ext, total_ext)
-                else:
-                    need_report = False
-            elif status is PullStatus.COMPLETE_PULL:
-                pulled.add(layer_id)
-
-            if started != pulled:
-                if need_report:
-                    if started == loaded:
-                        progres_ext.report_progress()
+                elif status is PullStatus.DOWNLOAD:
+                    layers_current_load[layer_id] = progress_details.get("current", 0)
+                    layers_total_load[layer_id] = progress_details.get(
+                        "total", layers_current_load[layer_id]
+                    )
+                    total_load = sum(layers_total_load.values())
+                    current_load = sum(layers_current_load.values())
+                    if total_load > progress_load.total:
+                        progress_load.set(current_load, total_load)
+                    elif (current_load - progress_load.current) / total_load > 0.01:
+                        progress_load.set(current_load, total_load)
                     else:
-                        progress_load.report_progress()
-            elif len(pulled) > 0:
-                progress_full.report_progress()
+                        need_report = False
+                elif status is PullStatus.COMPLETE_LOAD:
+                    loaded.add(layer_id)
+                elif status is PullStatus.EXTRACT:
+                    layers_current_extract[layer_id] = progress_details.get("current", 0)
+                    layers_total_extract[layer_id] = progress_details.get(
+                        "total", layers_current_extract[layer_id]
+                    )
+                    total_ext = sum(layers_total_extract.values())
+                    current_ext = sum(layers_current_extract.values())
+                    if total_ext > progres_ext.total:
+                        progres_ext.set(current_ext, total_ext)
+                    elif (current_ext - progres_ext.current) / total_ext > 0.01:
+                        progres_ext.set(current_ext, total_ext)
+                    else:
+                        need_report = False
+                elif status is PullStatus.COMPLETE_PULL:
+                    pulled.add(layer_id)
 
-        progress_full.iter_done()
-        progress_full.report_progress()
-        logger.info("Docker image has been pulled", extra={"image_name": docker_image_name})
-    except DockerException as e:
-        if raise_exception is True:
-            raise e
-            # raise DockerException(
-            #     "Unable to pull image: see actual error above. "
-            #     "Please, run the task again or contact support team."
-            # )
-        else:
-            logger.warn("Pulling step is skipped. Unable to pull image: {!r}.".format(repr(e)))
+                if started != pulled:
+                    if need_report:
+                        if started == loaded:
+                            progres_ext.report_progress()
+                        else:
+                            progress_load.report_progress()
+                elif len(pulled) > 0:
+                    progress_full.report_progress()
+
+            progress_full.iter_done()
+            progress_full.report_progress()
+            logger.info("Docker image has been pulled", extra={"image_name": docker_image_name})
+            return
+        except DockerException as e:
+            if i >= PULL_RETRIES:
+                if raise_exception is True:
+                    raise e
+                    # raise DockerException(
+                    #     "Unable to pull image: see actual error above. "
+                    #     "Please, run the task again or contact support team."
+                    # )
+                else:
+                    logger.warn(
+                        "Pulling step is skipped. Unable to pull image: {!r}.".format(repr(e))
+                    )
+                    return
+            logger.warning("Unable to pull image: %s", str(e))
+            logger.info("Retrying in %d seconds...", PULL_RETRY_DELAY)
+            time.sleep(PULL_RETRY_DELAY)
 
 
 def _docker_image_exists(docker_api, docker_image_name):

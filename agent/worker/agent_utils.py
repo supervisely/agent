@@ -616,9 +616,14 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
     if token is None:
         token = constants.TOKEN()
 
-    url = constants.PUBLIC_API_SERVER_ADDRESS() + "agents.options.info"
-    resp = requests.post(url=url, json={"token": token}, timeout=timeout)
-    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
+    api = sly.Api(server_address=server_address)
+    method = "agents.options.info"
+
+    resp = api.post(
+        method,
+        data={"token": token},
+    )
+    if resp is None or resp.status_code != requests.codes.ok:  # pylint: disable=no-member
         try:
             text = resp.text
         except:
@@ -633,10 +638,11 @@ def get_agent_options(server_address=None, token=None, timeout=60) -> dict:
 def get_instance_version(server_address=None, timeout=60):
     if server_address is None:
         server_address = constants.SERVER_ADDRESS()
-    url = constants.PUBLIC_API_SERVER_ADDRESS() + "instance.version"
-    resp = requests.get(url=url, timeout=timeout)
-    if resp.status_code != requests.codes.ok:  # pylint: disable=no-member
-        if resp.status_code in (400, 401, 403, 404):
+
+    api = sly.Api(server_address=server_address)
+    resp = api.get("instance.version", {})
+    if resp is None or resp.status_code != requests.codes.ok:  # pylint: disable=no-member
+        if resp is not None and resp.status_code in (400, 401, 403, 404):
             return None
         try:
             text = resp.text
@@ -928,6 +934,20 @@ def _ca_cert_changed(ca_cert) -> str:
     return cert_path
 
 
+def is_agent_container_ready_to_continue():
+    container_info = get_container_info()
+    volumes = binds_to_volumes_dict(container_info.get("HostConfig", {}).get("Binds", []))
+
+    # should contain at least 3 volumes:
+    # docker socket
+    # agent data files
+    # apps data files
+    if len(volumes) < 3:
+        return False
+
+    return True
+
+
 def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, dict, str]:
     return _envs_changes(envs), _volumes_changes(volumes), _ca_cert_changed(ca_cert)
 
@@ -1080,20 +1100,3 @@ def maybe_update_runtime():
 def convert_millicores_to_cpu_quota(millicores, cpu_period=100000):
     cpu_quota = (millicores / 1000) * cpu_period
     return int(cpu_quota)
-
-
-def docker_login(docker_api, logger):
-    doc_logs = constants.DOCKER_LOGIN().split(",")
-    doc_pasws = constants.DOCKER_PASSWORD().split(",")
-    doc_regs = constants.DOCKER_REGISTRY().split(",")
-
-    for login, password, registry in zip(doc_logs, doc_pasws, doc_regs):
-        if registry:
-            try:
-                doc_login = docker_api.login(username=login, password=password, registry=registry)
-                logger.info(
-                    "DOCKER_CLIENT_LOGIN_SUCCESS", extra={**doc_login, "registry": registry}
-                )
-            except Exception as e:
-                if not constants.OFFLINE_MODE():
-                    raise e
