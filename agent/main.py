@@ -29,6 +29,7 @@ from worker import agent_utils
 from worker import constants
 from worker.system_info import get_container_info
 from worker.agent import Agent
+from worker import docker_utils
 
 
 def parse_envs():
@@ -116,6 +117,9 @@ def _start_net_client(docker_api=None):
             docker_api.networks.get(network)
         except:
             docker_api.networks.create(network)
+
+        if constants.OFFLINE_MODE() is False:
+            docker_utils._docker_pull(docker_api, image, logger=sly.logger)
 
         sly.logger.info("Starting sly-net-client...")
         net_container = docker_api.containers.run(
