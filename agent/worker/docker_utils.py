@@ -133,8 +133,6 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
-    if docker_auths is None:
-        docker_auths = {}
     auth = _registry_auth_from_env(registry)
     for i in range(0, PULL_RETRIES + 1):
         progress_dummy = Progress(
@@ -174,8 +172,6 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
     from docker.errors import DockerException
 
     registry = resolve_registry(docker_image_name)
-    if docker_auths is None:
-        docker_auths = {}
     auth = _registry_auth_from_env(registry)
     for i in range(0, PULL_RETRIES + 1):
         try:
