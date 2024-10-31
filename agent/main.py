@@ -119,7 +119,9 @@ def _start_net_client(docker_api=None):
             docker_api.networks.create(network)
 
         if constants.OFFLINE_MODE() is False:
-            docker_utils._docker_pull(docker_api, image, logger=sly.logger)
+            img_exists = docker_utils._docker_image_exists(docker_api, image)
+            if not img_exists:
+                docker_utils._docker_pull(docker_api, image, logger=sly.logger, raise_exception=True)
 
         sly.logger.info("Starting sly-net-client...")
         net_container = docker_api.containers.run(

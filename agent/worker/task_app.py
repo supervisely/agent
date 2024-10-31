@@ -698,12 +698,10 @@ class TaskApp(TaskDockerized):
             if self.is_container_alive():
                 self.exec_command(add_envs=self.main_step_envs())
 
-            parsed_logs = self.parse_logs()
-            self._container.reload()
-            self._logs_output = self._container.logs(stream=True)
-            parsed_logs += self.parse_logs()
+            logs_cnt = self.process_logs()
+            if logs_cnt == 0:
+                self.logger.warn("No logs received from the container")# check if bug occurred
 
-            self.process_logs(parsed_logs)
             self.drop_container_and_check_status()
         except:
             if self.tmp_data_dir is not None and sly.fs.dir_exists(self.tmp_data_dir):
@@ -813,10 +811,8 @@ class TaskApp(TaskDockerized):
         return final_envs
 
     def parse_logs(self):
-        result_logs = []
-
         if self._logs_output is None:
-            return result_logs
+            return []
 
         def _decode(bytes: bytes):
             decode_args = [
@@ -836,41 +832,38 @@ class TaskApp(TaskDockerized):
 
         for log_line_arr in self._logs_output:
             for log_part in _decode(log_line_arr).splitlines():
-                result_logs.append(log_part)
-
-        return result_logs
+                yield log_part
 
 
     def process_logs(self, logs_arr = None):
         result_logs = logs_arr
+        logs_cnt = 0
 
         if logs_arr is None:
             result_logs = self.parse_logs()
 
-        if len(result_logs) == 0:
-            self.logger.warn("No logs obtained from container.")  # check if bug occurred
-        else:
-            for log_line in result_logs:
-                msg, res_log, lvl = self.parse_log_line(log_line)
-                if msg is None:
-                    self.logger.warn(
-                        "Received empty (none) message in log line, will be handled automatically"
-                    )
-                    msg = "empty message"
-                self._process_report(msg)
-                output = self.call_event_function(res_log)
+        for log_line in result_logs:
+            logs_cnt += 1
+            msg, res_log, lvl = self.parse_log_line(log_line)
+            if msg is None:
+                self.logger.warn(
+                    "Received empty (none) message in log line, will be handled automatically"
+                )
+                msg = "empty message"
+            self._process_report(msg)
+            output = self.call_event_function(res_log)
 
-                lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
-                if lvl_description is not None:
-                    lvl_int = lvl_description.int
-                else:
-                    lvl_int = sly.LOGGING_LEVELS["INFO"].int
+            lvl_description = sly.LOGGING_LEVELS.get(lvl, None)
+            if lvl_description is not None:
+                lvl_int = lvl_description.int
+            else:
+                lvl_int = sly.LOGGING_LEVELS["INFO"].int
 
-                lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
-                if lvl_int != -1:
-                    self.logger.log(lvl_int, msg, extra=res_log)
+            lvl_int = filter_log_line(msg, lvl_int, self._log_filters)
+            if lvl_int != -1:
+                self.logger.log(lvl_int, msg, extra=res_log)
 
-        return result_logs
+        return logs_cnt
 
 
     def _stop_wait_container(self):
