@@ -135,8 +135,9 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
     registry = resolve_registry(docker_image_name)
     auth = _registry_auth_from_env(registry)
     for i in range(0, PULL_RETRIES + 1):
+        retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
         progress_dummy = Progress(
-            "Pulling image..." + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+            "Pulling image..." + retry_str,
             1,
             ext_logger=logger,
         )
@@ -183,19 +184,21 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
             loaded = set()
             pulled = set()
 
+            retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
+
             progress_full = Progress(
-                "Preparing dockerimage" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                "Preparing dockerimage" + retry_str,
                 1,
                 ext_logger=logger,
             )
             progres_ext = Progress(
-                "Extracting layers" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                "Extracting layers" + retry_str,
                 1,
                 is_size=True,
                 ext_logger=logger,
             )
             progress_load = Progress(
-                "Downloading layers" + f" (retry {i}/{PULL_RETRIES})" if i > 0 else "",
+                "Downloading layers" + retry_str,
                 1,
                 is_size=True,
                 ext_logger=logger,
