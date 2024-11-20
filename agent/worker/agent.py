@@ -106,11 +106,13 @@ class Agent:
         cur_date = datetime.utcnow().strftime("%Y-%m-%dT%H:%M")
 
         with self._history_file_lock:
+            images_stat = {}
             if sly.fs.file_exists(self._history_file):
-                with open(self._history_file, "r") as json_file:
-                    images_stat = json.load(json_file)
-            else:
-                images_stat = {}
+                try:
+                    with open(self._history_file, "r") as json_file:
+                        images_stat = json.load(json_file)
+                except json.JSONDecodeError:
+                    self.logger.warning(f"Corrupted JSON in {self._history_file}. Resetting images_stat.")
 
             images_stat[self.agent_info["agent_image"]] = cur_date
 
