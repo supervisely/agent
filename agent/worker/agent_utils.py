@@ -1069,16 +1069,19 @@ def restart_agent(
 
 def nvidia_runtime_is_available():
     docker_api = docker.from_env()
-    image = constants.DEFAULT_APP_DOCKER_IMAGE()
+    container_info = get_container_info()
+    image = container_info.get("Image")
     try:
         docker_api.containers.run(
             image,
+            entrypoint="",
             command="nvidia-smi",
             runtime="nvidia",
             remove=True,
         )
         return True
     except Exception as e:
+        sly.logger.debug(f"Failed to run nvidia-smi:", exc_info=True)
         return False
 
 

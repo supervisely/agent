@@ -145,7 +145,7 @@ _OPTIONAL_DEFAULTS = {
     _SUPERVISELY_AGENT_FILES: f"/opt/supervisely/agents/agent-files-{TOKEN()[:8]}",
     _SUPERVISELY_AGENT_FILES_CONTAINER: "/app/sly-files",
     _OFFLINE_MODE: False,
-    _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk",
+    _DEFAULT_APP_DOCKER_IMAGE: "supervisely/base-py-sdk:latest",
     _AGENT_FILES_IN_APP_CONTAINER: "/agent-storage",
     _AUTO_CLEAN_INT_RANGE_DAYS: 7,
     _REQUESTS_CA_BUNDLE_DIR_CONTAINER: "/sly_certs",
