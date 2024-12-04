@@ -112,7 +112,9 @@ class Agent:
                     with open(self._history_file, "r") as json_file:
                         images_stat = json.load(json_file)
                 except json.JSONDecodeError:
-                    self.logger.warning(f"Corrupted JSON in {self._history_file}. Resetting images_stat.")
+                    self.logger.warning(
+                        f"Corrupted JSON in {self._history_file}. Resetting images_stat."
+                    )
 
             images_stat[self.agent_info["agent_image"]] = cur_date
 
@@ -689,9 +691,10 @@ class Agent:
             self.logger.info("Start background task: Clearing Tasks data")
             try:
                 task_dir = constants.AGENT_TASKS_DIR()
-                shutil.move(task_dir, tmp_dir)
-                os.makedirs(task_dir)
-                shutil.rmtree(tmp_dir)
+                if os.path.exists(task_dir):
+                    shutil.move(task_dir, tmp_dir)
+                    os.makedirs(task_dir)
+                    shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear tasks data", exc_info=True)
             else:
@@ -716,9 +719,10 @@ class Agent:
         elif constants.SHOULD_CLEAN_PIP_CACHE():
             self.logger.info("Start background task: Clearing pip cache")
             try:
-                shutil.move(constants.APPS_PIP_CACHE_DIR(), tmp_dir)
-                os.makedirs(constants.APPS_PIP_CACHE_DIR())
-                shutil.rmtree(tmp_dir)
+                if os.path.exists(constants.APPS_PIP_CACHE_DIR()):
+                    shutil.move(constants.APPS_PIP_CACHE_DIR(), tmp_dir)
+                    os.makedirs(constants.APPS_PIP_CACHE_DIR())
+                    shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear pip cache", exc_info=True)
             else:
@@ -743,9 +747,36 @@ class Agent:
         elif constants.SHOULD_CLEAN_APPS_DATA():
             self.logger.info("Start background task: Clearing apps data")
             try:
-                shutil.move(constants.AGENT_APPS_CACHE_DIR(), tmp_dir)
-                os.makedirs(constants.AGENT_APPS_CACHE_DIR())
+                if os.path.exists(constants.AGENT_APPS_CACHE_DIR()):
+                    shutil.move(constants.AGENT_APPS_CACHE_DIR(), tmp_dir)
+                    os.makedirs(constants.AGENT_APPS_CACHE_DIR())
+                    shutil.rmtree(tmp_dir)
+            except:
+                self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
+            else:
+                self.logger.info(
+                    "Background task finished: Agent data has been cleared successfully"
+                )
+        tmp_dir = constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER() + "_to_remove"
+        if os.path.exists(tmp_dir):
+            self.logger.info(
+                "Start background task: Clearing apps data [_to_remove directory detected]"
+            )
+            try:
                 shutil.rmtree(tmp_dir)
+            except:
+                self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
+            else:
+                self.logger.info(
+                    "Background task finished: Apps data has been cleared successfully"
+                )
+        elif constants.SHOULD_CLEAN_APPS_DATA():
+            self.logger.info("Start background task: Clearing apps data")
+            try:
+                if os.path.exists(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER()):
+                    shutil.move(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER(), tmp_dir)
+                    os.makedirs(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
+                    shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
             else:
