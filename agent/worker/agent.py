@@ -754,7 +754,7 @@ class Agent:
                 self.logger.info(
                     "Background task finished: Agent data has been cleared successfully"
                 )
-        tmp_dir = constants.SUPERVISELY_AGENT_FILES_CONTAINER() + "_to_remove"
+        tmp_dir = constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER() + "_to_remove"
         if os.path.exists(tmp_dir):
             self.logger.info(
                 "Start background task: Clearing apps data [_to_remove directory detected]"
@@ -770,8 +770,8 @@ class Agent:
         elif constants.SHOULD_CLEAN_APPS_DATA():
             self.logger.info("Start background task: Clearing apps data")
             try:
-                shutil.move(constants.SUPERVISELY_AGENT_FILES_CONTAINER(), tmp_dir)
-                os.makedirs(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
+                shutil.move(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER(), tmp_dir)
+                os.makedirs(constants.SUPERVISELY_SYNCED_APP_DATA_CONTAINER())
                 shutil.rmtree(tmp_dir)
             except:
                 self.logger.warn("Background task error: Failed to clear apps data", exc_info=True)
