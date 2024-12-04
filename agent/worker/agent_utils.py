@@ -1081,7 +1081,7 @@ def nvidia_runtime_is_available():
         )
         return True
     except Exception as e:
-        sly.logger.debug(f"Failed to run nvidia-smi:", exc_info=True)
+        sly.logger.warning(f"Failed to run nvidia-smi:", exc_info=True)
         return False
 
 
