@@ -905,7 +905,7 @@ class TaskApp(TaskDockerized):
                 self.logger.debug("Founded error report.", extra=last_report)
 
             instance_type = self.info.get("instance_type", "")
-            timeout = self.info.get("activeDeadlineSeconds", None)
+            timeout = self.info.get("activeDeadlineSeconds", 0)
             if timeout > 0 and (status == 124 or status == 137):
                 msg = f"Task deadline exceeded. This task is only allowed to run for {timeout} seconds."
                 if instance_type == "community":
