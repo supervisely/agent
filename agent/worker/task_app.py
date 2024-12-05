@@ -700,7 +700,7 @@ class TaskApp(TaskDockerized):
 
             logs_cnt = self.process_logs()
             if logs_cnt == 0:
-                self.logger.warn("No logs received from the container")# check if bug occurred
+                self.logger.warn("No logs received from the container")  # check if bug occurred
 
             self.drop_container_and_check_status()
         except:
@@ -834,8 +834,7 @@ class TaskApp(TaskDockerized):
             for log_part in _decode(log_line_arr).splitlines():
                 yield log_part
 
-
-    def process_logs(self, logs_arr = None):
+    def process_logs(self, logs_arr=None):
         result_logs = logs_arr
         logs_cnt = 0
 
@@ -865,7 +864,6 @@ class TaskApp(TaskDockerized):
 
         return logs_cnt
 
-
     def _stop_wait_container(self):
         if self.is_isolate():
             return super()._stop_wait_container()
@@ -880,6 +878,11 @@ class TaskApp(TaskDockerized):
         else:
             return
 
+    def get_exit_status(self):
+        exec_info = self._docker_api.api.exec_inspect(self._exec_id)
+        exit_code = exec_info["ExitCode"]
+        return exit_code
+
     def _drop_container(self):
         if self.is_isolate():
             super()._drop_container()
@@ -888,7 +891,7 @@ class TaskApp(TaskDockerized):
 
     def drop_container_and_check_status(self):
         self._container.reload()
-        status = self._container.attrs["State"]["ExitCode"]
+        status = self.get_exit_status()
 
         if self.is_isolate():
             self._drop_container()
@@ -902,7 +905,7 @@ class TaskApp(TaskDockerized):
                 self.logger.debug("Founded error report.", extra=last_report)
 
             instance_type = self.info.get("instance_type", "")
-            timeout = self.info.get("activeDeadlineSeconds", None)
+            timeout = self.info.get("activeDeadlineSeconds", 0)
             if timeout > 0 and (status == 124 or status == 137):
                 msg = f"Task deadline exceeded. This task is only allowed to run for {timeout} seconds."
                 if instance_type == "community":
