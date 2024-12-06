@@ -101,11 +101,25 @@ def cpu_freq_MHZ():
 
 
 def get_disk_usage():
-    disk_usage = psutil.disk_usage(constants.AGENT_ROOT_DIR())  # root dir mounted to host
+    root = psutil.disk_usage("/")
+    agent_data = psutil.disk_usage(constants.AGENT_ROOT_DIR())  # root dir mounted to host
+    apps_data = psutil.disk_usage(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
     res = {
-        "total": disk_usage.total,
-        "used": disk_usage.used,
-        "free": disk_usage.free,
+        "root": {
+            "total": root.total,
+            "used": root.used,
+            "free": root.free,
+        },
+        "agent_data": {
+            "total": agent_data.total,
+            "used": agent_data.used,
+            "free": agent_data.free,
+        },
+        "apps_data": {
+            "total": apps_data.total,
+            "used": apps_data.used,
+            "free": apps_data.free,
+        },
     }
     return res
 
