@@ -17,6 +17,9 @@ import torch
 
 import supervisely_lib as sly
 
+from worker import constants
+
+
 # Some functions below perform dirty parsing of corresponding utils output.
 # @TODO: They shall be replaced with more portable implementations.
 
@@ -97,6 +100,16 @@ def cpu_freq_MHZ():
     return res
 
 
+def get_disk_usage():
+    disk_usage = psutil.disk_usage(constants.AGENT_ROOT_DIR())  # root dir mounted to host
+    res = {
+        "total": disk_usage.total,
+        "used": disk_usage.used,
+        "free": disk_usage.free,
+    }
+    return res
+
+
 def get_hw_info():
     res = {
         "psutil": {
@@ -117,6 +130,7 @@ def get_hw_info():
         "cpuinfo": sly.catch_silently(parse_cpuinfo),
         "meminfo": sly.catch_silently(parse_meminfo),
         "nvidia-smi": sly.catch_silently(print_nvsmi_devlist),
+        "disk_usage": get_disk_usage(),
     }
     return res
 
@@ -132,6 +146,7 @@ def get_load_info():
             "total": vmem[0],
             "available": vmem[1],
         },
+        "disk_usage": get_disk_usage(),
     }
     return res
 
