@@ -61,6 +61,7 @@ class AgentOptionsJsonFields:
     DOCKER_IMAGE = "dockerImage"
     FORCE_CPU_ONLY = "forceCPUOnly"
     LOG_LEVEL = "logLevel"
+    IMAGES_CLEAN_INTERVAL = "imagesCleanInterval"
 
 
 def create_img_meta_str(img_size_bytes, width, height):
@@ -783,6 +784,12 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
         agent_host_dir = optional_defaults[constants._AGENT_HOST_DIR]
 
     update_env_param(constants._AGENT_HOST_DIR, agent_host_dir)
+
+    update_env_param(
+        constants._REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS,
+        options.get(AgentOptionsJsonFields.IMAGES_CLEAN_INTERVAL, None),
+        optional_defaults[constants._REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS],
+    )
 
     volumes = {}
 
