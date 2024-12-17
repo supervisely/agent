@@ -189,8 +189,11 @@ def get_optional_defaults():
     return _OPTIONAL_DEFAULTS.copy()
 
 
-def read_optional_setting(name):
-    return os.getenv(name, _OPTIONAL_DEFAULTS[name])
+def read_optional_setting(name, postprocess_fn = None):
+    value = os.getenv(name, _OPTIONAL_DEFAULTS[name])
+    if postprocess_fn is not None:
+        return postprocess_fn(value)
+    return value
 
 
 def HOST_DIR():
@@ -544,7 +547,7 @@ def DISABLE_TELEMETRY():
 
 
 def REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS():
-    return read_optional_setting(_REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS)
+    return read_optional_setting(_REMOVE_IDLE_DOCKER_IMAGE_AFTER_X_DAYS, lambda x: int(x))
 
 
 def AGENT_ID():
