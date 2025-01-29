@@ -66,3 +66,17 @@ jobs:
             LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }}
           cache-from: type=registry,ref=supervisely/agent:cache
           cache-to: type=registry,ref=supervisely/agent:cache,mode=max
+
+      - name: Release App
+        uses: .github/workflows/app-release
+        with:
+          SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
+          SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
+          SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+          GH_ACCESS_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
+          SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+          SLUG: "${{ github.repository }}"
+          RELEASE_VERSION: "${{ inputs.tag_version }}"
+          RELEASE_DESCRIPTION: "${{ inputs.tag_version }} Agent App release"
+          
