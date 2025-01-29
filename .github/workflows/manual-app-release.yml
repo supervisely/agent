@@ -1,4 +1,4 @@
-name: manual-build-push-release
+name: Manual App Release
 
 on:
   workflow_dispatch:
@@ -9,18 +9,16 @@ on:
         default: ""
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Release App
-        uses: supervisely/agent/.github/workflows/app-release.yml@app-release
-        with:
-          SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
-          SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
-          GH_ACCESS_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
-          SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          SLUG: "${{ github.repository }}"
-          RELEASE_VERSION: "${{ inputs.tag_version }}"
-          RELEASE_DESCRIPTION: "${{ inputs.tag_version }} Agent App release"
+  Release-Agent-App:
+    uses: supervisely/agent/.github/workflows/app-release.yml@app-release
+    secrets:
+      SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
+      SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
+      SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+      GH_ACCESS_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    with:  
+      SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
+      SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+      SLUG: "${{ github.repository }}"
+      RELEASE_VERSION: "${{ inputs.tag_version }}"
+      RELEASE_DESCRIPTION: "${{ inputs.tag_version }} Agent App release"
