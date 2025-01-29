@@ -84,7 +84,7 @@ jobs:
           # cache-to: type=gha,mode=max
       
       - name: Release App
-        uses: .github/workflows/app-release
+        uses: supervisely/agent/.github/workflows/app-release.yml@app-release
         with:
           SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
           SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
