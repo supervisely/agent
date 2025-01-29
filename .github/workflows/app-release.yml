@@ -32,6 +32,8 @@ on:
 jobs:
   Supervisely-Release:
     runs-on: ubuntu-latest
+    outputs:
+      RELEASE_TYPE: ${{ steps.update_app_config.outputs.RELEASE_TYPE }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -39,13 +41,13 @@ jobs:
         with:
           python-version: 3.8
       - name: Update App Config
+        id: update_app_config
         run: |
           VERSION="${{ inputs.RELEASE_VERSION }}"
           if [[ $VERSION == v* ]]; then
             VERSION="${VERSION:1}"
           fi
           echo "DOCKER_IMAGE=$VERSION" >> $GITHUB_ENV
-          echo "DOCKER_IMAGE set to $VERSION"
           
           SEMVER_REGEX="^[0-9]+\.[0-9]+\.[0-9]+$"
           if [[ ! $VERSION =~ $SEMVER_REGEX ]]; then
@@ -53,23 +55,32 @@ jobs:
           else
           RELEASE_TYPE = "release"
           fi
-          echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_ENV
+          echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           
           python .github/workflows/agent_app/update_config.py
+          echo "docker_image set to $VERSION"
 
-      - name: Supervisely Release
-        uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
-        env:
-          DEV_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
-          PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-          DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
-          PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
-          PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
-          GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
-          SLUG: "${{ inputs.SLUG }}"
-          RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
-          RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
-          RELEASE_TYPE: "${{ env.RELEASE_TYPE }}"
-          SUBAPP_PATHS: ".github/workflows/agent_app"
-          SKIP_INSTANCE_VERSION_VALIDATION: "true"
-          SKIP_IMAGE_VALIDATION: "true"
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add .github/workflows/agent_app/config.json
+          git commit -m "Update config for release $VERSION"
+          git push
+
+  Release:
+    needs: Supervisely-Release
+    uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
+    secrets:
+      SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
+      SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
+      SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
+      GH_ACCESS_TOKEN: "${{ secrets.GH_ACCESS_TOKEN }}"
+    with:
+      SUPERVISELY_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
+      SUPERVISELY_PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
+      SLUG: "${{ inputs.SLUG }}"
+      RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
+      RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
+      RELEASE_TYPE: "${{ needs.Supervisely-Release.outputs.RELEASE_TYPE }}"
+      SUBAPP_PATHS: ".github/workflows/agent_app"
+      SKIP_INSTANCE_VERSION_VALIDATION: "true"
+      SKIP_IMAGE_VALIDATION: "true"
