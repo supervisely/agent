@@ -1,4 +1,4 @@
-name: Supervisely release
+name: supervisely-app-release
 run-name: Supervisely ${{ github.repository }} app release
 on:
   workflow_call:

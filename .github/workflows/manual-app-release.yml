@@ -1,4 +1,4 @@
-name: Manual App Release
+name: manual-app-release
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
       SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
       SUPERVISELY_PROD_API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
       GH_ACCESS_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-    with:  
+    with:
       SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       SLUG: "${{ github.repository }}"
