@@ -3,5 +3,5 @@
     "version": "2.0.0",
     "name": "Agent",
     "instance_version": "1.0.0",
-    "docker_image": "1.0.0"
+    "docker_image": "6.8.48"
 }
