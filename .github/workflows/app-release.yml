@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       RELEASE_TYPE: ${{ steps.update_app_config.outputs.RELEASE_TYPE }}
+      COMMIT_HASH: ${{ steps.update_app_config.outputs.COMMIT_HASH }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,6 +86,8 @@ jobs:
             git config --global user.email "${{ vars.SUPERVISELY_GIT_EMAIL }}"
             git commit -m "Update config for release $VERSION"
             git push
+            COMMIT_HASH=$(git rev-parse HEAD)
+            echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_OUTPUT
           fi
 
   Supervisely-Release:
@@ -106,3 +109,4 @@ jobs:
       SKIP_INSTANCE_VERSION_VALIDATION: true
       SKIP_IMAGE_VALIDATION: true
       ARCHIVE_ONLY_CONFIG: true
+      COMMIT_SHA: "${{ needs.Update-App-Config.outputs.COMMIT_HASH }}"
