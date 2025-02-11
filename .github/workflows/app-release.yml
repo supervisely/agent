@@ -70,8 +70,7 @@ jobs:
           PUBLISH="${{ inputs.PUBLISH }}"
           echo "PUBLISH=$PUBLISH"
           if [[ $PUBLISH == true ]]; then
-          # RELEASE_TYPE="release"
-          echo "PUBLISH is true"
+          RELEASE_TYPE="publish"
           fi
           echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "RELEASE_TYPE=$RELEASE_TYPE"
