@@ -18,6 +18,10 @@ on:
       RELEASE_DESCRIPTION:
         required: true
         type: string
+      PUBLISH:
+        required: false
+        type: boolean
+        default: false
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -27,20 +31,28 @@ on:
         required: true
       GH_ACCESS_TOKEN:
         required: true
-      
+
+permissions:
+  contents: write
+  actions: write
 
 jobs:
-  Supervisely-Release:
+  Update-App-Config:
     runs-on: ubuntu-latest
     outputs:
       RELEASE_TYPE: ${{ steps.update_app_config.outputs.RELEASE_TYPE }}
+      COMMIT_HASH: ${{ steps.update_app_config.outputs.COMMIT_HASH }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.8
       - name: Update App Config
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         id: update_app_config
         run: |
           VERSION="${{ inputs.RELEASE_VERSION }}"
@@ -51,23 +63,34 @@ jobs:
           
           SEMVER_REGEX="^[0-9]+\.[0-9]+\.[0-9]+$"
           if [[ ! $VERSION =~ $SEMVER_REGEX ]]; then
-          RELEASE_TYPE = "release-branch"
+          RELEASE_TYPE="release-branch"
           else
-          RELEASE_TYPE = "release"
+          RELEASE_TYPE="release"
+          fi
+          PUBLISH="${{ inputs.PUBLISH }}"
+          echo "PUBLISH=$PUBLISH"
+          if [[ $PUBLISH == true ]]; then
+          RELEASE_TYPE="publish"
           fi
           echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "RELEASE_TYPE=$RELEASE_TYPE"
           
-          python .github/workflows/agent_app/update_config.py
-          echo "docker_image set to $VERSION"
+          python app/update_config.py $VERSION
 
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add .github/workflows/agent_app/config.json
-          git commit -m "Update config for release $VERSION"
-          git push
+          git add app/config.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git config --global user.name "${{ vars.SUPERVISELY_GIT_USERNAME }}"
+            git config --global user.email "${{ vars.SUPERVISELY_GIT_EMAIL }}"
+            git commit -m "Update config for release $VERSION"
+            git push
+            COMMIT_HASH=$(git rev-parse HEAD)
+            echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_OUTPUT
+          fi
 
-  Release:
-    needs: Supervisely-Release
+  Supervisely-Release:
+    needs: Update-App-Config
     uses: supervisely-ecosystem/workflows/.github/workflows/common.yml@master
     secrets:
       SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
@@ -80,7 +103,9 @@ jobs:
       SLUG: "${{ inputs.SLUG }}"
       RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
       RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
-      RELEASE_TYPE: "${{ needs.Supervisely-Release.outputs.RELEASE_TYPE }}"
-      SUBAPP_PATHS: ".github/workflows/agent_app"
-      SKIP_INSTANCE_VERSION_VALIDATION: "true"
-      SKIP_IMAGE_VALIDATION: "true"
+      RELEASE_TYPE: "${{ needs.Update-App-Config.outputs.RELEASE_TYPE }}"
+      SUBAPP_PATHS: "app"
+      SKIP_INSTANCE_VERSION_VALIDATION: true
+      SKIP_IMAGE_VALIDATION: true
+      ARCHIVE_ONLY_CONFIG: true
+      COMMIT_SHA: "${{ needs.Update-App-Config.outputs.COMMIT_HASH }}"
