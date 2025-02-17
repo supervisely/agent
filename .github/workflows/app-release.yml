@@ -97,4 +97,4 @@ jobs:
       SKIP_INSTANCE_VERSION_VALIDATION: true
       SKIP_IMAGE_VALIDATION: true
       ARCHIVE_ONLY_CONFIG: true
-      COMMIT_SHA: "${{ needs.Update-App-Config.outputs.COMMIT_HASH }}"
+      COMMIT_SHA: "master"
