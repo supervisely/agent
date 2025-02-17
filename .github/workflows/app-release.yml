@@ -9,19 +9,12 @@ on:
       SUPERVISELY_PROD_SERVER_ADDRESS:
         required: true
         type: string
-      SLUG:
-        required: true
-        type: string
       RELEASE_VERSION:
         required: true
         type: string
       RELEASE_DESCRIPTION:
         required: true
         type: string
-      PUBLISH:
-        required: false
-        type: boolean
-        default: false
     secrets:
       SUPERVISELY_DEV_API_TOKEN:
         required: true
@@ -46,6 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          ref: master
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -66,11 +60,6 @@ jobs:
           RELEASE_TYPE="release-branch"
           else
           RELEASE_TYPE="release"
-          fi
-          PUBLISH="${{ inputs.PUBLISH }}"
-          echo "PUBLISH=$PUBLISH"
-          if [[ $PUBLISH == true ]]; then
-          RELEASE_TYPE="publish"
           fi
           echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "RELEASE_TYPE=$RELEASE_TYPE"
@@ -100,7 +89,7 @@ jobs:
     with:
       SUPERVISELY_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_SERVER_ADDRESS }}"
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ inputs.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-      SLUG: "${{ inputs.SLUG }}"
+      SLUG: "supervisely-ecosystem/agent"
       RELEASE_VERSION: "${{ inputs.RELEASE_VERSION }}"
       RELEASE_DESCRIPTION: "${{ inputs.RELEASE_DESCRIPTION }}"
       RELEASE_TYPE: "${{ needs.Update-App-Config.outputs.RELEASE_TYPE }}"
