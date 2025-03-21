@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install python-all-dev libboost-python-dev libexiv2-dev
+        sudo apt-get install python3-all-dev libboost-python-dev libexiv2-dev
         sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so
         pip install --upgrade pip
         pip install pylint
