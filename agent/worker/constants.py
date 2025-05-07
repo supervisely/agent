@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import supervisely_lib as sly
 import hashlib
 import re
-from worker.docker_utils import PullPolicy
+from worker.docker_utils import PullPolicy, hidden_auth
 
 
 _SERVER_ADDRESS = "SERVER_ADDRESS"
@@ -189,7 +189,7 @@ def get_optional_defaults():
     return _OPTIONAL_DEFAULTS.copy()
 
 
-def read_optional_setting(name, postprocess_fn = None):
+def read_optional_setting(name, postprocess_fn=None):
     value = os.getenv(name, _OPTIONAL_DEFAULTS[name])
     if postprocess_fn is not None:
         return postprocess_fn(value)
@@ -756,3 +756,6 @@ def init_constants():
 
     if CROSS_AGENT_DATA_DIR() is not None and not sly.fs.dir_exists(CROSS_AGENT_DATA_DIR()):
         sly.fs.mkdir(CROSS_AGENT_DATA_DIR())
+
+
+sly.logger.debug("Inited Docker credentials", extra={"auth": hidden_auth()})

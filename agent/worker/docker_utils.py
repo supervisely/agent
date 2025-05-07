@@ -134,6 +134,8 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
     auth = _registry_auth_from_env(registry)
+    auth_log = hidden_auth().get(registry, None)
+    logger.debug("Docker registry auth", extra={"registry": registry, "auth": auth_log})
     for i in range(0, PULL_RETRIES + 1):
         retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
         progress_dummy = Progress(
@@ -174,6 +176,8 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
 
     registry = resolve_registry(docker_image_name)
     auth = _registry_auth_from_env(registry)
+    auth_log = hidden_auth().get(registry, None)
+    logger.debug("Docker registry auth", extra={"registry": registry, "auth": auth_log})
     for i in range(0, PULL_RETRIES + 1):
         try:
             layers_total_load = {}
@@ -285,3 +289,16 @@ def _docker_image_exists(docker_api, docker_image_name):
     except ImageNotFound:
         return False
     return True
+
+
+def hidden_auth():
+    auths = _auths_from_env()
+    for registry, auth in auths.items():
+        username = auth.get("username")
+        if username:
+            username = username[0] + "*" * (len(username) - 2) + username[-1]
+        password = auth.get("password")
+        if password:
+            password = password[0] + "*" * (len(password) - 2) + password[-1]
+        auths[registry] = {"username": username, "password": password}
+    return auths
