@@ -296,9 +296,9 @@ def hidden_auth():
     for registry, auth in auths.items():
         username = auth.get("username")
         if username:
-            username = username[0] + "*" * (len(username) - 2) + username[-1]
+            username = username[0] + ("*" * (len(username) - 2))[:10] + username[-1]
         password = auth.get("password")
         if password:
-            password = password[0] + "*" * (len(password) - 2) + password[-1]
+            password = password[0] + ("*" * (len(password) - 2))[:10] + password[-1]
         auths[registry] = {"username": username, "password": password}
     return auths

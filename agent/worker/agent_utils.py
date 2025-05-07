@@ -708,6 +708,9 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     constants._VALUES[constants._DOCKER_LOGIN] = docker_login
     constants._VALUES[constants._DOCKER_PASSWORD] = docker_pass
     constants._VALUES[constants._DOCKER_REGISTRY] = docker_reg
+    update_env_param(constants._DOCKER_LOGIN, docker_login)
+    update_env_param(constants._DOCKER_PASSWORD, docker_pass)
+    update_env_param(constants._DOCKER_REGISTRY, docker_reg)
     auth_log = docker_utils.hidden_auth()
     sly.logger.debug("Updated Docker credentials:", extra={"auth": auth_log})
 
