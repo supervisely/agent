@@ -702,9 +702,9 @@ def updated_agent_options() -> Tuple[dict, dict, str]:
     docker_login = ",".join([cr[AgentOptionsJsonFields.DOCKER_LOGIN] for cr in docker_cr])
     docker_pass = ",".join([cr[AgentOptionsJsonFields.DOCKER_PASSWORD] for cr in docker_cr])
     docker_reg = ",".join([cr[AgentOptionsJsonFields.DOCKER_REGISTRY] for cr in docker_cr])
-    os.environ["DOCKER_LOGIN"] = ""
-    os.environ["DOCKER_PASSWORD"] = ""
-    os.environ["DOCKER_REGISTRY"] = ""
+    os.environ["DOCKER_LOGIN"] = docker_login
+    os.environ["DOCKER_PASSWORD"] = docker_pass
+    os.environ["DOCKER_REGISTRY"] = docker_reg
     constants._VALUES[constants._DOCKER_LOGIN] = docker_login
     constants._VALUES[constants._DOCKER_PASSWORD] = docker_pass
     constants._VALUES[constants._DOCKER_REGISTRY] = docker_reg
