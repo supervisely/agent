@@ -762,6 +762,7 @@ class TaskApp(TaskDockerized):
             "PIP_ROOT_USER_ACTION": "ignore",
             "AGENT_ID": self.agent_id,
             "APPS_CACHE_DIR": self.dir_apps_cache_container,
+            "APP_CATEGORIES": json.dumps(self.app_config.get("categories", [])),
         }
 
         if "context.workspaceId" in envs:
