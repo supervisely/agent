@@ -26,7 +26,7 @@ from docker.errors import APIError, ImageNotFound
 from filelock import FileLock
 
 from worker import constants
-from worker.system_info import get_container_info, _get_self_container_idx
+from worker.system_info import get_container_info, get_self_container_idx
 from worker import docker_utils
 
 
@@ -965,7 +965,7 @@ def get_options_changes(envs: dict, volumes: dict, ca_cert: str) -> Tuple[dict, 
 def check_and_remove_agent_with_old_name(dc: DockerClient):
     agent_same_token = []
     agent_name_start = constants.CONTAINER_NAME()
-    cur_agent_cont = dc.containers.get(_get_self_container_idx())
+    cur_agent_cont = dc.containers.get(get_self_container_idx())
 
     agent_old_name = f"supervisely-agent-{constants.TOKEN()}"
     cur_agent_contains_old_name = cur_agent_cont.name.startswith(agent_old_name)

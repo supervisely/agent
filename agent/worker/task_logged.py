@@ -15,7 +15,9 @@ import sys
 import json
 
 import supervisely_lib as sly
-from supervisely_lib.io.json import dump_json_file # pylint: disable=import-error, no-name-in-module
+from supervisely_lib.io.json import (
+    dump_json_file,
+)  # pylint: disable=import-error, no-name-in-module
 
 from worker.data_manager import DataManager
 from worker.logs_to_rpc import add_task_handler
@@ -36,10 +38,11 @@ exit_codes = {
 
 # common process, where logs are streamed and saved; the task may be stopped
 class TaskLogged(multiprocessing.Process):
-    def __init__(self, task_info):
+    def __init__(self, task_info, agent=None):
         super().__init__()
         self.daemon = True
         self.info = deepcopy(task_info)
+        self.agent = agent
         # Move API key out of the task info message so that it does not get into
         # logs.
         self._user_api_key = self.info.pop("user_api_key", None)

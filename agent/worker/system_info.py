@@ -181,7 +181,7 @@ def get_directory_size_bytes(dir_path, timeout=10):
     return res
 
 
-def _get_self_container_idx():
+def get_self_container_idx():
     docker_short_id = socket.gethostname()
     return docker_short_id
 
@@ -207,7 +207,7 @@ def get_container_info():
 
 
 def _get_self_docker_image_digest():
-    container_idx = _get_self_container_idx()
+    container_idx = get_self_container_idx()
     dc = docker.from_env()
     self_cont = dc.containers.get(container_idx)
     self_img = self_cont.image

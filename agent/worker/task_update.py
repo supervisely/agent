@@ -15,6 +15,7 @@ from worker import constants
 from worker import agent_utils
 from worker import docker_utils
 from worker.system_info import get_container_info
+from worker.system_info import get_self_container_idx
 
 
 class TaskUpdate(TaskSly):
@@ -39,6 +40,19 @@ class TaskUpdate(TaskSly):
             raise RuntimeError(
                 "Docker container was started from docker-compose. Please, use docker-compose to upgrade."
             )
+
+        if self.info.get("stop", False):
+            self.logger.info("Stopping agent and all tasks")
+            if self.agent:
+                while True:
+                    try:
+                        task_id = next(iter(self.agent.task_pool))
+                        self.agent.stop_task(task_id)
+                    except StopIteration:
+                        break
+            container = self.docker_api.containers.get(get_self_container_idx())
+            container.stop()
+            return
 
         use_options = False
         ca_cert_path = None
