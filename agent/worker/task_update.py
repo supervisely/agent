@@ -41,7 +41,7 @@ class TaskUpdate(TaskSly):
                 "Docker container was started from docker-compose. Please, use docker-compose to upgrade."
             )
 
-        if self.info.get("stop", False):
+        if self.info["config"].get("stop", False):
             self.logger.info("Stopping agent and all tasks")
             if self.agent:
                 while True:
