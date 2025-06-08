@@ -375,7 +375,7 @@ class Agent:
                                 break
 
                     if need_skip is False:
-                        self.task_pool[task_id] = create_task(task, self.docker_api)
+                        self.task_pool[task_id] = create_task(task, self.docker_api, self)
                         self.task_pool[task_id].start()
                     else:
                         self.logger.warning(
