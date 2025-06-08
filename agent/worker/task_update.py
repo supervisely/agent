@@ -47,9 +47,11 @@ class TaskUpdate(TaskSly):
                 while True:
                     try:
                         task_id = next(iter(self.agent.task_pool))
+                        self.logger.info("Stopping task", extra={"task_id": task_id})
                         self.agent.stop_task(task_id)
                     except StopIteration:
                         break
+            self.logger.info("Stopping agent container")
             container = self.docker_api.containers.get(get_self_container_idx())
             container.stop()
             return
