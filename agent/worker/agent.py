@@ -859,8 +859,9 @@ class Agent:
                             self.container_pool.pop(task_id, None)
                             continue
                         self.logger.info(f"Task is {task_status}, but container is {container_status}", extra=log_extra)
-                        # TODO: should remove the task?
-                        # TODO: handle other statuses like "paused", "restarting"?
+                        self.logger.info("Stopping the task", extra={"task_id": task_id})
+                        self.stop_task(task_id)
+                        # TODO: handle other statuses like "paused", "restarting"
             except Exception as e:
                 if time.monotonic() - last_error_log > error_log_delay:
                     self.logger.error("Error during monitoring stopped tasks containers", exc_info=True)
