@@ -839,6 +839,13 @@ class Agent:
                         self.logger.info(f"Task is {task_status}, but container is still running", extra=log_extra)
                         self.logger.info("Removing container", extra=log_extra)
                         try:
+                            container.stop(timeout=30)
+                        except docker.errors.NotFound:
+                            self.logger.info("Container not found during removal", extra=log_extra)
+                            continue
+                        except DockerException:
+                            pass
+                        try:
                             container.remove(force=True)
                         except docker.errors.NotFound:
                             self.logger.info("Container not found during removal", extra=log_extra)
