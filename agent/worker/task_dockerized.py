@@ -22,7 +22,7 @@ from worker.agent_utils import (
     convert_millicores_to_cpu_quota,
 )
 from worker.task_sly import TaskSly
-
+from docker.models.containers import Container
 
 class TaskStep(Enum):
     NOTHING = 0
@@ -60,7 +60,7 @@ class TaskDockerized(TaskSly):
 
         self._docker_api: docker.DockerClient = None  # must be set by someone
 
-        self._container = None
+        self._container: Container = None
         self._container_lock = Lock()  # to drop container from different threads
 
         self.docker_image_name = None
