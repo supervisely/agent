@@ -17,12 +17,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME_COMMUNITY }}
           password: ${{ secrets.DOCKER_TOKEN_COMMUNITY }}
-      - name: Login to Docker Supervisely Enterprise
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.DOCKER_ENTERPRISE_REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME_ENTERPRISE }}
-          password: ${{ secrets.DOCKER_PASSWORD_ENTERPRISE }}
       - name: Get Docker Labels from python script
         run: python .github/workflows/docker_labels.py
       - name: Set up Docker Buildx
