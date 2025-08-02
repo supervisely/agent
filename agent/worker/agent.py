@@ -16,6 +16,7 @@ from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Dict, List
 from pathlib import Path
+from agent.worker.task_dockerized import TaskDockerized
 from filelock import FileLock
 from datetime import datetime
 from docker.errors import DockerException
@@ -68,6 +69,7 @@ class Agent:
 
         self.task_pool_lock = threading.Lock()
         self.task_pool: Dict[int, TaskSly] = {}  # task_id -> task_manager (process_id)
+        self.container_pool: Dict[int, Container] = {} # task_id -> container
 
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
@@ -377,6 +379,8 @@ class Agent:
                     if need_skip is False:
                         self.task_pool[task_id] = create_task(task, self.docker_api)
                         self.task_pool[task_id].start()
+                        if isinstance(self.task_pool[task_id], TaskDockerized):
+                            self.container_pool[task_id] = self.task_pool[task_id]._container
                     else:
                         self.logger.warning(
                             "Agent Update is running, current task is skipped due to duplication",
@@ -550,6 +554,11 @@ class Agent:
         self.thread_list.append(
             self.thread_pool.submit(
                 sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
+            )
+        )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.monitor_stopped_tasks_containers, self.logger
             )
         )
 
@@ -783,3 +792,78 @@ class Agent:
                 self.logger.info(
                     "Background task finished: Agent data has been cleared successfully"
                 )
+
+    def monitor_stopped_tasks_containers(self):
+        """
+        This method is used to monitor stopped tasks containers.
+        It will remove containers that are not needed anymore.
+        """
+        error_log_delay = 60 * 30
+        last_error_log = time.monotonic() - error_log_delay
+        self.logger.info("Start background task: Monitoring stopped tasks containers")
+        while True:
+            time.sleep(60*3)
+            try:
+                for task_id in list(self.container_pool.keys()):
+                    container: Container = self.container_pool[task_id]
+                    if container is None:
+                        del self.container_pool[task_id]
+                        continue
+                    log_extra = {
+                        "task_id": task_id,
+                        "container_id": container.id,
+                        "container_name": container.name,
+                    }
+                    try:
+                        container.reload()
+                    except docker.errors.NotFound:
+                        container_status = "not found"
+                    except docker.errors.APIError as e:
+                        container_status = "error during container reload"
+                        self.logger.debug("Error during container reload", extra=log_extra)
+                        continue
+                    else:
+                        container_status = container.status
+
+                    with self.task_pool_lock:
+                        if task_id not in self.task_pool:
+                            task_status = "stopped"
+                        elif self.task_pool[task_id].is_alive():
+                            task_status = "running"
+                        else:
+                            task_status = "terminated"
+
+                    if container_status == "running":
+                        if task_status == "running":
+                            continue
+                        self.logger.info(f"Task is {task_status}, but container is still running", extra=log_extra)
+                        self.logger.info("Removing container", extra=log_extra)
+                        try:
+                            container.stop(timeout=30)
+                        except docker.errors.NotFound:
+                            self.logger.info("Container not found during removal", extra=log_extra)
+                            continue
+                        except DockerException:
+                            pass
+                        try:
+                            container.remove(force=True)
+                        except docker.errors.NotFound:
+                            self.logger.info("Container not found during removal", extra=log_extra)
+                        except DockerException as e:
+                            self.logger.error("Failed to remove container", exc_info=True, extra=log_extra)
+                        else:
+                            self.container_pool.pop(task_id, None)
+                            self.logger.info("Container removed successfully", extra=log_extra)
+                    else:
+                        if task_status != "running":
+                            self.container_pool.pop(task_id, None)
+                            continue
+                        self.logger.info(f"Task is {task_status}, but container is {container_status}", extra=log_extra)
+                        self.logger.info("Stopping the task", extra={"task_id": task_id})
+                        self.stop_task(task_id)
+                        # TODO: handle other statuses like "paused", "restarting"
+            except Exception as e:
+                if time.monotonic() - last_error_log > error_log_delay:
+                    self.logger.error("Error during monitoring stopped tasks containers", exc_info=True)
+                    last_error_log = time.monotonic()
+
