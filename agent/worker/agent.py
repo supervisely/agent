@@ -45,6 +45,7 @@ from worker.system_info import (
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
+from worker.task_dockerized import TaskDockerized
 
 # pylint: disable=import-error, no-name-in-module
 from supervisely_lib._utils import (
