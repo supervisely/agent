@@ -378,10 +378,11 @@ class Agent:
                                 break
 
                     if need_skip is False:
-                        self.task_pool[task_id] = create_task(task, self.docker_api)
-                        self.task_pool[task_id].start()
-                        if isinstance(self.task_pool[task_id], TaskDockerized):
-                            self.container_pool[task_id] = self.task_pool[task_id]._container
+                        task = create_task(task, self.docker_api)
+                        self.task_pool[task_id] = task
+                        task.start()
+                        if isinstance(task, TaskDockerized):
+                            self.container_pool[task_id] = task._container
                     else:
                         self.logger.warning(
                             "Agent Update is running, current task is skipped due to duplication",
