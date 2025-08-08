@@ -16,7 +16,6 @@ from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Dict, List
 from pathlib import Path
-from agent.worker.task_dockerized import TaskDockerized
 from filelock import FileLock
 from datetime import datetime
 from docker.errors import DockerException
@@ -45,6 +44,7 @@ from worker.system_info import (
 )
 from worker.app_file_streamer import AppFileStreamer
 from worker.telemetry_reporter import TelemetryReporter
+from worker.task_dockerized import TaskDockerized
 
 # pylint: disable=import-error, no-name-in-module
 from supervisely_lib._utils import (
