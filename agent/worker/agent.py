@@ -70,7 +70,6 @@ class Agent:
 
         self.task_pool_lock = threading.Lock()
         self.task_pool: Dict[int, TaskSly] = {}  # task_id -> task_manager (process_id)
-        self.container_pool: Dict[int, Container] = {} # task_id -> container
 
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
@@ -315,17 +314,25 @@ class Agent:
         self.task_pool_lock.acquire()
         try:
             if task_id in self.task_pool:
-                self.task_pool[task_id].join(timeout=20)
-                self.task_pool[task_id].terminate()
+                task = self.task_pool[task_id]
+                task.join(timeout=20)
+                task.terminate()
+                if isinstance(task, TaskDockerized):
+                    try:
+                        task._container.remove(force=True)
+                    except docker.errors.NotFound:
+                        pass
+                    except docker.errors.APIError as e:
+                        self.logger.error("Unable to stop the container", exc_info=True)
 
                 task_extra = {
                     "task_id": task_id,
-                    "exit_status": self.task_pool[task_id],
-                    "exit_code": self.task_pool[task_id].exitcode,
+                    "exit_status": task,
+                    "exit_code": task.exitcode,
                 }
 
                 self.logger.info("REMOVE_TASK_TEMP_DATA IF NECESSARY", extra=task_extra)
-                self.task_pool[task_id].clean_task_dir()
+                task.clean_task_dir()
 
                 self.logger.info("TASK_STOPPED", extra=task_extra)
                 del self.task_pool[task_id]
@@ -378,11 +385,8 @@ class Agent:
                                 break
 
                     if need_skip is False:
-                        task = create_task(task, self.docker_api)
-                        self.task_pool[task_id] = task
-                        task.start()
-                        if isinstance(task, TaskDockerized):
-                            self.container_pool[task_id] = task._container
+                        self.task_pool[task_id] = create_task(task, self.docker_api)
+                        self.task_pool[task_id].start()
                     else:
                         self.logger.warning(
                             "Agent Update is running, current task is skipped due to duplication",
@@ -806,64 +810,85 @@ class Agent:
         while True:
             time.sleep(60*3)
             try:
-                for task_id in list(self.container_pool.keys()):
-                    container: Container = self.container_pool[task_id]
-                    if container is None:
-                        del self.container_pool[task_id]
-                        continue
-                    log_extra = {
-                        "task_id": task_id,
-                        "container_id": container.id,
-                        "container_name": container.name,
-                    }
-                    try:
-                        container.reload()
-                    except docker.errors.NotFound:
-                        container_status = "not found"
-                    except docker.errors.APIError as e:
-                        container_status = "error during container reload"
-                        self.logger.debug("Error during container reload", extra=log_extra)
-                        continue
-                    else:
-                        container_status = container.status
+                ecosystem_token = constants.TASKS_DOCKER_LABEL()
+                label_filter = {"label": "ecosystem_token={}".format(ecosystem_token)}
+                # legacy
+                ecosystem_token = constants.TASKS_DOCKER_LABEL_LEGACY()
+                legacy_label_filter = {"label": "ecosystem_token={}".format(ecosystem_token)}
 
-                    with self.task_pool_lock:
-                        if task_id not in self.task_pool:
-                            task_status = "stopped"
-                        elif self.task_pool[task_id].is_alive():
-                            task_status = "running"
-                        else:
-                            task_status = "terminated"
+                for label_filter in [label_filter, legacy_label_filter]:
+                    dc = docker.from_env()
+                    containers = dc.containers.list(
+                        all=True, filters=label_filter, sparse=False, ignore_removed=True
+                    )
+                    for container in containers:
+                        with self.task_pool_lock:
+                            task_found = False
+                            task_ids = list(self.task_pool.keys())
+                            for task_id in task_ids:
+                                task = self.task_pool[task_id]
+                                if not isinstance(task, TaskDockerized):
+                                    continue
+                                if task._container is None:
+                                    continue
+                                if task._container.id != container.id:
+                                    continue
 
-                    if container_status == "running":
-                        if task_status == "running":
-                            continue
-                        self.logger.info(f"Task is {task_status}, but container is still running", extra=log_extra)
-                        self.logger.info("Removing container", extra=log_extra)
+                                task_found = True
+                                break
+                            
+                            log_extra = {
+                                "container_id": container.id,
+                                "container_name": container.name,
+                            }
+                            if not task_found:
+                                task_status = "not found"
+                            else:
+                                if self.task_pool[task_id].is_alive():
+                                    task_status = "running"
+                                else:
+                                    task_status = "terminated"
+                                
+                                log_extra["task_id"] = task_id
+
                         try:
-                            container.stop(timeout=30)
+                            container.reload()
                         except docker.errors.NotFound:
-                            self.logger.info("Container not found during removal", extra=log_extra)
+                            container_status = "not found"
+                        except docker.errors.APIError as e:
+                            container_status = "error during container reload"
+                            self.logger.debug("Error during container reload", extra=log_extra)
                             continue
-                        except DockerException:
-                            pass
-                        try:
-                            container.remove(force=True)
-                        except docker.errors.NotFound:
-                            self.logger.info("Container not found during removal", extra=log_extra)
-                        except DockerException as e:
-                            self.logger.error("Failed to remove container", exc_info=True, extra=log_extra)
                         else:
-                            self.container_pool.pop(task_id, None)
-                            self.logger.info("Container removed successfully", extra=log_extra)
-                    else:
-                        if task_status != "running":
-                            self.container_pool.pop(task_id, None)
+                            container_status = container.status
+
+                        if container_status == "running" and task_status == "running":
                             continue
-                        self.logger.info(f"Task is {task_status}, but container is {container_status}", extra=log_extra)
-                        self.logger.info("Stopping the task", extra={"task_id": task_id})
-                        self.stop_task(task_id)
-                        # TODO: handle other statuses like "paused", "restarting"
+
+                        if container_status == "running":
+                            self.logger.info(f"Task is {task_status}, but container is still running", extra=log_extra)
+                            self.logger.info("Removing container", extra=log_extra)
+                            try:
+                                container.stop(timeout=30)
+                            except docker.errors.NotFound:
+                                self.logger.info("Container not found during removal", extra=log_extra)
+                                continue
+                            except DockerException:
+                                pass
+                            try:
+                                container.remove(force=True)
+                            except docker.errors.NotFound:
+                                self.logger.info("Container not found during removal", extra=log_extra)
+                            except DockerException as e:
+                                self.logger.error("Failed to remove container", exc_info=True, extra=log_extra)
+                            else:
+                                self.logger.info("Container removed successfully", extra=log_extra)
+                        elif task_status == "running":
+                            self.logger.info(f"Task is {task_status}, but container is {container_status}", extra=log_extra)
+                            self.logger.info("Stopping the task", extra={"task_id": task_id})
+                            self.stop_task(task_id)
+                            # TODO: handle other statuses like "paused", "restarting"
+                            
             except Exception as e:
                 if time.monotonic() - last_error_log > error_log_delay:
                     self.logger.error("Error during monitoring stopped tasks containers", exc_info=True)
