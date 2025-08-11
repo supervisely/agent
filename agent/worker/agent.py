@@ -16,13 +16,13 @@ from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Dict, List
 from pathlib import Path
-from agent.worker.task_dockerized import TaskDockerized
 from filelock import FileLock
 from datetime import datetime
 from docker.errors import DockerException
 
 import supervisely_lib as sly
 
+from worker.task_dockerized import TaskDockerized
 from worker.agent_utils import TaskDirCleaner, AppDirCleaner, DockerImagesCleaner
 from worker.task_update import check_and_pull_sly_net_if_needed
 
