@@ -318,12 +318,13 @@ class Agent:
                 task.join(timeout=20)
                 task.terminate()
                 if isinstance(task, TaskDockerized):
-                    try:
-                        task._container.remove(force=True)
-                    except docker.errors.NotFound:
-                        pass
-                    except:
-                        self.logger.error("Unable to stop the container", exc_info=True)
+                    if task._container is not None:
+                        try:
+                            task._container.remove(force=True)
+                        except docker.errors.NotFound:
+                            pass
+                        except:
+                            self.logger.error("Unable to stop the container", exc_info=True)
 
                 task_extra = {
                     "task_id": task_id,
