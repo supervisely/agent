@@ -7,7 +7,7 @@ on:
 
 jobs:
   pylint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       ISSUES_URL: "https://api.github.com/repos/supervisely/issues/issues"
       PROJECT_NUMBER: "2"
@@ -34,7 +34,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install python-all-dev libboost-python-dev libexiv2-dev
+        sudo apt-get install python3-all-dev libboost-python-dev libexiv2-dev
         sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so
         pip install --upgrade pip
         pip install pylint
