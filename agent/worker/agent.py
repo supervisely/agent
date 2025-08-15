@@ -563,11 +563,12 @@ class Agent:
                 sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
             )
         )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.monitor_stopped_tasks_containers, self.logger
-            )
-        )
+        # Removed due to bug
+        # self.thread_list.append(
+        #     self.thread_pool.submit(
+        #         sly.function_wrapper_external_logger, self.monitor_stopped_tasks_containers, self.logger
+        #     )
+        # )
 
         if constants.DISABLE_TELEMETRY() is None:
             self.thread_list.append(
