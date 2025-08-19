@@ -238,6 +238,15 @@ class TaskDockerized(TaskSly):
             if mem_limit is None:
                 mem_limit = constants.MEM_LIMIT()
 
+            SINGLE_ENV_VAR_LIMIT = 65536
+            oversized_envs = {}
+            for key, value in all_environments.items():
+                value_bytes = len(str(value).encode("utf-8"))
+                if value_bytes > SINGLE_ENV_VAR_LIMIT:
+                    oversized_envs[key] = value_bytes
+            if oversized_envs:
+                self.logger.warning("Oversized environment variables found. Such envs would be removed!", extra={"envs": oversized_envs})
+                all_environments = {k: v for k, v in all_environments.items() if k not in oversized_envs}
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
