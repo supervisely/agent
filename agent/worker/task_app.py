@@ -596,25 +596,35 @@ class TaskApp(TaskDockerized):
         return entrypoint
 
     def _exec_command(self, command, add_envs=None, container_id=None):
+        SINGLE_ENV_VAR_LIMIT = 65536
         add_envs = sly.take_with_default(add_envs, {})
+        all_envs = {
+            "LOG_LEVEL": "DEBUG",
+            "LANG": "C.UTF-8",
+            "PYTHONUNBUFFERED": "1",
+            constants._HTTP_PROXY: constants.HTTP_PROXY(),
+            constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
+            constants._NO_PROXY: constants.NO_PROXY(),
+            "HOST_TASK_DIR": self.dir_task_host,
+            "TASK_ID": self.info["task_id"],
+            "SERVER_ADDRESS": self.info["server_address"],
+            "API_TOKEN": self.info["api_token"],
+            "AGENT_TOKEN": constants.TOKEN(),
+            "PIP_ROOT_USER_ACTION": "ignore",
+            **add_envs,
+        }
+        oversized_envs = {}
+        for key, value in all_envs.items():
+            value_bytes = len(str(value).encode("utf-8"))
+            if value_bytes > SINGLE_ENV_VAR_LIMIT:
+                oversized_envs[key] = value_bytes
+        if oversized_envs:
+            self.logger.warning("Oversized environment variables found. Such envs would be removed!", extra={"envs": oversized_envs})
+            all_envs = {k: v for k, v in all_envs.items() if k not in oversized_envs}
         self._exec_id = self._docker_api.api.exec_create(
             self._container.id if container_id is None else container_id,
             cmd=command,
-            environment={
-                "LOG_LEVEL": "DEBUG",
-                "LANG": "C.UTF-8",
-                "PYTHONUNBUFFERED": "1",
-                constants._HTTP_PROXY: constants.HTTP_PROXY(),
-                constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
-                constants._NO_PROXY: constants.NO_PROXY(),
-                "HOST_TASK_DIR": self.dir_task_host,
-                "TASK_ID": self.info["task_id"],
-                "SERVER_ADDRESS": self.info["server_address"],
-                "API_TOKEN": self.info["api_token"],
-                "AGENT_TOKEN": constants.TOKEN(),
-                "PIP_ROOT_USER_ACTION": "ignore",
-                **add_envs,
-            },
+            environment=all_envs,
         )
         self._logs_output = self._docker_api.api.exec_start(self._exec_id, stream=True)
 
