@@ -246,7 +246,8 @@ class TaskDockerized(TaskSly):
                     oversized_envs[key] = value_bytes
             if oversized_envs:
                 self.logger.warning("Oversized environment variables found. Such envs would be removed!", extra={"envs": oversized_envs})
-                all_environments = {k: v for k, v in all_environments.items() if k not in oversized_envs}
+                for key in oversized_envs.keys():
+                    all_environments[key] = sly.LARGE_ENV_PLACEHOLDER
             self._container = self._docker_api.containers.run(
                 self.docker_image_name,
                 runtime=self.docker_runtime,

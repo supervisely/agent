@@ -619,8 +619,9 @@ class TaskApp(TaskDockerized):
             if value_bytes > SINGLE_ENV_VAR_LIMIT:
                 oversized_envs[key] = value_bytes
         if oversized_envs:
-            self.logger.warning("Oversized environment variables found. Such envs would be removed!", extra={"envs": oversized_envs})
-            all_envs = {k: v for k, v in all_envs.items() if k not in oversized_envs}
+            self.logger.warning("Oversized environment variables found!", extra={"envs": oversized_envs})
+            for key in oversized_envs.keys():
+                all_envs[key] = sly.LARGE_ENV_PLACEHOLDER
         self._exec_id = self._docker_api.api.exec_create(
             self._container.id if container_id is None else container_id,
             cmd=command,
