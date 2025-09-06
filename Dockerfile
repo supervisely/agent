@@ -38,6 +38,7 @@ RUN apt-get update \
 ############### copy code ###############
 #COPY supervisely_lib /workdir/supervisely_lib
 
+RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt /workdir/requirements.txt
 RUN pip install --no-cache-dir -r /workdir/requirements.txt
 
