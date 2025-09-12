@@ -70,7 +70,7 @@ _DISABLE_TELEMETRY = "DISABLE_TELEMETRY"
 _DEFAULT_APP_DOCKER_IMAGE = "DEFAULT_APP_DOCKER_IMAGE"
 _AGENT_FILES_IN_APP_CONTAINER = "AGENT_FILES_IN_APP_CONTAINER"
 _AUTO_CLEAN_INT_RANGE_DAYS = "AUTO_CLEAN_INT_RANGE_DAYS"
-_BASE_IMAGES = ["supervisely/base-py-sdk:latest", "supervisely/data-versioning:latest", "supervisely/tensorboard-viewer:1.0.0"]
+_BASE_IMAGES = ["supervisely/base-py-sdk:latest", "supervisely/data-versioning:latest", "supervisely/tensorboard-viewer:1.0.0", "supervisely/data-commander:latest", "supervisely/predict-app:latest"]
 _MAX_AGENT_RESTARTS = "MAX_AGENT_RESTARTS"
 _AGENT_RESTART_COUNT = "AGENT_RESTART_COUNT"
 
