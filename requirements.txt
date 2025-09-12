@@ -19,4 +19,4 @@ torchvision==0.8.2+cu110
 -f https://download.pytorch.org/whl/torch_stable.html
 supervisely==6.73.439
 # for development
-# git+https://github.com/supervisely/supervisely.git@big-envs
+# git+https://github.com/supervisely/supervisely.git@dev-branch
