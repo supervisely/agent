@@ -14,9 +14,8 @@ python-slugify==6.1.2
 nvidia-ml-py==12.535.77
 httpx>=0.26.0
 filelock==3.13.1
-torch==1.7.1+cu110
-torchvision==0.8.2+cu110
--f https://download.pytorch.org/whl/torch_stable.html
+torch==2.8.0
+torchvision==0.21.0
 supervisely==6.73.439
 # for development
 # git+https://github.com/supervisely/supervisely.git@dev-branch
