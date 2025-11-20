@@ -14,8 +14,10 @@ python-slugify==6.1.2
 nvidia-ml-py==12.535.77
 httpx>=0.26.0
 filelock==3.13.1
-torch==2.4.1
-torchvision==0.19.1
+
+# Installed inside Dockerfile
+# torch==2.4.1+cu124
+# torchvision==0.19.1+cu124
 
 supervisely==6.73.439
 # for development

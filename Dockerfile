@@ -39,6 +39,7 @@ RUN apt-get update \
 #COPY supervisely_lib /workdir/supervisely_lib
 
 RUN pip install --upgrade pip
+RUN pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124
 COPY requirements.txt /workdir/requirements.txt
 RUN pip install --no-cache-dir -r /workdir/requirements.txt
 
