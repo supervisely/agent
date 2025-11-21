@@ -1,4 +1,5 @@
-FROM ubuntu:24.04
+# FROM ubuntu:24.04 # No GPU support
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ARG LABEL_VERSION
 ARG LABEL_INFO
@@ -17,6 +18,7 @@ ENV \
     DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PIP_BREAK_SYSTEM_PACKAGES=1 \
     PATH=/root/.local/bin:$PATH
 
 RUN apt-get update \
@@ -26,8 +28,30 @@ RUN apt-get update \
     python3.12-venv \
     python3.12-dev \
     python3-pip \
+    python3-grpcio \
     libexiv2-27 \
     libexiv2-dev \
+    libboost-all-dev \
+    libgeos-dev \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libv4l-dev \
+    libxvidcore-dev \
+    libx264-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libatlas-base-dev \
+    gfortran \
+    pkg-config \
     ca-certificates \
     curl \
     lshw \
@@ -40,14 +64,46 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
-RUN python -m pip install --upgrade pip setuptools wheel
+RUN python -m pip install --ignore-installed --upgrade pip setuptools wheel
+
+RUN python -m pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
+
+# Install runtime dependencies that must stay
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libmagic-dev \
+    openssh-server \
+    ffmpeg \
+    fonts-noto \
+    && mkdir -p /var/run/sshd \
+    && apt-get -qq -y autoremove \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /workdir/requirements.txt
-RUN python -m pip install --no-cache-dir -r /workdir/requirements.txt \
-    && apt-get purge -y --auto-remove \
-        build-essential \
-        python3.12-dev \
-        libexiv2-dev \
+RUN python -m pip install --no-cache-dir -r /workdir/requirements.txt
+
+RUN apt-get purge -y --auto-remove \
+    build-essential \
+    python3.12-dev \
+    libexiv2-dev \
+    libboost-all-dev \
+    libgeos-dev \
+    libxrender-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libv4l-dev \
+    libxvidcore-dev \
+    libx264-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libatlas-base-dev \
+    gfortran \
+    pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
