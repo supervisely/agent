@@ -13,23 +13,13 @@ LABEL README=$LABEL_README
 LABEL BUILT_AT=$LABEL_BUILT_AT
 LABEL CONFIGS=""
 
-ENV \
-    DEBIAN_FRONTEND=noninteractive \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PATH=/root/.local/bin:$PATH
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-    build-essential \
     python3.12 \
     python3.12-venv \
-    python3.12-dev \
     python3-pip \
-    libexiv2-27 \
-    libexiv2-dev \
-    ca-certificates \
-    curl \
     lshw \
     aha \
     html2text \
@@ -37,22 +27,17 @@ RUN apt-get update \
     tree \
     && ln -sf /usr/bin/python3.12 /usr/bin/python \
     && ln -sf /usr/bin/pip3 /usr/bin/pip \
-    && apt-get clean \
+    && apt-get -qq -y autoremove \
+    && apt-get autoclean \
     && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
-RUN python -m pip install --upgrade pip setuptools wheel
-
+RUN python -m pip install --upgrade pip
 COPY requirements.txt /workdir/requirements.txt
-RUN python -m pip install --no-cache-dir -r /workdir/requirements.txt \
-    && apt-get purge -y --auto-remove \
-        build-essential \
-        python3.12-dev \
-        libexiv2-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
+RUN python -m pip install --no-cache-dir -r /workdir/requirements.txt
 
 COPY agent /workdir/agent
 
+#ENV PYTHONPATH /workdir:/workdir/src:/workdir/supervisely_lib/worker_proto:$PYTHONPATH
 WORKDIR /workdir/agent
 
 ENTRYPOINT ["python", "-u", "/workdir/agent/main.py"]
