@@ -28,7 +28,7 @@ from worker.task_update import check_and_pull_sly_net_if_needed
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
-import torch
+import torch  # pylint: disable=import-error
 
 from worker import constants
 from worker import agent_utils
