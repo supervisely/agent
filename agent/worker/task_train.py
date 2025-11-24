@@ -87,7 +87,7 @@ class TaskTrain(TaskDockerized):
         self.report_step_done(TaskStep.UPLOAD)
 
     def upload_model(self, extra):
-        model = self.public_api.model.generate_hash(self.info["task_id"])
+        model = self.public_api.model.generate_hash(self.info["task_id"]) # pylint: disable=no-member
         model_id = model["id"]
         model_hash = model["hash"]
 

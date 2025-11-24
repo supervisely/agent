@@ -13,7 +13,7 @@ import warnings
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
-import torch
+import torch  # pylint: disable=import-error
 
 import supervisely_lib as sly
 
