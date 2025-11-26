@@ -62,6 +62,7 @@ RUN set -eux; \
     htop \
     tree \
     libmagic-dev \
+    libmagic1 \
     openssh-server \
     ffmpeg \
     fonts-noto \
