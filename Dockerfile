@@ -95,8 +95,15 @@ RUN set -eux; \
     pkg-config \
     ; \
     apt-get -qq -y autoremove; \
-    apt-get autoclean; \
-    rm -rf /var/lib/apt/lists/* /var/log/dpkg.log /root/.cache/pip
+    apt-get autoclean && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* \
+    /var/cache/apt/* \
+    /var/log/dpkg.log \
+    /var/log/apt/* \
+    /root/.cache/pip \
+    /tmp/* \
+    /var/tmp/*
 
 COPY agent /workdir/agent
 
