@@ -31,6 +31,7 @@ RUN set -eux; \
     python3.12-dev \
     python3-pip \
     python3-grpcio \
+    libexiv2-27 \
     libexiv2-dev \
     libgeos-dev \
     libsm6 \
@@ -43,6 +44,9 @@ RUN set -eux; \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
+    libv4l-dev \
+    libxvidcore-dev \
+    libx264-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
@@ -77,6 +81,9 @@ RUN set -eux; \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
+    libv4l-dev \
+    libxvidcore-dev \
+    libx264-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
