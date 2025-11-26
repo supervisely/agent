@@ -31,9 +31,7 @@ RUN set -eux; \
     python3.12-dev \
     python3-pip \
     python3-grpcio \
-    libexiv2-27 \
     libexiv2-dev \
-    libboost-all-dev \
     libgeos-dev \
     libsm6 \
     libxext6 \
@@ -45,9 +43,6 @@ RUN set -eux; \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
-    libv4l-dev \
-    libxvidcore-dev \
-    libx264-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
@@ -75,7 +70,6 @@ RUN set -eux; \
     build-essential \
     python3.12-dev \
     libexiv2-dev \
-    libboost-all-dev \
     libgeos-dev \
     libxrender-dev \
     libgl1-mesa-dev \
@@ -83,14 +77,12 @@ RUN set -eux; \
     libavcodec-dev \
     libavformat-dev \
     libswscale-dev \
-    libv4l-dev \
-    libxvidcore-dev \
-    libx264-dev \
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
     libatlas-base-dev \
     gfortran \
+    libmagic-dev \
     pkg-config \
     ; \
     apt-get -qq -y autoremove; \
