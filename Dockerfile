@@ -33,6 +33,7 @@ RUN set -eux; \
     python3-grpcio \
     libexiv2-27 \
     libexiv2-dev \
+    libboost-python-dev \
     libgeos-dev \
     libsm6 \
     libxext6 \
@@ -74,6 +75,7 @@ RUN set -eux; \
     build-essential \
     python3.12-dev \
     libexiv2-dev \
+    libboost-python-dev \
     libgeos-dev \
     libxrender-dev \
     libgl1-mesa-dev \

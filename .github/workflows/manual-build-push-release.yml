@@ -14,55 +14,36 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-supervisely
 
     steps:
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
       - name: Tag Version
         run: echo ${{ github.event.inputs.tag_version }}
+
       - name: Write Tag to ENV variable
         run: echo "LABEL_VERSION=${{ github.event.inputs.tag_version }}" >> $GITHUB_ENV
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME_COMMUNITY }}
-          password: ${{ secrets.DOCKER_TOKEN_COMMUNITY }}
+
       - name: Get Docker Labels from python script
         run: python .github/workflows/docker_labels.py
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          version: v0.9.1
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./
-          file: ./Dockerfile
-          provenance: false
-          builder: ${{ steps.buildx.outputs.name }}
-          push: true
-          tags: |
-            supervisely/agent:${{ env.LABEL_VERSION }}
 
-          build-args: |
-            LABEL_VERSION=agent:${{ env.LABEL_VERSION }}
-            LABEL_INFO=${{ env.LABEL_INFO }}
-            LABEL_MODES=${{ env.LABEL_MODES }}
-            LABEL_README=${{ env.LABEL_README }}
-            LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }}
-          cache-from: type=registry,ref=supervisely/agent:cache
-          cache-to: type=registry,ref=supervisely/agent:cache,mode=max
+      - name: Build and push
+        run: |
+          buildctl build \
+            --frontend dockerfile.v0 \
+            --local context=. \
+            --local dockerfile=. \
+            --output type=image,name=supervisely/agent:${{ env.LABEL_VERSION }},push=true \
+            --opt provenance=false \
+            --opt build-arg=LABEL_VERSION=agent:${{ env.LABEL_VERSION }} \
+            --opt build-arg=LABEL_INFO=${{ env.LABEL_INFO }} \
+            --opt build-arg=LABEL_MODES=${{ env.LABEL_MODES }} \
+            --opt build-arg=LABEL_README=${{ env.LABEL_README }} \
+            --opt build-arg=LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }} \
+            --import-cache type=registry,ref=supervisely/agent:cache \
+            --export-cache type=registry,ref=supervisely/agent:cache,mode=max
 
   app-release:
     needs: build
@@ -80,4 +61,3 @@ jobs:
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
       RELEASE_VERSION: "${{ inputs.tag_version }}"
       RELEASE_DESCRIPTION: "${{ inputs.release_description }}"
-          
