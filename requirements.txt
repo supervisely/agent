@@ -15,10 +15,6 @@ nvidia-ml-py==12.535.77
 httpx>=0.26.0
 filelock==3.13.1
 
-# Installed inside Dockerfile
-# torch==2.9.1+cu128
-# torchvision==0.24.1+cu128
-
 supervisely==6.73.474
 supervisely[agent]==6.73.474
 # for development

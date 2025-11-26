@@ -13,8 +13,6 @@ import warnings
 
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
-import torch  # pylint: disable=import-error
-
 import supervisely_lib as sly
 
 from worker import constants
@@ -228,78 +226,80 @@ def get_self_docker_image_digest():
     return sly.catch_silently(_get_self_docker_image_digest)
 
 
-def get_gpu_info_with_torch(logger):
-    torch.cuda.init()
-    gpu_info = None
-    try:
-        gpu_info = {}
-        gpu_info["is_available"] = torch.cuda.is_available()
-        if gpu_info["is_available"]:
-            gpu_info["device_count"] = torch.cuda.device_count()
-            gpu_info["device_names"] = []
-            gpu_info["device_memory"] = []
-            for idx in range(gpu_info["device_count"]):
-                gpu_info["device_names"].append(torch.cuda.get_device_name(idx))
-                mem = {}
-                try:
-                    device_props = torch.cuda.get_device_properties(idx)
-                    t = device_props.total_memory
-                    r = torch.cuda.memory_reserved(idx)
-                    a = torch.cuda.memory_allocated(idx)
-                    mem = {
-                        "total": t,
-                        "reserved": r,
-                        "allocated": a,
-                        "free": t - r,
-                    }
-                except Exception as e:
-                    logger.debug(repr(e))
-                finally:
-                    gpu_info["device_memory"].append(mem)
-
-    except Exception as e:
-        logger.warning(repr(e))
-    return gpu_info
-
-
 def get_gpu_info(logger):
-    gpu_info = None
-    try:
-        gpu_info = {}
-        gpu_info["is_available"] = torch.cuda.is_available()
-        if gpu_info["is_available"]:
-            smi.nvmlInit()
-            gpu_info["device_count"] = smi.nvmlDeviceGetCount()
-            gpu_info["device_names"] = []
-            gpu_info["device_memory"] = []
-            gpu_info["device_capability"] = []
-            for idx in range(gpu_info["device_count"]):
-                handle = smi.nvmlDeviceGetHandleByIndex(idx)
-                capability = smi.nvmlDeviceGetCudaComputeCapability(handle)
-                capability = "{major}.{minor}".format(major=capability[0], minor=capability[1])
-                gpu_info["device_names"].append(smi.nvmlDeviceGetName(handle))
-                gpu_info["device_capability"].append(
-                    {
-                        "device": f"GPU {idx}",
-                        "compute_capability": capability,
-                    }
-                )
-                mem = {}
-                try:
-                    device_props = smi.nvmlDeviceGetMemoryInfo(handle)
-                    mem = {
-                        "total": device_props.total,
-                        "reserved": device_props.used,
-                        "available": device_props.free,
-                    }
-                except Exception as e:
-                    logger.debug(repr(e))
-                finally:
-                    gpu_info["device_memory"].append(mem)
-            gpu_info["driver_version"] = smi.nvmlSystemGetDriverVersion()
-            gpu_info["cuda_version"] = smi.nvmlSystemGetCudaDriverVersion()
-            smi.nvmlShutdown()
+    """
+    Collect GPU information using NVML.
+    """
 
-    except Exception as e:
-        logger.warning(repr(e))
+    gpu_info = {
+        "is_available": False,
+        "device_count": 0,
+        "device_names": [],
+        "device_memory": [],
+        "device_capability": [],
+    }
+
+    try:
+        smi.nvmlInit()
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("Failed to initialize NVML: %s", repr(e))
+        return gpu_info
+
+    try:
+        try:
+            device_count = smi.nvmlDeviceGetCount()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("Failed to get GPU count via NVML: %s", repr(e))
+            return gpu_info
+
+        gpu_info["device_count"] = device_count
+        gpu_info["is_available"] = device_count > 0
+
+        if not gpu_info["is_available"]:
+            return gpu_info
+
+        for idx in range(device_count):
+            handle = smi.nvmlDeviceGetHandleByIndex(idx)
+            capability = smi.nvmlDeviceGetCudaComputeCapability(handle)
+            capability_str = "{major}.{minor}".format(major=capability[0], minor=capability[1])
+            gpu_info["device_names"].append(smi.nvmlDeviceGetName(handle))
+            gpu_info["device_capability"].append(
+                {
+                    "device": f"GPU {idx}",
+                    "compute_capability": capability_str,
+                }
+            )
+
+            mem = {}
+            try:
+                device_props = smi.nvmlDeviceGetMemoryInfo(handle)
+                mem = {
+                    "total": device_props.total,
+                    "reserved": device_props.used,
+                    "available": device_props.free,
+                }
+            except Exception as e:  # pylint: disable=broad-except
+                logger.debug("Failed to collect GPU memory info: %s", repr(e))
+            finally:
+                gpu_info["device_memory"].append(mem)
+
+        try:
+            gpu_info["driver_version"] = smi.nvmlSystemGetDriverVersion()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.debug("Failed to get NVIDIA driver version: %s", repr(e))
+
+        try:
+            gpu_info["cuda_version"] = smi.nvmlSystemGetCudaDriverVersion()
+        except Exception as e:  # pylint: disable=broad-except
+            logger.debug("Failed to get CUDA driver version: %s", repr(e))
+
+    except Exception as e:  # pylint: disable=broad-except
+        logger.warning("Failed to collect GPU info via NVML: %s", repr(e))
+    finally:
+        try:
+            smi.nvmlShutdown()
+        except Exception:  # pylint: disable=broad-except
+            # Ignore shutdown errors
+            pass
+
     return gpu_info
