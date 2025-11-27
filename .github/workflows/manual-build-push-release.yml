@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_version:
-        description: "Docker Image Tag"
+        description: "Docker Image Tag (without 'v' prefix)"
         required: true
         default: ""
       release_description:
@@ -19,6 +19,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Tag Version
         run: echo ${{ github.event.inputs.tag_version }}
@@ -50,7 +55,7 @@ jobs:
     permissions:
       contents: write
       actions: write
-    uses: supervisely/agent/.github/workflows/app-release.yml@app-release
+    uses: supervisely/agent/.github/workflows/app-release.yml@master
     secrets:
       SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
       SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
@@ -59,5 +64,5 @@ jobs:
     with:
       SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-      RELEASE_VERSION: "${{ inputs.tag_version }}"
+      RELEASE_VERSION: "v${{ inputs.tag_version }}"
       RELEASE_DESCRIPTION: "${{ inputs.release_description }}"
