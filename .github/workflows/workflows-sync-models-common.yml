@@ -1,0 +1,53 @@
+name: Sync Models
+on:
+  workflow_call:
+    inputs:
+      MODELS_PATH:
+        type: string
+        required: false
+      DET_MODELS_PATH:
+        type: string
+        required: false
+      FRAMEWORK:
+        type: string
+        required: true
+      SERVER_ADDRESS:
+        type: string
+        required: true
+    secrets:
+      API_TOKEN:
+        required: true
+
+jobs:
+  release-models:
+    runs-on: gha-runner-supervisely
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          repository: supervisely-ecosystem/workflows
+          path: workflow
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          python -m venv venv
+          . venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r workflow/requirements.txt
+
+      - name: Sync models
+        run: |
+          . venv/bin/activate
+          python workflow/release_models.py
+        env:
+          SERVER_ADDRESS: ${{ inputs.SERVER_ADDRESS }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          MODELS_PATH: ${{ inputs.MODELS_PATH }}
+          DET_MODELS_PATH: ${{ inputs.DET_MODELS_PATH }}
+          FRAMEWORK: ${{ inputs.FRAMEWORK }}
