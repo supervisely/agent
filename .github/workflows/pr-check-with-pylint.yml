@@ -25,16 +25,28 @@ jobs:
         with:
           repository: ${{ github.repository }}
           token: ${{ secrets.PYLINT_TOKEN }}
-
-      - name: Install dependencies
+          
+      - name: Get system python version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-all-dev libboost-python-dev libexiv2-dev g++ python3-dev
+          PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
+          echo "Detected Python version: $PYVER"
+          echo "PYVER=$PYVER" >> $GITHUB_ENV
           
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-all-dev libboost-python-dev libexiv2-dev
+          
+      - name: Create Boost Python symlink
+        run: |
+          sudo ln -s \
+            "/usr/lib/x86_64-linux-gnu/libboost_python312.so" \
+            "/usr/lib/x86_64-linux-gnu/libboost_python${PYVER}.so"
 
       - name: Install pylint and requirements
         run: |
