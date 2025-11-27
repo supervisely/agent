@@ -64,5 +64,5 @@ jobs:
     with:
       SUPERVISELY_SERVER_ADDRESS: "${{ vars.SUPERVISELY_DEV_SERVER_ADDRESS }}"
       SUPERVISELY_PROD_SERVER_ADDRESS: "${{ vars.SUPERVISELY_PROD_SERVER_ADDRESS }}"
-      RELEASE_VERSION: "${{ inputs.tag_version }}"
+      RELEASE_VERSION: "v${{ inputs.tag_version }}"
       RELEASE_DESCRIPTION: "${{ inputs.release_description }}"
