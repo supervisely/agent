@@ -113,7 +113,7 @@ jobs:
   Models-release:
     needs: Supervisely-Release
     if: inputs.RELEASE_MODELS && inputs.RELEASE_TYPE != 'release-branch'
-    uses: supervisely/agent/.github/workflows/workflows-sync-models-common.yml@fix-release-workflow
+    uses: supervisely/agent/.github/workflows/workflows-sync-models-common.yml@master
     secrets:
       API_TOKEN: "${{ secrets.SUPERVISELY_PROD_API_TOKEN }}"
     with:

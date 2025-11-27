@@ -82,7 +82,7 @@ jobs:
 
   Supervisely-Release:
     needs: Update-App-Config
-    uses: supervisely/agent/.github/workflows/workflows-common.yml@fix-release-workflow
+    uses: supervisely/agent/.github/workflows/workflows-common.yml@master
     secrets:
       SUPERVISELY_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_DEV_API_TOKEN }}"
       SUPERVISELY_PRIVATE_DEV_API_TOKEN: "${{ secrets.SUPERVISELY_PRIVATE_DEV_API_TOKEN }}"
