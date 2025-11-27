@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_version:
-        description: "Docker Image Tag"
+        description: "Docker Image Tag (without 'v' prefix)"
         required: true
         default: ""
       release_description:
