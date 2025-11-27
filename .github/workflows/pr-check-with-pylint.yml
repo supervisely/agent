@@ -7,67 +7,80 @@ on:
 
 jobs:
   pylint:
-    runs-on: ubuntu-22.04
+    runs-on: gha-runner-supervisely
     env:
-      ISSUES_URL: "https://api.github.com/repos/supervisely/issues/issues"
-      PROJECT_NUMBER: "2"
-      TODO_NAME: "🚀 Todo (now!)"
-      STATUS_FIELD_ID: ""
-      STATUS_ID: ""
-      ISSUE_NODE_ID: ""
-      ITEM_TO_MOVE: ""
-      ORG_PROJECT_ID: ""
-      ORG_LOGIN: "supervisely"
+      # ISSUES_URL: "https://api.github.com/repos/supervisely/issues/issues"
+      # PROJECT_NUMBER: "2"
+      # TODO_NAME: "🚀 Todo (now!)"
+      # STATUS_FIELD_ID: ""
+      # STATUS_ID: ""
+      # ISSUE_NODE_ID: ""
+      # ITEM_TO_MOVE: ""
+      # ORG_PROJECT_ID: ""
+      # ORG_LOGIN: "supervisely"
       ERRORS_DETECTED: false
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ github.repository }}
-        token: ${{ secrets.PYLINT_TOKEN }}
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.PYLINT_TOKEN }}
+          
+      - name: Get system python version
+        run: |
+          PYVER=$(python3 -c "import sys; print(f'{sys.version_info.major}{sys.version_info.minor}')")
+          echo "Detected Python version: $PYVER"
+          echo "PYVER=$PYVER" >> $GITHUB_ENV
+          
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-all-dev libboost-python-dev libexiv2-dev
+          
+      - name: Create Boost Python symlink
+        run: |
+          sudo ln -s \
+            "/usr/lib/x86_64-linux-gnu/libboost_python${PYVER}.so" \
+            "/usr/lib/x86_64-linux-gnu/libboost_python312.so"
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.8
+      - name: Install pylint and requirements
+        run: |
+          pip install --upgrade pip
+          pip install pylint
+          pip install -r requirements.txt
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install python3-all-dev libboost-python-dev libexiv2-dev
-        sudo ln -s /usr/lib/x86_64-linux-gnu/libboost_python310.so /usr/lib/x86_64-linux-gnu/libboost_python38.so
-        pip install --upgrade pip
-        pip install pylint
-        pip install -r requirements.txt        
-           
+      - name: Run check with pylint
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$PWD/agent/
+          pylint_output=$(pylint --ignore-patterns=".*\.json$|.*\.gitignore$" "agent") || true
+          if [[ $pylint_output == *"E"* ]] || [[ $pylint_output == *"F"* ]]; then
+            # Save pylint output to a file
+            echo "$pylint_output" > pylint_errors.txt
+            echo "ERRORS_DETECTED=true" >> $GITHUB_ENV
+          else
+            echo "ERRORS_DETECTED=false" >> $GITHUB_ENV
+          fi
+        id: pylint
 
-    - name: Run check with pylint
-      run: | 
-        export PYTHONPATH=$PYTHONPATH:$PWD/agent/
-        pylint_output=$(pylint --ignore-patterns=".*\.json$|.*\.gitignore$" "agent") || true
-        if [[ $pylint_output == *"E"* ]] || [[ $pylint_output == *"F"* ]]; then
-          # Save pylint output to a file
-          echo "$pylint_output" > pylint_errors.txt
-          echo "ERRORS_DETECTED=true" >> $GITHUB_ENV
-        else
-          echo "ERRORS_DETECTED=false" >> $GITHUB_ENV
-        fi
-      id: pylint
-    
-    - name: Fail if pylint errors detected
-      if: ${{ env.ERRORS_DETECTED == 'true' }}
-      run: | 
-        issue_body=$(cat pylint_errors.txt)
-        echo "Pylint Errors: $issue_body"
-        echo "RESULT=failure" >> $GITHUB_ENV
-        exit 1
+      - name: Fail if pylint errors detected
+        if: ${{ env.ERRORS_DETECTED == 'true' }}
+        run: |
+          issue_body=$(cat pylint_errors.txt)
+          echo "Pylint Errors: $issue_body"
+          echo "RESULT=failure" >> $GITHUB_ENV
+          exit 1
 
     # - name: Create GitHub issue
     #   run: |
     #     if [[ "${{ env.ERRORS_DETECTED }}" == "true" ]]; then
     #       issue_body=$(cat pylint_errors.txt)
     #       echo "Issue body: $issue_body"
-          
+
     #       json=$(jq -n \
     #                 --arg title "Pylint Errors for ${{ github.event_name }} #${{ github.event.release.tag_name }} at $(date -u +'%Y-%m-%d %H:%M') UTC+0" \
     #                 --arg body "$issue_body" \
@@ -87,13 +100,12 @@ jobs:
     #       echo "issue_url=$issue_url" >> $GITHUB_ENV
     #       issue_node_id=$(echo "$issue_response" | jq -r '.node_id')
     #       echo "ISSUE_NODE_ID=$issue_node_id" >> $GITHUB_ENV
-          
+
     #     else
     #       echo "No pylint errors detected."
     #     fi
-    
-   
-    # - name: Get Project ID    
+
+    # - name: Get Project ID
     #   if: ${{ env.ERRORS_DETECTED == 'true' }}
     #   run: |
     #     org_login=${{ env.ORG_LOGIN }}
@@ -112,10 +124,10 @@ jobs:
     #       https://api.github.com/graphql)
     #     echo "Response from GitHub API: $response"
     #     project_id=$(echo "$response" | jq -r '.data.organization.projectV2.id')
-                
+
     #     echo "Organization Project ID: $project_id"
     #     echo "ORG_PROJECT_ID=$project_id" >> $GITHUB_ENV
-    
+
     # - name: Get Status Field ID and Status ID
     #   if: ${{ env.ERRORS_DETECTED == 'true' }}
     #   run: |
@@ -130,10 +142,10 @@ jobs:
     #       }' \
     #       https://api.github.com/graphql)
     #     echo "Response from GitHub API: $response"
-    #     status_field_id=$(echo "$response" | jq -r '.data.node.fields.nodes[] | select(.name == "Status") | .id')        
+    #     status_field_id=$(echo "$response" | jq -r '.data.node.fields.nodes[] | select(.name == "Status") | .id')
     #     status_id=$(echo "$response" | jq -r '.data.node.fields.nodes[] | select(.name == "Status") | .options[] | select(.name == "${{ env.TODO_NAME }}") | .id')
     #     echo "STATUS_FIELD_ID=$status_field_id" >> $GITHUB_ENV
-    #     echo "STATUS_ID=$status_id" >> $GITHUB_ENV       
+    #     echo "STATUS_ID=$status_id" >> $GITHUB_ENV
     #     echo "Status Field ID: $status_id"
     #     echo "Todo ID: $todo_id"
 
@@ -142,7 +154,7 @@ jobs:
     #   run: |
     #     issue_id=${{ env.ISSUE_NODE_ID }}
     #     project_id=${{ env.ORG_PROJECT_ID }}
-        
+
     #     item_id=$(curl -X POST -H "Authorization: Bearer ${{ secrets.PYLINT_TOKEN }}" \
     #       -H "Accept: application/vnd.github.v3+json" \
     #       https://api.github.com/graphql \
@@ -164,10 +176,10 @@ jobs:
     #       }
     #     EOF
     #             )
-                
+
     #             echo "Item ID: $item_id"
     #             echo "ITEM_TO_MOVE=$item_id" >> $GITHUB_ENV
-    
+
     # - name: Move issue to Todo column
     #   if: ${{ env.ERRORS_DETECTED == 'true' }}
     #   run: |

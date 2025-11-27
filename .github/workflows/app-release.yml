@@ -31,19 +31,21 @@ permissions:
 
 jobs:
   Update-App-Config:
-    runs-on: ubuntu-latest
+    runs-on: gha-runner-supervisely
     outputs:
       RELEASE_TYPE: ${{ steps.update_app_config.outputs.RELEASE_TYPE }}
       COMMIT_HASH: ${{ steps.update_app_config.outputs.COMMIT_HASH }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           ref: master
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.8
+          python-version: "3.12"
+
       - name: Update App Config
         env:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -54,7 +56,7 @@ jobs:
             VERSION="${VERSION:1}"
           fi
           echo "DOCKER_IMAGE=$VERSION" >> $GITHUB_ENV
-          
+
           SEMVER_REGEX="^[0-9]+\.[0-9]+\.[0-9]+$"
           if [[ ! $VERSION =~ $SEMVER_REGEX ]]; then
           RELEASE_TYPE="release-branch"
@@ -63,7 +65,7 @@ jobs:
           fi
           echo "RELEASE_TYPE=$RELEASE_TYPE" >> $GITHUB_OUTPUT
           echo "RELEASE_TYPE=$RELEASE_TYPE"
-          
+
           python app/update_config.py $VERSION
 
           git add app/config.json

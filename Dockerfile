@@ -1,4 +1,3 @@
-# FROM ubuntu:24.04 # No GPU support
 FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
 
 ARG LABEL_VERSION
@@ -21,8 +20,11 @@ ENV \
     PIP_BREAK_SYSTEM_PACKAGES=1 \
     PATH=/root/.local/bin:$PATH
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+COPY requirements.txt /workdir/requirements.txt
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
     build-essential \
     python3.12 \
     python3.12-venv \
@@ -31,7 +33,7 @@ RUN apt-get update \
     python3-grpcio \
     libexiv2-27 \
     libexiv2-dev \
-    libboost-all-dev \
+    libboost-python-dev \
     libgeos-dev \
     libsm6 \
     libxext6 \
@@ -59,35 +61,22 @@ RUN apt-get update \
     html2text \
     htop \
     tree \
-    && ln -sf /usr/bin/python3.12 /usr/bin/python \
-    && ln -sf /usr/bin/pip3 /usr/bin/pip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
-
-RUN python -m pip install --ignore-installed --upgrade pip setuptools wheel
-
-RUN python -m pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
-
-# Install runtime dependencies that must stay
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
     libmagic-dev \
+    libmagic1 \
     openssh-server \
     ffmpeg \
     fonts-noto \
-    && mkdir -p /var/run/sshd \
-    && apt-get -qq -y autoremove \
-    && apt-get autoclean \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt /workdir/requirements.txt
-RUN python -m pip install --no-cache-dir -r /workdir/requirements.txt
-
-RUN apt-get purge -y --auto-remove \
+    ; \
+    mkdir -p /var/run/sshd; \
+    ln -sf /usr/bin/python3.12 /usr/bin/python; \
+    ln -sf /usr/bin/pip3 /usr/bin/pip; \
+    python -m pip install --ignore-installed --upgrade pip setuptools wheel; \
+    python -m pip install --no-cache-dir -r /workdir/requirements.txt; \
+    apt-get purge -y --auto-remove \
     build-essential \
     python3.12-dev \
     libexiv2-dev \
-    libboost-all-dev \
+    libboost-python-dev \
     libgeos-dev \
     libxrender-dev \
     libgl1-mesa-dev \
@@ -103,12 +92,24 @@ RUN apt-get purge -y --auto-remove \
     libtiff-dev \
     libatlas-base-dev \
     gfortran \
+    libmagic-dev \
     pkg-config \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
+    ; \
+    apt-get -qq -y autoremove; \
+    apt-get autoclean && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* \
+    /var/cache/apt/* \
+    /var/log/dpkg.log \
+    /var/log/apt/* \
+    /root/.cache/pip \
+    /tmp/* \
+    /var/tmp/*
 
 COPY agent /workdir/agent
 
 WORKDIR /workdir/agent
 
 ENTRYPOINT ["python", "-u", "/workdir/agent/main.py"]
+
+
