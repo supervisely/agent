@@ -30,10 +30,10 @@ jobs:
             --local dockerfile=. \
             --output type=image,name=supervisely/agent:dev,push=true \
             --opt provenance=false \
-            --opt build-arg=LABEL_VERSION=6.999.0 \
-            --opt build-arg=LABEL_INFO=${{ env.LABEL_INFO }} \
-            --opt build-arg=LABEL_MODES=${{ env.LABEL_MODES }} \
-            --opt build-arg=LABEL_README=${{ env.LABEL_README }} \
-            --opt build-arg=LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }} \
+            --opt build-arg:LABEL_VERSION=6.999.0 \
+            --opt build-arg:LABEL_INFO=${{ env.LABEL_INFO }} \
+            --opt build-arg:LABEL_MODES=${{ env.LABEL_MODES }} \
+            --opt build-arg:LABEL_README=${{ env.LABEL_README }} \
+            --opt build-arg:LABEL_BUILT_AT=${{ env.LABEL_BUILT_AT }} \
             --import-cache type=registry,ref=supervisely/agent:dev-cache \
             --export-cache type=registry,ref=supervisely/agent:dev-cache,mode=max
