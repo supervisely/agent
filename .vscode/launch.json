@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "main.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "agent/main.py",
             "console": "integratedTerminal",
@@ -19,7 +19,7 @@
         },
         {
             "name": "devcontainer main.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "agent/main.py",
             "console": "integratedTerminal",
@@ -34,7 +34,7 @@
         },
         {
             "name": "Python: Debug Tests",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "purpose": [
