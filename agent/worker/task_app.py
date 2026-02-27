@@ -12,6 +12,9 @@ import pathlib
 import copy
 
 from docker.errors import APIError, NotFound, DockerException
+from worker.container_runner.aws_runner import AWSContainerRunner
+from worker.container_runner.container_runner import BaseContainerExec
+from worker.container_runner.local import LocalContainer, LocalContainerRunner
 from slugify import slugify
 from pathlib import Path
 from packaging import version
@@ -101,7 +104,7 @@ class TaskApp(TaskDockerized):
         self.dir_task_src_container = None
         self.dir_apps_cache_host = None
         self.dir_apps_cache_container = None
-        self._exec_id = None
+        self.exec: BaseContainerExec = None
         self.app_info = None
         self._path_cache_host = None
         self._need_sync_pip_cache = False
@@ -466,6 +469,9 @@ class TaskApp(TaskDockerized):
         return requirements_path
 
     def sync_pip_cache(self):
+        if not isinstance(self._container, LocalContainer):
+            return
+
         version = self.app_info.get("version", "master")
         module_id = self.app_info.get("moduleId")
 
@@ -495,10 +501,10 @@ class TaskApp(TaskDockerized):
                         "app_session_id": str(self.info["task_id"]),
                     },
                 )
-                self.install_pip_requirements(container_id=self._container.id)
+                self.install_pip_requirements()
 
                 # @TODO: handle 404 not found
-                bits, stat = self._container.get_archive(_LINUX_DEFAULT_PIP_CACHE_DIR)
+                bits, stat = self._container._container.get_archive(_LINUX_DEFAULT_PIP_CACHE_DIR)
                 self.logger.info(
                     "Download initial pip cache from dockerimage",
                     extra={
@@ -525,14 +531,15 @@ class TaskApp(TaskDockerized):
     @handle_exceptions
     def find_or_run_container(self):
         add_labels = {"sly_app": "1", "app_session_id": str(self.info["task_id"])}
-        docker_utils.docker_pull_if_needed(
-            self._docker_api,
-            self.docker_image_name,
-            constants.PULL_POLICY(),
-            self.logger,
-        )
+        if os.environ.get("IS_AWS", "false").lower() == "true":
+            self.logger.info("AWS environment detected, using AWSContainerRunner")
+            self.container_runner = AWSContainerRunner()
+        else:
+            self.logger.info("Using LocalContainerRunner")
+            self.container_runner = LocalContainerRunner(self._docker_api, self.logger)
+        
+        self.container_runner.prepare_image(self.docker_image_name)
 
-        self.sync_pip_cache()
         if self._container is None:
             try:
                 self.spawn_container(add_envs=self.main_step_envs(), add_labels=add_labels)
@@ -543,7 +550,7 @@ class TaskApp(TaskDockerized):
                 orig_runtime = self.docker_runtime
 
                 if (
-                    is_runtime_err
+                    is_runtime_err 
                     and (self.docker_runtime == "nvidia")
                     and (self._gpu_config is GPUFlag.preferred)
                 ):
@@ -580,9 +587,9 @@ class TaskApp(TaskDockerized):
                         )
                     raise api_ex
 
-            if constants.OFFLINE_MODE() is False:
+            if constants.OFFLINE_MODE() is False and isinstance(self._container, LocalContainer):
                 self.logger.info("Double check pip cache for old agents")
-                self.install_pip_requirements(container_id=self._container.id)
+                self.install_pip_requirements()
                 self.logger.info("pip second install for old agents is finished")
 
     def get_spawn_entrypoint(self):
@@ -595,42 +602,11 @@ class TaskApp(TaskDockerized):
             entrypoint = ["/usr/bin/timeout", "--kill-after", "30s", f"{timeout}s"] + entrypoint
         return entrypoint
 
-    def _exec_command(self, command, add_envs=None, container_id=None):
-        SINGLE_ENV_VAR_LIMIT = 65536
-        add_envs = sly.take_with_default(add_envs, {})
-        all_envs = {
-            "LOG_LEVEL": "DEBUG",
-            "LANG": "C.UTF-8",
-            "PYTHONUNBUFFERED": "1",
-            constants._HTTP_PROXY: constants.HTTP_PROXY(),
-            constants._HTTPS_PROXY: constants.HTTPS_PROXY(),
-            constants._NO_PROXY: constants.NO_PROXY(),
-            "HOST_TASK_DIR": self.dir_task_host,
-            "TASK_ID": self.info["task_id"],
-            "SERVER_ADDRESS": self.info["server_address"],
-            "API_TOKEN": self.info["api_token"],
-            "AGENT_TOKEN": constants.TOKEN(),
-            "PIP_ROOT_USER_ACTION": "ignore",
-            **add_envs,
-        }
-        oversized_envs = {}
-        for key, value in all_envs.items():
-            value_bytes = len(str(value).encode("utf-8"))
-            if value_bytes > SINGLE_ENV_VAR_LIMIT:
-                oversized_envs[key] = value_bytes
-        if oversized_envs:
-            self.logger.warning("Oversized environment variables found!", extra={"envs": oversized_envs})
-            for key in oversized_envs.keys():
-                all_envs[key] = sly.LARGE_ENV_PLACEHOLDER
-        self._exec_id = self._docker_api.api.exec_create(
-            self._container.id if container_id is None else container_id,
-            cmd=command,
-            environment=all_envs,
-        )
-        self._logs_output = self._docker_api.api.exec_start(self._exec_id, stream=True)
+    def _exec_command(self, command):
+        self.exec = self._container.exec(command=command)
+        self._logs_output = self.exec.stream_logs()
 
-    def exec_command(self, add_envs=None, command=None):
-        add_envs = sly.take_with_default(add_envs, {})
+    def exec_command(self, command=None):
         main_script_path = os.path.join(
             self.dir_task_src_container,
             self.app_config.get("main_script", "src/main.py"),
@@ -644,14 +620,14 @@ class TaskApp(TaskDockerized):
                 f'bash -c "cd {self.dir_task_src_container} && {self.app_config["entrypoint"]}"'
             )
         self.logger.info("command to run", extra={"command": command})
-        self._exec_command(command, add_envs)
+        self._exec_command(command)
 
         # change pulling progress to app progress
         progress_dummy = sly.Progress("Application is started ...", 1, ext_logger=self.logger)
         progress_dummy.iter_done_report()
         self.logger.info("command is running", extra={"command": command})
 
-    def install_pip_requirements(self, container_id=None):
+    def install_pip_requirements(self):
         if self._need_sync_pip_cache is True:
             self.logger.info("Installing app requirements")
             progress_dummy = sly.Progress(
@@ -661,7 +637,7 @@ class TaskApp(TaskDockerized):
 
             command = "pip3 install --disable-pip-version-check --upgrade setuptools==69.0.0"
             self.logger.info(f"PIP command: {command}")
-            self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
+            self._exec_command(command)
             self.process_logs()
 
             # --root-user-action=ignore
@@ -669,10 +645,10 @@ class TaskApp(TaskDockerized):
                 self.dir_task_src_container, self._requirements_path_relative
             )
             self.logger.info(f"PIP command: {command}")
-            self._exec_command(command, add_envs=self.main_step_envs(), container_id=container_id)
+            self._exec_command(command)
             self.process_logs()
 
-            pip_install_exec_info = self._docker_api.api.exec_inspect(self._exec_id)
+            pip_install_exec_info = self.exec.get_exit_code()
 
             if pip_install_exec_info["ExitCode"] != 0:
                 raise RuntimeError("Pip install failed")
@@ -683,11 +659,7 @@ class TaskApp(TaskDockerized):
         if self._container is None:
             return False
 
-        try:
-            self._container.reload()
-            return self._container.status == "running"
-        except NotFound:
-            return False
+        return self._container.is_alive()
 
     def main_step(self):
         api = Api(self.info["server_address"], self.info["api_token"])
@@ -707,7 +679,7 @@ class TaskApp(TaskDockerized):
             self.find_or_run_container()
 
             if self.is_container_alive():
-                self.exec_command(add_envs=self.main_step_envs())
+                self.exec_command()
 
             logs_cnt = self.process_logs()
             if logs_cnt == 0:
@@ -843,7 +815,9 @@ class TaskApp(TaskDockerized):
         # @TODO: parse multiline logs correctly (including exceptions)
 
         for log_line_arr in self._logs_output:
-            for log_part in _decode(log_line_arr).splitlines():
+            if not isinstance(log_line_arr, str):
+                log_line_arr = _decode(log_line_arr)
+            for log_part in log_line_arr.splitlines():
                 yield log_part
 
     def process_logs(self, logs_arr=None):
@@ -883,17 +857,13 @@ class TaskApp(TaskDockerized):
             return self.exec_stop()
 
     def exec_stop(self):
-        exec_info = self._docker_api.api.exec_inspect(self._exec_id)
-        if exec_info["Running"] == True:
-            pid = exec_info["Pid"]
-            self._container.exec_run(cmd="kill {}".format(pid))
-        else:
-            return
+        self._container.exec_kill(self.exec.exec_id)
 
     def get_exit_status(self):
-        exec_info = self._docker_api.api.exec_inspect(self._exec_id)
-        exit_code = exec_info["ExitCode"]
-        return exit_code
+        if self.exec is not None:
+            return self.exec.get_exit_code()
+        if self._container is not None:
+            return self._container.get_exit_code()
 
     def _drop_container(self):
         if self.is_isolate():
@@ -902,7 +872,6 @@ class TaskApp(TaskDockerized):
             self.exec_stop()
 
     def drop_container_and_check_status(self):
-        self._container.reload()
         status = self.get_exit_status()
 
         if self.is_isolate():
