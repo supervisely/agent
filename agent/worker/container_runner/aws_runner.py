@@ -178,12 +178,38 @@ class AWSContainer(BaseContainer):
 
             time.sleep(poll_interval)
 
+    def wait_for_execute(self, timeout: float = 300, poll_interval: float = 2):
+        start = time.time()
+        while True:
+            task = self._describe_task()
+            status = task["lastStatus"]
+
+            if status == "STOPPED":
+                stopped_reason = task.get("stoppedReason", "unknown")
+                raise RuntimeError(f"Task stopped before reaching RUNNING state: {stopped_reason}")
+            if time.time() - start > timeout:
+                raise TimeoutError(f"Task did not reach RUNNING state within {timeout}s (last status: {status})")
+
+            if status == "RUNNING":
+                containers = task.get("containers", [])
+                for container in containers:
+                    if container["name"] == self._container_name:
+                        managed_agents = container.get("managedAgents", [])
+                        for agent in managed_agents:
+                            if agent["name"] == "ExecuteCommandAgent" and agent["lastStatus"] == "RUNNING":
+                                return
+
+            time.sleep(poll_interval)
+
     def exec(self, command) -> AWSContainerExec:
         exec_id = str(uuid.uuid4()).replace("-", "")[:8]
         pid_file = f"/tmp/{exec_id}.pid"
-        # shlex.quote handles all special characters safely
         inner = f"{command} & echo $! > {pid_file}"
         wrapped = f"bash -c {shlex.quote(inner)}"
+
+        print("Waiting for container to be ready for exec...")
+        self.wait_for_execute()
+        
         exec_resp = self._ecs_client.execute_command(
             cluster=self._ecs_config.cluster,
             task=self._task_arn,
@@ -275,7 +301,7 @@ class AWSContainerRunner(BaseContainerRunner):
         volumes: Dict = None,  # not used
         environment: Dict = None,
         labels: Dict = None,
-        shm_size: int = None,
+        shm_size: int = None, # not used
         stdin_open: bool = False,  # not used
         tty: bool = False,  # not used
         cpu_limit: int = None,
@@ -286,9 +312,9 @@ class AWSContainerRunner(BaseContainerRunner):
         security_opt: List[str] = None,  # not used
     ) -> AWSContainer:
         memory = parse_mem_limit_to_bytes(mem_limit)
-        shm_size = parse_mem_limit_to_bytes(shm_size)
         if ipc_mode == "":
             ipc_mode = None
+        environment = {k: str(v) for k, v in (environment or {}).items()}
         task_arn, container_name, task_definition_arn = run_container_ec2(
             docker_image_name=image,
             entrypoint=entrypoint,
@@ -298,7 +324,6 @@ class AWSContainerRunner(BaseContainerRunner):
             cpu=cpu_limit,
             memory=memory,
             tags=[{"key": k, "value": v} for k, v in (labels or {}).items()],
-            shm_size=shm_size,
             ipc_mode=ipc_mode,
         )
         return AWSContainer(

@@ -114,7 +114,6 @@ def _create_task_definition_revision(
     cpu: int = None,
     memory: int = None,
     gpu: int = None,
-    shm_size: int = None,
     ipc_mode: str = None,
 ) -> tuple[str, str]:
     task_def_response = ecs_client.describe_task_definition(
@@ -139,10 +138,6 @@ def _create_task_definition_revision(
             container_copy["resourceRequirements"] = [
                 {"type": "GPU", "value": str(gpu)}
             ]
-        if shm_size is not None:
-            linux_params = container_copy.get("linuxParameters", {})
-            linux_params["sharedMemorySize"] = shm_size
-            container_copy["linuxParameters"] = linux_params
         container_definitions.append(container_copy)
 
     register_params = {
@@ -474,7 +469,6 @@ def run_container_ec2(
     cpu: int = None,
     memory: int = None,
     gpu: int = None,
-    shm_size: int = None,
     ipc_mode: str = None,
     tags: List[Dict] = None,
     wait: bool = False,
@@ -496,7 +490,6 @@ def run_container_ec2(
         cpu=cpu,
         memory=memory,
         gpu=gpu,
-        shm_size=shm_size,
         ipc_mode=ipc_mode,
     )
 
