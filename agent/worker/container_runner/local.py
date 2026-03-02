@@ -1,26 +1,18 @@
 from logging import Logger
-from typing import Callable, Dict, Generator, List, Literal, Optional
+from typing import Dict, Generator, List, Literal, Optional
+
 import docker
+import supervisely as sly
+from docker.errors import APIError, DockerException, NotFound
+from docker.models.containers import Container
 from worker import constants, docker_utils
-from worker.task_dockerized import ErrorReport
+from worker.agent_utils import convert_millicores_to_cpu_quota
 from worker.container_runner.container_runner import (
+    BaseContainer,
     BaseContainerExec,
     BaseContainerRunner,
-    BaseContainer,
 )
-from docker.models.containers import Container
-
-from worker.agent_utils import (
-    TaskDirCleaner,
-    filter_log_line,
-    pip_req_satisfied_filter,
-    post_get_request_filter,
-    convert_millicores_to_cpu_quota,
-)
-
-import supervisely as sly
-
-from docker.errors import APIError, NotFound, DockerException
+from worker.task_dockerized import ErrorReport
 
 
 class LocalContainerExec(BaseContainerExec):

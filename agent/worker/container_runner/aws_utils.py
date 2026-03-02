@@ -1,12 +1,25 @@
-import boto3
 import os
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Union
 
+import boto3
+
 
 @dataclass
 class ECSConfig:
+    """Configuration for interacting with AWS ECS and ECR.
+
+    Attributes:
+        cluster: Name or ARN of the ECS cluster to run tasks on.
+        capacity_provider: Name of the EC2 capacity provider used for EC2 launch type tasks.
+        task_definition: Base task definition family or ARN used for EC2 tasks.
+        ecr_host: ECR registry host (e.g. ``123456789.dkr.ecr.us-east-1.amazonaws.com``).
+        mirroring_image_task_definition: Base task definition used for image mirroring
+            (Fargate) tasks.
+        region: AWS region. Defaults to ``"us-east-1"``.
+    """
+
     cluster: str
     capacity_provider: str
     task_definition: str
@@ -16,7 +29,15 @@ class ECSConfig:
 
 
 def get_boto3_client(service: str, region: str):
-    """Helper to create boto3 clients with consistent credentials."""
+    """Create a boto3 client authenticated via environment variables.
+
+    Args:
+        service: AWS service name (e.g. ``"ecs"``, ``"ecr"``, ``"ec2"``).
+        region: AWS region name (e.g. ``"us-east-1"``).
+
+    Returns:
+        A boto3 client for the specified service and region.
+    """
     return boto3.client(
         service,
         region_name=region,
@@ -26,6 +47,18 @@ def get_boto3_client(service: str, region: str):
 
 
 def get_default_network_config(ec2_client, assign_public_ip: bool = True) -> dict:
+    """Build an ECS ``awsvpcConfiguration`` dict from the account's default VPC.
+
+    Discovers the default VPC, all of its subnets, and the default security group,
+    then assembles the network configuration expected by ``ecs_client.run_task``.
+
+    Args:
+        ec2_client: A boto3 EC2 client.
+        assign_public_ip: Whether to enable ``assignPublicIp``. Defaults to ``True``.
+
+    Returns:
+        A dict suitable for passing as ``networkConfiguration`` to ``run_task``.
+    """
     vpcs = ec2_client.describe_vpcs(Filters=[{"Name": "isDefault", "Values": ["true"]}])
     vpc_id = vpcs["Vpcs"][0]["VpcId"]
 
@@ -58,15 +91,27 @@ def get_default_network_config(ec2_client, assign_public_ip: bool = True) -> dic
 def _parse_image_to_ecr_path(
     docker_image_name: str, ecr_host: str
 ) -> tuple[str, str, str]:
-    """
-    Parse a docker image name into ECR components.
+    """Parse a Docker image name into its ECR repository components.
 
-    supervisely/base-py-sdk-light:6.73.527
-      -> repository_name: supervisely/base-py-sdk-light
-      -> image_tag: 6.73.527
-      -> target_image: {ecr_host}/supervisely/base-py-sdk-light:6.73.527
+    Strips any existing registry prefix and splits the image path into a
+    repository name and tag, then constructs the full ECR URI.
 
-    Returns (repository_name, image_tag, target_image)
+    Example::
+
+        _parse_image_to_ecr_path(
+            "supervisely/base-py-sdk-light:6.73.527",
+            "123.dkr.ecr.us-east-1.amazonaws.com"
+        )
+        # -> ("supervisely/base-py-sdk-light", "6.73.527",
+        #     "123.dkr.ecr.us-east-1.amazonaws.com/supervisely/base-py-sdk-light:6.73.527")
+
+    Args:
+        docker_image_name: Docker image reference, optionally including a registry
+            prefix (e.g. ``"docker.io/library/ubuntu:22.04"``).
+        ecr_host: ECR registry host to use as the target registry prefix.
+
+    Returns:
+        A 3-tuple of ``(repository_name, image_tag, target_image)``.
     """
     # Strip any existing registry prefix (anything before the first slash that contains a dot or colon)
     parts = docker_image_name.split("/")
@@ -86,7 +131,16 @@ def _parse_image_to_ecr_path(
 
 
 def _ensure_ecr_repository(ecr_client, repository_name: str):
-    """Create ECR repository if it doesn't exist. Handles nested names like org/repo."""
+    """Create an ECR repository if it does not already exist.
+
+    Silently ignores ``RepositoryAlreadyExistsException`` so this function is
+    safe to call unconditionally before pushing an image.
+
+    Args:
+        ecr_client: A boto3 ECR client.
+        repository_name: Repository name, which may contain slashes for
+            namespaced repos (e.g. ``"org/repo"``).
+    """
     try:
         ecr_client.create_repository(repositoryName=repository_name)
         print(f"Created ECR repository: {repository_name}")
@@ -95,6 +149,17 @@ def _ensure_ecr_repository(ecr_client, repository_name: str):
 
 
 def _image_exists_in_ecr(ecr_client, repository_name: str, image_tag: str) -> bool:
+    """Check whether a specific image tag exists in an ECR repository.
+
+    Args:
+        ecr_client: A boto3 ECR client.
+        repository_name: Name of the ECR repository to query.
+        image_tag: Image tag to look up (e.g. ``"latest"`` or ``"1.2.3"``).
+
+    Returns:
+        ``True`` if the image tag is found; ``False`` if the repository or
+        image does not exist.
+    """
     try:
         ecr_client.describe_images(
             repositoryName=repository_name, imageIds=[{"imageTag": image_tag}]
@@ -116,6 +181,33 @@ def _create_task_definition_revision(
     gpu: int = None,
     ipc_mode: str = None,
 ) -> tuple[str, str]:
+    """Register a new revision of a task definition with optional overrides.
+
+    Fetches the most recent active revision of ``base_task_definition``, applies
+    the requested overrides to the first container, copies all supported optional
+    fields, and registers the result as a new revision.
+
+    Args:
+        ecs_client: A boto3 ECS client.
+        base_task_definition: Family name or ARN of the task definition to clone.
+        new_image: Docker image URI to set on the first container. If ``None``,
+            the existing image is preserved.
+        entrypoint: Override for the container ``entryPoint``. If ``None``, the
+            existing entrypoint is preserved.
+        cpu: CPU units to assign to the first container. If ``None``, the
+            existing value is preserved.
+        memory: Memory (MiB) to assign to the first container. If ``None``, the
+            existing value is preserved.
+        gpu: Number of GPUs to request via ``resourceRequirements``. If ``None``,
+            no GPU requirement is set.
+        ipc_mode: IPC mode for the task (e.g. ``"host"``). Overrides any value
+            in the base definition when provided.
+
+    Returns:
+        A 2-tuple of ``(task_definition_arn, container_name)`` where
+        ``task_definition_arn`` is the ARN of the newly registered revision and
+        ``container_name`` is the name of the first container.
+    """
     task_def_response = ecs_client.describe_task_definition(
         taskDefinition=base_task_definition
     )
@@ -178,9 +270,19 @@ def _create_task_definition_revision(
 def _get_task_log_config(
     ecs_client, task_definition_arn: str, container_name: str
 ) -> dict | None:
-    """
-    Extract CloudWatch log configuration for a container from a task definition.
-    Returns dict with {log_group, log_stream_prefix, region} or None if not configured.
+    """Extract the CloudWatch Logs configuration for a named container.
+
+    Looks up the task definition and returns the ``awslogs`` log driver options
+    for ``container_name`` if they are present.
+
+    Args:
+        ecs_client: A boto3 ECS client.
+        task_definition_arn: Full ARN of the task definition to inspect.
+        container_name: Name of the container whose log config to retrieve.
+
+    Returns:
+        A dict with keys ``log_group``, ``log_stream_prefix``, and ``region``
+        if the container uses the ``awslogs`` driver; otherwise ``None``.
     """
     task_def = ecs_client.describe_task_definition(taskDefinition=task_definition_arn)
     for container in task_def["taskDefinition"]["containerDefinitions"]:
@@ -199,7 +301,22 @@ def _get_task_log_config(
 def _stream_task_logs(
     logs_client, log_group: str, log_stream: str, next_token: str = None
 ) -> str | None:
-    """Stream new log events from a CloudWatch log stream since the last token."""
+    """Print new log events from a CloudWatch log stream and return the next token.
+
+    Paginates through all available events since ``next_token``, printing each
+    message to stdout. Stops when no new events are returned.
+
+    Args:
+        logs_client: A boto3 CloudWatch Logs client.
+        log_group: Name of the CloudWatch log group.
+        log_stream: Name of the log stream within the group.
+        next_token: Pagination token from a previous call. Pass ``None`` to
+            start from the beginning of the stream.
+
+    Returns:
+        The ``nextForwardToken`` to pass on the next call, or ``None`` if the
+        stream was not found.
+    """
     while True:
         kwargs = {
             "logGroupName": log_group,
@@ -234,7 +351,26 @@ def _wait_for_task_and_logs(
     container_name: str,
     poll_interval: int = 1,
 ):
-    """Wait for ECS task to finish, streaming CloudWatch logs when available."""
+    """Block until an ECS task stops, streaming its CloudWatch logs to stdout.
+
+    Polls the task status every ``poll_interval`` seconds. On each iteration,
+    any new log events are printed. Raises ``RuntimeError`` if any container
+    exits with a non-zero code or if the task stops before the container starts.
+
+    Args:
+        ecs_client: A boto3 ECS client.
+        region: AWS region of the task and log group.
+        cluster: Name or ARN of the ECS cluster.
+        task_arn: ARN of the running task to monitor.
+        task_definition_arn: ARN of the task definition (used to resolve the
+            log configuration).
+        container_name: Name of the container whose logs to stream.
+        poll_interval: Seconds to wait between status polls. Defaults to ``1``.
+
+    Raises:
+        RuntimeError: If any container exits with a non-zero exit code, or if
+            the task stops before a container starts.
+    """
     logs_client = get_boto3_client("logs", region)
     log_config = _get_task_log_config(ecs_client, task_definition_arn, container_name)
 
@@ -286,7 +422,22 @@ def _wait_for_task_and_logs(
 def _collect_log_lines(
     logs_client, log_group: str, log_stream: str, next_token: str = None
 ) -> tuple[str | None, list[str]]:
-    """Fetch new log lines since last token. Returns (next_token, lines)."""
+    """Fetch new log lines from a CloudWatch log stream since the last token.
+
+    Paginates until no new events are available and collects all message strings.
+
+    Args:
+        logs_client: A boto3 CloudWatch Logs client.
+        log_group: Name of the CloudWatch log group.
+        log_stream: Name of the log stream within the group.
+        next_token: Pagination token from a previous call. Pass ``None`` to
+            start from the beginning of the stream.
+
+    Returns:
+        A 2-tuple of ``(next_token, lines)`` where ``next_token`` is the forward
+        pagination token for subsequent calls and ``lines`` is a list of log
+        message strings collected in this call.
+    """
     lines = []
     while True:
         kwargs = {
@@ -322,7 +473,31 @@ def stream_task_logs(
     poll_interval: int = 1,
     next_log_token: str = None,
 ):
-    """Yield log lines from a running ECS task until it stops."""
+    """Yield log lines from a running ECS task until it stops.
+
+    Polls the task status and CloudWatch log stream in a loop, yielding each
+    new log line as it becomes available. Returns when the task reaches
+    ``STOPPED`` status.
+
+    Args:
+        ecs_client: A boto3 ECS client.
+        region: AWS region of the task and log group.
+        cluster: Name or ARN of the ECS cluster.
+        task_arn: ARN of the running task to tail.
+        task_definition_arn: ARN of the task definition (used to resolve the
+            log configuration).
+        container_name: Name of the container whose logs to stream.
+        poll_interval: Seconds to wait between log/status polls. Defaults to ``1``.
+        next_log_token: Optional starting pagination token. Pass ``None`` to
+            stream from the beginning.
+
+    Yields:
+        Individual log message strings in chronological order.
+
+    Raises:
+        RuntimeError: If no CloudWatch log configuration is found for the
+            specified container.
+    """
     logs_client = get_boto3_client("logs", region)
     log_config = _get_task_log_config(ecs_client, task_definition_arn, container_name)
 
@@ -359,7 +534,38 @@ def run_container_fargate(
     tags: List[Dict] = None,
     wait: bool = False,
 ) -> str:
-    """Run a container on Fargate (FARGATE launch type)."""
+    """Run a container on AWS Fargate and optionally wait for it to finish.
+
+    Creates a new task definition revision from
+    ``ecs_config.mirroring_image_task_definition``, applies the provided
+    overrides, and launches it with the ``FARGATE`` launch type using the
+    account's default VPC network configuration.
+
+    Args:
+        ecs_config: ECS/ECR configuration including cluster and task definition
+            details.
+        docker_image_name: Docker image URI to run. If ``None``, the image from
+            the base task definition is used.
+        entrypoint: Container entrypoint. A string is split on whitespace into a
+            list. Defaults to the base task definition's entrypoint.
+        command: Container command. A string is split on whitespace into a list.
+            Defaults to the base task definition's command.
+        env_vars: Additional environment variables to inject into the container
+            as ``{"KEY": "value"}`` pairs.
+        cpu: CPU units to allocate. Defaults to the base task definition value.
+        memory: Memory in MiB to allocate. Defaults to the base task definition
+            value.
+        tags: List of ECS resource tags in ``[{"key": ..., "value": ...}]`` form.
+        wait: If ``True``, block until the task stops and stream its logs.
+            Defaults to ``False``.
+
+    Returns:
+        The ARN of the started Fargate task.
+
+    Raises:
+        RuntimeError: If ECS reports failures and no task ARN is returned, or
+            if ``wait=True`` and the task exits with a non-zero status.
+    """
     if isinstance(command, str):
         command = command.split() if command else []
     if isinstance(entrypoint, str):
@@ -421,9 +627,25 @@ def mirror_image_to_ecr(
     docker_image_name: str,
     ecs_config: ECSConfig,
 ) -> str:
-    """
-    Ensure a Docker image is mirrored to ECR.
-    Returns the ECR image URI.
+    """Ensure a public Docker image is mirrored into ECR, pulling it if needed.
+
+    Checks whether the image already exists in ECR. If it does, returns the ECR
+    URI immediately. If not, launches a Fargate mirroring task (using
+    ``ecs_config.mirroring_image_task_definition``) that pulls the source image
+    and pushes it to ECR, then waits for the task to finish.
+
+    Args:
+        docker_image_name: Source Docker image reference, e.g.
+            ``"supervisely/base-py-sdk-light:6.73.527"``.
+        ecs_config: ECS/ECR configuration including the ECR host and cluster
+            details.
+
+    Returns:
+        The full ECR image URI (e.g.
+        ``"123.dkr.ecr.us-east-1.amazonaws.com/supervisely/base-py-sdk-light:6.73.527"``).
+
+    Raises:
+        RuntimeError: If the mirroring task fails or exits with a non-zero status.
     """
     ecr_client = get_boto3_client("ecr", ecs_config.region)
     repository_name, image_tag, target_image = _parse_image_to_ecr_path(
@@ -473,7 +695,38 @@ def run_container_ec2(
     tags: List[Dict] = None,
     wait: bool = False,
 ) -> Tuple[str, str, str]:
-    """Run a container using the EC2 capacity provider."""
+    """Run a container via the EC2 capacity provider and optionally wait for it.
+
+    Creates a new task definition revision from ``ecs_config.task_definition``,
+    applies the provided overrides, and launches the task using
+    ``ecs_config.capacity_provider`` with ``enableExecuteCommand`` enabled.
+
+    Args:
+        docker_image_name: Docker image URI to run.
+        entrypoint: Container entrypoint. A string is split on whitespace into a
+            list.
+        command: Container command. A single string is wrapped in a list.
+        ecs_config: ECS/ECR configuration including the cluster and capacity
+            provider details.
+        env_vars: Additional environment variables to inject into the container
+            as ``{"KEY": "value"}`` pairs.
+        cpu: CPU units for the first container. Defaults to the base task
+            definition value.
+        memory: Memory in MiB for the first container. Defaults to the base task
+            definition value.
+        gpu: Number of GPUs to request. Defaults to no GPU requirement.
+        ipc_mode: IPC mode for the task (e.g. ``"host"``).
+        tags: List of ECS resource tags in ``[{"key": ..., "value": ...}]`` form.
+        wait: If ``True``, block until the task stops and stream its logs.
+            Defaults to ``False``.
+
+    Returns:
+        A 3-tuple of ``(task_arn, container_name, task_definition_arn)``.
+
+    Raises:
+        RuntimeError: If ECS reports failures and no task ARN is returned, or
+            if ``wait=True`` and the task exits with a non-zero status.
+    """
     if isinstance(command, str):
         command = [command]
     if isinstance(entrypoint, str):
@@ -541,7 +794,27 @@ def run(
     ecs_config: ECSConfig,
     env_vars: dict = None,
 ) -> str:
-    """Full pipeline: mirror image to ECR, create task def revision, run and wait."""
+    """Mirror an image to ECR, then run it on EC2 and wait for completion.
+
+    Convenience wrapper that combines :func:`mirror_image_to_ecr` and
+    :func:`run_container_ec2` into a single call. The function blocks until the
+    task finishes and raises on failure.
+
+    Args:
+        docker_image_name: Source Docker image to mirror and run (e.g.
+            ``"supervisely/base-py-sdk-light:6.73.527"``).
+        entrypoint: Container entrypoint string (split on whitespace).
+        command: Container command as a string or list of strings.
+        ecs_config: ECS/ECR configuration used for both mirroring and running.
+        env_vars: Environment variables to inject into the container as
+            ``{"KEY": "value"}`` pairs.
+
+    Returns:
+        The ARN of the completed EC2 task.
+
+    Raises:
+        RuntimeError: If mirroring or the EC2 task fails.
+    """
     ecr_image = mirror_image_to_ecr(docker_image_name, ecs_config)
     return run_container_ec2(
         docker_image_name=ecr_image,
