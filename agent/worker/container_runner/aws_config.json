@@ -1,0 +1,7 @@
+{
+    "cluster": "gpu-cloud",
+    "ecr_host": "952013232994.dkr.ecr.us-east-1.amazonaws.com",
+    "capacity_provider": "Infra-ECS-Cluster-gpu-cloud-bff8b004-ManagedInstancesCapacityProvider-znOnkWBWcrTv",
+    "task_definition": "cpu-task-3gb",
+    "mirroring_image_task_definition": "mirror-image"
+}
