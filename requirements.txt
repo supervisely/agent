@@ -10,6 +10,7 @@ python-slugify==6.1.2
 nvidia-ml-py==12.535.77
 httpx>=0.26.0
 filelock==3.13.1
+boto3>=1.34.0,<2 # AWS IAM authentication for pulling images from ECR
 
 # grpcio installed from system packages (python3-grpcio)
 # grpcio-tools removed due to protobuf version conflict with supervisely[agent]

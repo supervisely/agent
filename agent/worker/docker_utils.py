@@ -1,7 +1,9 @@
 # coding: utf-8
 from __future__ import annotations
 
+import base64
 import json
+import re
 from enum import Enum
 import time
 from typing import Dict, Optional
@@ -55,6 +57,8 @@ def _auths_from_env() -> Dict:
     doc_regs = constants.DOCKER_REGISTRY().split(",")
     auths = {}
     for login, pasw, reg in zip(doc_logs, doc_pasws, doc_regs):
+        if reg == "" or (login == "" and pasw == ""):
+            continue
         auths.update({reg: {"username": login, "password": pasw}})
     return auths
 
@@ -62,6 +66,75 @@ def _auths_from_env() -> Dict:
 def _registry_auth_from_env(registry: str) -> Dict:
     auths = _auths_from_env()
     return auths.get(registry, None)
+
+
+_ECR_REGISTRY_RE = re.compile(
+    r"^\d{12}\.dkr\.ecr(?:-fips)?\.(?P<region>[a-z0-9-]+)\.(?:amazonaws\.com(?:\.cn)?|sc2s\.sgov\.gov|c2s\.ic\.gov)$"
+)
+# ECR tokens are valid for 12 hours; refresh a bit earlier to avoid using
+# a token that expires mid-pull
+_ECR_TOKEN_EXPIRATION_MARGIN = 15 * 60
+_ecr_auth_cache = {}
+
+
+def _registry_auth_from_aws(registry: str, logger) -> Optional[Dict]:
+    match = _ECR_REGISTRY_RE.match(registry)
+    if match is None:
+        return None
+
+    cached = _ecr_auth_cache.get(registry)
+    if cached is not None and cached[0] > time.time():
+        return cached[1]
+
+    try:
+        import boto3
+    except ImportError:
+        logger.warning(
+            "Image is hosted on AWS ECR, but boto3 is not installed; "
+            "AWS IAM authentication is not available",
+            extra={"registry": registry},
+        )
+        return None
+
+    try:
+        ecr_client = boto3.client("ecr", region_name=match.group("region"))
+        auth_data = ecr_client.get_authorization_token()["authorizationData"][0]
+        username, password = (
+            base64.b64decode(auth_data["authorizationToken"]).decode("utf-8").split(":", 1)
+        )
+        auth = {"username": username, "password": password}
+        expires_at = auth_data["expiresAt"].timestamp() - _ECR_TOKEN_EXPIRATION_MARGIN
+        _ecr_auth_cache[registry] = (expires_at, auth)
+        logger.info(
+            "Got ECR authorization token using AWS IAM credentials",
+            extra={"registry": registry},
+        )
+        return auth
+    except Exception as e:
+        logger.warning(
+            "Unable to get ECR authorization token using AWS IAM credentials, "
+            "falling back to the Docker config file. If the agent host uses an EC2 "
+            "instance role, make sure the instance metadata service is reachable "
+            "from containers (IMDSv2 hop limit >= 2), or provide AWS credentials "
+            "to the agent container via environment variables or a mounted ~/.aws.",
+            extra={"registry": registry, "error": str(e)},
+        )
+        return None
+
+
+def resolve_auth(registry: str, logger) -> Optional[Dict]:
+    """Resolve pull credentials for the registry.
+
+    Priority: explicit DOCKER_LOGIN/DOCKER_PASSWORD/DOCKER_REGISTRY credentials,
+    then AWS IAM credentials for ECR registries. Returns None when nothing
+    matched, so that docker-py falls back to the Docker config file
+    (~/.docker/config.json or $DOCKER_CONFIG) and credential helpers,
+    the same way the docker CLI does.
+    """
+    auth = _registry_auth_from_env(registry)
+    if auth is not None:
+        return auth
+    return _registry_auth_from_aws(registry, logger)
 
 
 def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
@@ -133,9 +206,10 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
-    auth = _registry_auth_from_env(registry)
-    auth_log = hidden_auth().get(registry, None)
-    logger.debug("Docker registry auth", extra={"registry": registry, "auth": auth_log})
+    auth = resolve_auth(registry, logger)
+    logger.debug(
+        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+    )
     for i in range(0, PULL_RETRIES + 1):
         retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
         progress_dummy = Progress(
@@ -175,9 +249,10 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
     from docker.errors import DockerException
 
     registry = resolve_registry(docker_image_name)
-    auth = _registry_auth_from_env(registry)
-    auth_log = hidden_auth().get(registry, None)
-    logger.debug("Docker registry auth", extra={"registry": registry, "auth": auth_log})
+    auth = resolve_auth(registry, logger)
+    logger.debug(
+        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+    )
     for i in range(0, PULL_RETRIES + 1):
         try:
             layers_total_load = {}
@@ -291,14 +366,20 @@ def _docker_image_exists(docker_api, docker_image_name):
     return True
 
 
+def _hide_credentials(auth: Optional[Dict]) -> Optional[Dict]:
+    if auth is None:
+        return None
+
+    def mask(value):
+        if not value:
+            return value
+        return value[0] + ("*" * (len(value) - 2))[:10] + value[-1]
+
+    return {"username": mask(auth.get("username")), "password": mask(auth.get("password"))}
+
+
 def hidden_auth():
     auths = _auths_from_env()
     for registry, auth in auths.items():
-        username = auth.get("username")
-        if username:
-            username = username[0] + ("*" * (len(username) - 2))[:10] + username[-1]
-        password = auth.get("password")
-        if password:
-            password = password[0] + ("*" * (len(password) - 2))[:10] + password[-1]
-        auths[registry] = {"username": username, "password": password}
+        auths[registry] = _hide_credentials(auth)
     return auths
