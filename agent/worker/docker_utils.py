@@ -6,7 +6,7 @@ import json
 import re
 from enum import Enum
 import time
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from supervisely.app import DialogWindowError
 from supervisely.task.progress import Progress
@@ -131,10 +131,50 @@ def resolve_auth(registry: str, logger) -> Optional[Dict]:
     (~/.docker/config.json or $DOCKER_CONFIG) and credential helpers,
     the same way the docker CLI does.
     """
+    return resolve_auth_candidates(registry, logger)[0]
+
+
+def resolve_auth_candidates(registry: str, logger) -> List[Optional[Dict]]:
     auth = _registry_auth_from_env(registry)
     if auth is not None:
-        return auth
-    return _registry_auth_from_aws(registry, logger)
+        return [auth]
+
+    auth = _registry_auth_from_aws(registry, logger)
+    if auth is not None:
+        return [auth, None]
+    return [None]
+
+
+def _run_with_auth_fallback(operation, auth_candidates, logger):
+    from docker.errors import DockerException
+
+    try:
+        return operation(auth_candidates[0])
+    except DockerException as e:
+        if len(auth_candidates) == 1:
+            raise
+        logger.warning(
+            "Docker registry request with AWS IAM credentials failed, "
+            "falling back to the Docker config file",
+            extra={"error": str(e)},
+        )
+        return operation(auth_candidates[1])
+
+
+def _iter_with_auth_fallback(operation, auth_candidates, logger):
+    from docker.errors import DockerException
+
+    try:
+        yield from operation(auth_candidates[0])
+    except DockerException as e:
+        if len(auth_candidates) == 1:
+            raise
+        logger.warning(
+            "Docker registry request with AWS IAM credentials failed, "
+            "falling back to the Docker config file",
+            extra={"error": str(e)},
+        )
+        yield from operation(auth_candidates[1])
 
 
 def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
@@ -206,9 +246,10 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
-    auth = resolve_auth(registry, logger)
+    auth_candidates = resolve_auth_candidates(registry, logger)
     logger.debug(
-        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+        "Docker registry auth",
+        extra={"registry": registry, "auth": _hide_credentials(auth_candidates[0])},
     )
     for i in range(0, PULL_RETRIES + 1):
         retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
@@ -219,8 +260,12 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
         )
         progress_dummy.iter_done_report()
         try:
-
-            pulled_img = docker_api.images.pull(docker_image_name, auth_config=auth)
+            attempt_auth_candidates = auth_candidates if i == 0 else auth_candidates[:1]
+            pulled_img = _run_with_auth_fallback(
+                lambda auth: docker_api.images.pull(docker_image_name, auth_config=auth),
+                attempt_auth_candidates,
+                logger,
+            )
             logger.info(
                 "Docker image has been pulled",
                 extra={"pulled": {"tags": pulled_img.tags, "id": pulled_img.id}},
@@ -249,9 +294,10 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
     from docker.errors import DockerException
 
     registry = resolve_registry(docker_image_name)
-    auth = resolve_auth(registry, logger)
+    auth_candidates = resolve_auth_candidates(registry, logger)
     logger.debug(
-        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+        "Docker registry auth",
+        extra={"registry": registry, "auth": _hide_credentials(auth_candidates[0])},
     )
     for i in range(0, PULL_RETRIES + 1):
         try:
@@ -283,9 +329,15 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
                 ext_logger=logger,
             )
 
-            for line in docker_api.api.pull(
-                docker_image_name, stream=True, decode=True, auth_config=auth
-            ):
+            attempt_auth_candidates = auth_candidates if i == 0 else auth_candidates[:1]
+            lines = _iter_with_auth_fallback(
+                lambda auth: docker_api.api.pull(
+                    docker_image_name, stream=True, decode=True, auth_config=auth
+                ),
+                attempt_auth_candidates,
+                logger,
+            )
+            for line in lines:
                 status = PullStatus.from_str(line.get("status", None))
                 layer_id = line.get("id", None)
                 progress_details = line.get("progressDetail", {})
