@@ -58,7 +58,7 @@ def test_docker_pull_falls_back_from_aws_to_docker_config(monkeypatch):
     )
     pulled_image = Mock(tags=["repo:tag"], id="sha256:image")
     docker_api = Mock()
-    docker_api.images.pull.side_effect = [DockerException("IAM denied"), pulled_image]
+    docker_api.images.pull.side_effect = [DockerException("pull access denied"), pulled_image]
 
     docker_utils._docker_pull(docker_api, "repo:tag", Mock())
 
@@ -66,6 +66,43 @@ def test_docker_pull_falls_back_from_aws_to_docker_config(monkeypatch):
         call("repo:tag", auth_config=ECR_AUTH),
         call("repo:tag", auth_config=None),
     ]
+
+
+def test_docker_pull_does_not_fallback_on_non_auth_error(monkeypatch):
+    monkeypatch.setattr(docker_utils, "Progress", _Progress)
+    monkeypatch.setattr(docker_utils, "resolve_registry", lambda image: ECR_REGISTRY)
+    monkeypatch.setattr(
+        docker_utils, "resolve_auth_candidates", lambda registry, logger: [ECR_AUTH, None]
+    )
+    monkeypatch.setattr(docker_utils.time, "sleep", lambda delay: None)
+    pulled_image = Mock(tags=["repo:tag"], id="sha256:image")
+    docker_api = Mock()
+    docker_api.images.pull.side_effect = [DockerException("read timeout"), pulled_image]
+
+    docker_utils._docker_pull(docker_api, "repo:tag", Mock())
+
+    # a transient error must be handled by the retry loop with the same
+    # credentials, not by silently switching to the Docker config
+    assert docker_api.images.pull.call_args_list == [
+        call("repo:tag", auth_config=ECR_AUTH),
+        call("repo:tag", auth_config=ECR_AUTH),
+    ]
+
+
+def test_auth_error_fallback_invalidates_ecr_token_cache(monkeypatch):
+    monkeypatch.setattr(docker_utils, "Progress", _Progress)
+    monkeypatch.setattr(docker_utils, "resolve_registry", lambda image: ECR_REGISTRY)
+    monkeypatch.setattr(
+        docker_utils, "resolve_auth_candidates", lambda registry, logger: [ECR_AUTH, None]
+    )
+    monkeypatch.setitem(docker_utils._ecr_auth_cache, ECR_REGISTRY, (float("inf"), ECR_AUTH))
+    pulled_image = Mock(tags=["repo:tag"], id="sha256:image")
+    docker_api = Mock()
+    docker_api.images.pull.side_effect = [DockerException("pull access denied"), pulled_image]
+
+    docker_utils._docker_pull(docker_api, "repo:tag", Mock())
+
+    assert ECR_REGISTRY not in docker_utils._ecr_auth_cache
 
 
 def test_docker_pull_progress_falls_back_from_aws_to_docker_config(monkeypatch):
