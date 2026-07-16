@@ -137,9 +137,13 @@ def check_and_pull_sly_net_if_needed(
         sly_net_client_image_name = cur_container.attrs["Config"]["Image"]
 
     registry = docker_utils.resolve_registry(sly_net_client_image_name)
-    auth = docker_utils._registry_auth_from_env(registry)
-
-    docker_registry_image_info = ic.get_registry_data(sly_net_client_image_name, auth_config=auth)
+    auth_candidates = docker_utils.resolve_auth_candidates(registry, logger)
+    docker_registry_image_info = docker_utils._run_with_auth_fallback(
+        lambda auth: ic.get_registry_data(sly_net_client_image_name, auth_config=auth),
+        auth_candidates,
+        registry,
+        logger,
+    )
     name_with_digest: str = cur_container.image.attrs.get("RepoDigests", [""])[0]
 
     if name_with_digest.endswith(docker_registry_image_info.id):

@@ -44,9 +44,11 @@ jobs:
           
       - name: Create Boost Python symlink
         run: |
-          sudo ln -s \
-            "/usr/lib/x86_64-linux-gnu/libboost_python${PYVER}.so" \
-            "/usr/lib/x86_64-linux-gnu/libboost_python312.so"
+          if [ ! -e "/usr/lib/x86_64-linux-gnu/libboost_python312.so" ]; then
+            sudo ln -s \
+              "/usr/lib/x86_64-linux-gnu/libboost_python${PYVER}.so" \
+              "/usr/lib/x86_64-linux-gnu/libboost_python312.so"
+          fi
 
       - name: Install pylint and requirements
         run: |
