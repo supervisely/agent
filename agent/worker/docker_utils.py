@@ -6,7 +6,7 @@ import json
 import re
 from enum import Enum
 import time
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from supervisely.app import DialogWindowError
 from supervisely.task.progress import Progress
@@ -131,10 +131,63 @@ def resolve_auth(registry: str, logger) -> Optional[Dict]:
     (~/.docker/config.json or $DOCKER_CONFIG) and credential helpers,
     the same way the docker CLI does.
     """
+    return resolve_auth_candidates(registry, logger)[0]
+
+
+def resolve_auth_candidates(registry: str, logger) -> List[Optional[Dict]]:
     auth = _registry_auth_from_env(registry)
     if auth is not None:
-        return auth
-    return _registry_auth_from_aws(registry, logger)
+        return [auth]
+
+    auth = _registry_auth_from_aws(registry, logger)
+    if auth is not None:
+        return [auth, None]
+    return [None]
+
+
+def _is_auth_error(e) -> bool:
+    from docker.errors import APIError
+
+    if isinstance(e, APIError) and e.status_code in (401, 403):
+        return True
+    # the daemon wraps registry auth errors into a 500 APIError, so the
+    # original status code is only recoverable from the message
+    msg = str(e).lower()
+    return any(
+        marker in msg
+        for marker in (
+            "unauthorized",
+            "denied",
+            "not authorized",
+            "authentication required",
+            "no basic auth credentials",
+        )
+    )
+
+
+def _run_with_auth_fallback(operation, auth_candidates, registry, logger):
+    """Run operation(auth) with each candidate in order.
+
+    Moves to the next candidate only when the registry rejected the current
+    credentials; any other error is raised immediately. Needed for the case
+    when IAM credentials can issue an ECR token but have no access to the
+    repository itself, while the Docker config file holds working credentials.
+    """
+    from docker.errors import DockerException
+
+    last = len(auth_candidates) - 1
+    for idx, auth in enumerate(auth_candidates):
+        try:
+            return operation(auth)
+        except DockerException as e:
+            if idx == last or not _is_auth_error(e):
+                raise
+            _ecr_auth_cache.pop(registry, None)
+            logger.warning(
+                "Docker registry rejected AWS IAM credentials, "
+                "retrying with credentials from the Docker config file",
+                extra={"registry": registry, "error": str(e)},
+            )
 
 
 def docker_pull_if_needed(docker_api, docker_image_name, policy, logger, progress=True):
@@ -206,9 +259,10 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
 
     logger.info("Docker image will be pulled", extra={"image_name": docker_image_name})
     registry = resolve_registry(docker_image_name)
-    auth = resolve_auth(registry, logger)
+    auth_candidates = resolve_auth_candidates(registry, logger)
     logger.debug(
-        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+        "Docker registry auth",
+        extra={"registry": registry, "auth": _hide_credentials(auth_candidates[0])},
     )
     for i in range(0, PULL_RETRIES + 1):
         retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
@@ -219,8 +273,12 @@ def _docker_pull(docker_api, docker_image_name, logger, raise_exception=True):
         )
         progress_dummy.iter_done_report()
         try:
-
-            pulled_img = docker_api.images.pull(docker_image_name, auth_config=auth)
+            pulled_img = _run_with_auth_fallback(
+                lambda auth: docker_api.images.pull(docker_image_name, auth_config=auth),
+                auth_candidates,
+                registry,
+                logger,
+            )
             logger.info(
                 "Docker image has been pulled",
                 extra={"pulled": {"tags": pulled_img.tags, "id": pulled_img.id}},
@@ -249,12 +307,17 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
     from docker.errors import DockerException
 
     registry = resolve_registry(docker_image_name)
-    auth = resolve_auth(registry, logger)
+    auth_candidates = resolve_auth_candidates(registry, logger)
     logger.debug(
-        "Docker registry auth", extra={"registry": registry, "auth": _hide_credentials(auth)}
+        "Docker registry auth",
+        extra={"registry": registry, "auth": _hide_credentials(auth_candidates[0])},
     )
     for i in range(0, PULL_RETRIES + 1):
-        try:
+        retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
+
+        # progress state is created inside so that a fallback retry with other
+        # credentials starts reporting from scratch instead of double-counting
+        def _pull_and_report(auth, retry_str=retry_str):
             layers_total_load = {}
             layers_current_load = {}
             layers_total_extract = {}
@@ -262,8 +325,6 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
             started = set()
             loaded = set()
             pulled = set()
-
-            retry_str = f" (retry {i}/{PULL_RETRIES})" if i > 0 else ""
 
             progress_full = Progress(
                 "Preparing dockerimage" + retry_str,
@@ -336,6 +397,9 @@ def _docker_pull_progress(docker_api, docker_image_name, logger, raise_exception
 
             progress_full.iter_done()
             progress_full.report_progress()
+
+        try:
+            _run_with_auth_fallback(_pull_and_report, auth_candidates, registry, logger)
             logger.info("Docker image has been pulled", extra={"image_name": docker_image_name})
             return
         except DockerException as e:
