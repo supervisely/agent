@@ -481,24 +481,43 @@ class Agent:
         self.daemons_list.append(proc)
         GPU_FREQ = 60
         last_gpu_message = 0
+        restart_wait_sec = 30  # backoff before respawning a crashed reporter
         try:
             proc.start()
             while True:
                 if not proc.is_alive():
-                    err_msg = "{}_CRASHED".format(name)
-                    self.logger.error("Agent process is dead.", extra={"exc_str": err_msg})
+                    # reporter subprocess death must not kill the agent: respawn it
+                    self.logger.error(
+                        "{} is dead, respawning.".format(name),
+                        extra={"exc_str": "{}_CRASHED".format(name)},
+                    )
                     time.sleep(1)  # an opportunity to send log
-                    raise RuntimeError(err_msg)
+                    try:
+                        self.daemons_list.remove(proc)
+                    except ValueError:
+                        pass
+                    time.sleep(restart_wait_sec)
+                    proc = process_cls()
+                    self.daemons_list.append(proc)
+                    proc.start()
+                    continue
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
                 if last_gpu_message <= 0:
                     gpu_info = get_gpu_info(self.logger)
                     self.logger.debug(f"GPU state: {gpu_info}")
-                    self.api.simple_request(
-                        "UpdateTelemetry",
-                        sly.api_proto.Empty,
-                        sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
-                    )
+                    # telemetry is best-effort: a failed send must never crash the agent
+                    try:
+                        self.api.simple_request(
+                            "UpdateTelemetry",
+                            sly.api_proto.Empty,
+                            sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
+                        )
+                    except Exception as telemetry_exc:
+                        self.logger.warning(
+                            "Failed to send telemetry, will retry later.",
+                            extra={"exc_str": str(telemetry_exc)},
+                        )
                     last_gpu_message = GPU_FREQ
 
         except Exception as e:

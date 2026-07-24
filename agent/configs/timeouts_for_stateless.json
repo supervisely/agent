@@ -45,6 +45,25 @@
       "swallow_exc": true
     }
   },
+  "UpdateTelemetry": {
+    "class": "RetrierAlways",
+    "params": {
+      "retry_cnt": 1000000000,
+      "wait_sec_first": 2,
+      "wait_sec_max": 15,
+      "timeout": [4, 60],
+      "swallow_exc": true
+    }
+  },
+  "AgentPing": {
+    "class": "RetrierAlways",
+    "params": {
+      "retry_cnt": 1000000000,
+      "wait_sec_first": 1,
+      "wait_sec_max": 4,
+      "timeout": [4, 10]
+    }
+  },
   "AgentConnected": {
     "class": "RetrierAlways",
     "params": {
