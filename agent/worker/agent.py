@@ -50,6 +50,10 @@ from supervisely_lib._utils import (
     _remove_sensitive_information,
 )
 
+# backoff bounds for respawning a crashed follow_daemon subprocess (e.g. TelemetryReporter)
+DAEMON_RESTART_WAIT_SEC = 30
+DAEMON_RESTART_WAIT_MAX_SEC = 300
+
 
 class Agent:
     def __init__(self):
@@ -72,6 +76,7 @@ class Agent:
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
         self.daemons_list = []
+        self.daemons_lock = threading.Lock()
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -476,30 +481,54 @@ class Agent:
                 else:
                     time.sleep(1)
 
-    def follow_daemon(self, process_cls, name, sleep_sec=5):
+    def _start_daemon(self, process_cls):
+        # start a daemon subprocess, then register it; a failed start() never leaves an
+        # unstarted process in daemons_list. Returns (proc, start_monotonic).
         proc = process_cls()
-        self.daemons_list.append(proc)
+        proc.start()
+        with self.daemons_lock:
+            self.daemons_list.append(proc)
+        return proc, time.monotonic()
+
+    def _drop_daemon(self, proc):
+        # deregister and reap a dead daemon subprocess
+        with self.daemons_lock:
+            try:
+                self.daemons_list.remove(proc)
+            except ValueError:
+                pass
+        try:
+            proc.join(timeout=2)
+        except Exception:
+            pass
+
+    def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
-        restart_wait_sec = 30  # backoff before respawning a crashed reporter
+        consecutive = 0
+        proc = None
         try:
-            proc.start()
+            proc, started_at = self._start_daemon(process_cls)
             while True:
                 if not proc.is_alive():
-                    # reporter subprocess death must not kill the agent: respawn it
+                    # reporter subprocess died: respawn with backoff, never kill the agent
+                    self._drop_daemon(proc)
                     self.logger.error(
                         "{} is dead, respawning.".format(name),
                         extra={"exc_str": "{}_CRASHED".format(name)},
                     )
                     time.sleep(1)  # an opportunity to send log
-                    try:
-                        self.daemons_list.remove(proc)
-                    except ValueError:
-                        pass
-                    time.sleep(restart_wait_sec)
-                    proc = process_cls()
-                    self.daemons_list.append(proc)
-                    proc.start()
+                    if time.monotonic() - started_at > DAEMON_RESTART_WAIT_MAX_SEC:
+                        consecutive = 0  # it had been alive long enough, reset backoff
+                    wait = min(
+                        DAEMON_RESTART_WAIT_SEC * (2 ** min(consecutive, 8)),
+                        DAEMON_RESTART_WAIT_MAX_SEC,
+                    )
+                    time.sleep(wait)
+                    # account for the restart sleep so GPU-telemetry cadence does not drift
+                    last_gpu_message -= 1 + wait
+                    proc, started_at = self._start_daemon(process_cls)
+                    consecutive += 1
                     continue
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
@@ -516,13 +545,15 @@ class Agent:
                     except Exception as telemetry_exc:
                         self.logger.warning(
                             "Failed to send telemetry, will retry later.",
+                            exc_info=True,
                             extra={"exc_str": str(telemetry_exc)},
                         )
                     last_gpu_message = GPU_FREQ
 
         except Exception as e:
-            proc.terminate()
-            proc.join(timeout=2)
+            if proc is not None and proc.pid is not None:
+                proc.terminate()
+                proc.join(timeout=2)
             raise e
 
     def inf_loop(self):
@@ -604,9 +635,12 @@ class Agent:
 
     def wait_all(self):
         def terminate_all_deamons():
-            for process in self.daemons_list:
-                process.terminate()
-                process.join(timeout=2)
+            with self.daemons_lock:
+                daemons = list(self.daemons_list)
+            for process in daemons:
+                if process.pid is not None:
+                    process.terminate()
+                    process.join(timeout=2)
 
         futures_statuses = wait(self.thread_list, return_when="FIRST_EXCEPTION")
         for future in self.thread_list:

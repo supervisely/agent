@@ -137,6 +137,7 @@ class TelemetryReporter(TaskLogged):
                 except Exception as send_exc:
                     self.logger.warning(
                         "Failed to send telemetry report, will retry on next tick.",
+                        exc_info=True,
                         extra={"exc_str": str(send_exc)},
                     )
 

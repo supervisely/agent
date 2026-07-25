@@ -48,17 +48,17 @@
   "UpdateTelemetry": {
     "class": "RetrierAlways",
     "params": {
-      "retry_cnt": 1000000000,
+      "retry_cnt": 3,
       "wait_sec_first": 2,
       "wait_sec_max": 15,
-      "timeout": [4, 60],
-      "swallow_exc": true
+      "timeout": [4, 15],
+      "swallow_exc": false
     }
   },
   "AgentPing": {
     "class": "RetrierAlways",
     "params": {
-      "retry_cnt": 1000000000,
+      "retry_cnt": 1000,
       "wait_sec_first": 1,
       "wait_sec_max": 4,
       "timeout": [4, 10]
