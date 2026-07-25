@@ -73,6 +73,7 @@ _AUTO_CLEAN_INT_RANGE_DAYS = "AUTO_CLEAN_INT_RANGE_DAYS"
 _BASE_IMAGES = ["supervisely/base-py-sdk:latest", "supervisely/data-versioning:latest", "supervisely/tensorboard-viewer:1.0.0", "supervisely/data-commander:latest", "supervisely/predict-app:latest"]
 _MAX_AGENT_RESTARTS = "MAX_AGENT_RESTARTS"
 _AGENT_RESTART_COUNT = "AGENT_RESTART_COUNT"
+_RECLAIM_RUNNING_TASKS_ON_RESTART = "RECLAIM_RUNNING_TASKS_ON_RESTART"
 
 
 _REQUIRED_SETTINGS = [
@@ -167,6 +168,7 @@ _OPTIONAL_DEFAULTS = {
     _CONTAINER_NAME: f"supervisely-agent-{TOKEN()[:8]}",
     _MAX_AGENT_RESTARTS: 3,
     _AGENT_RESTART_COUNT: 0,
+    _RECLAIM_RUNNING_TASKS_ON_RESTART: "true",
     _SLY_EXTRA_CA_CERTS_DIR: "/sly_certs",
     _SLY_EXTRA_CA_CERTS_VOLUME_NAME: f"supervisely-agent-ca-certs-{TOKEN()[:8]}",
     _FORCE_CPU_ONLY: "false",
@@ -346,6 +348,12 @@ def CHECK_VERSION_COMPATIBILITY():
 def TIMEOUT_CONFIG_PATH():
     use_default_timeouts = sly.env.flag_from_env(read_optional_setting(_DEFAULT_TIMEOUTS))
     return None if use_default_timeouts else "/workdir/src/configs/timeouts_for_stateless.json"
+
+
+def RECLAIM_RUNNING_TASKS_ON_RESTART():
+    # when true, running task containers are adopted (kept alive) on agent restart
+    # instead of being force-removed; set to false to restore the old force-kill behavior
+    return sly.env.flag_from_env(read_optional_setting(_RECLAIM_RUNNING_TASKS_ON_RESTART))
 
 
 def AUTO_CLEAN_INT_RANGE_DAYS():

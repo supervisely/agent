@@ -68,6 +68,8 @@ class Agent:
 
         self.task_pool_lock = threading.Lock()
         self.task_pool: Dict[int, TaskSly] = {}  # task_id -> task_manager (process_id)
+        # task_id -> container adopted on restart (task survived, agent process did not)
+        self.adopted_containers: Dict[int, Container] = {}
 
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
@@ -311,6 +313,21 @@ class Agent:
     def stop_task(self, task_id):
         self.task_pool_lock.acquire()
         try:
+            if task_id in self.adopted_containers:
+                cont = self.adopted_containers.pop(task_id)
+                try:
+                    cont.remove(force=True)
+                except docker.errors.NotFound:
+                    pass
+                except Exception:
+                    self.logger.error(
+                        "Unable to remove adopted container",
+                        exc_info=True,
+                        extra={"task_id": task_id},
+                    )
+                self.logger.info("TASK_STOPPED", extra={"task_id": task_id, "adopted": True})
+                return
+
             if task_id in self.task_pool:
                 task = self.task_pool[task_id]
                 task.join(timeout=20)
@@ -362,6 +379,24 @@ class Agent:
     def start_task(self, task):
         self.task_pool_lock.acquire()
         try:
+            if task["task_id"] in self.adopted_containers:
+                cont = self.adopted_containers[task["task_id"]]
+                still_running = False
+                try:
+                    cont.reload()
+                    still_running = cont.status == "running"
+                except Exception:
+                    still_running = False
+                if still_running:
+                    # task survived the agent restart and is still running: do not re-spawn it
+                    self.logger.info(
+                        "TASK_ALREADY_RUNNING_ADOPTED, skip re-dispatch",
+                        extra={"task_id": task["task_id"]},
+                    )
+                    return
+                # adopted container is already gone: drop it and start fresh
+                self.adopted_containers.pop(task["task_id"], None)
+
             if task["task_id"] in self.task_pool:
                 # @TODO: remove - ?? only app will receive its messages (skip app button's messages)
                 if task["task_type"] != "app":
@@ -446,22 +481,109 @@ class Agent:
     def _stop_missed_containers(self, ecosystem_token):
         self.logger.info("Searching for missed containers...")
         label_filter = {"label": "ecosystem_token={}".format(ecosystem_token)}
+        dc = docker.from_env()
+        containers = dc.containers.list(
+            all=True, filters=label_filter, sparse=False, ignore_removed=True
+        )
 
-        stopped_list = Agent._remove_containers(label_filter=label_filter)
-
-        if len(stopped_list) == 0:
+        if len(containers) == 0:
             self.logger.info("There are no missed containers.")
+            return
 
-        for cont in stopped_list:
+        reclaim = constants.RECLAIM_RUNNING_TASKS_ON_RESTART()
+        for cont in containers:
+            try:
+                task_id = int(cont.labels["task_id"])
+            except (KeyError, ValueError):
+                task_id = None
+
+            is_running = False
+            try:
+                cont.reload()
+                is_running = cont.status == "running"
+            except docker.errors.NotFound:
+                continue
+            except docker.errors.APIError:
+                self.logger.warning(
+                    "Failed to reload container, treating as not running",
+                    extra={"cont_id": cont.id},
+                )
+
+            if reclaim and is_running and task_id is not None:
+                # task survived the agent restart: keep it alive and reap it on exit
+                self.adopted_containers[task_id] = cont
+                self.logger.info(
+                    "TASK_ADOPTED",
+                    extra={
+                        "service_type": sly.ServiceType.TASK,
+                        "event_type": sly.EventType.LOGJ,
+                        "task_id": task_id,
+                        "cont_id": cont.id,
+                    },
+                )
+                continue
+
+            try:
+                cont.remove(force=True)
+            except docker.errors.NotFound:
+                pass
             self.logger.info("Container stopped", extra={"cont_id": cont.id, "labels": cont.labels})
-            self.logger.info(
-                "TASK_MISSED",
-                extra={
-                    "service_type": sly.ServiceType.TASK,
-                    "event_type": sly.EventType.MISSED_TASK_FOUND,
-                    "task_id": int(cont.labels["task_id"]),
-                },
-            )
+            if task_id is not None:
+                self.logger.info(
+                    "TASK_MISSED",
+                    extra={
+                        "service_type": sly.ServiceType.TASK,
+                        "event_type": sly.EventType.MISSED_TASK_FOUND,
+                        "task_id": task_id,
+                    },
+                )
+
+    def reap_adopted_containers(self):
+        # adopted task containers keep running after an agent restart; remove them once
+        # they finish so the task slot is freed (they report their own progress directly).
+        while True:
+            time.sleep(15)
+            if len(self.adopted_containers) == 0:
+                continue
+            for task_id in list(self.adopted_containers.keys()):
+                cont = self.adopted_containers.get(task_id)
+                if cont is None:
+                    continue
+                try:
+                    cont.reload()
+                    status = cont.status
+                except docker.errors.NotFound:
+                    status = "not found"
+                except docker.errors.APIError:
+                    self.logger.debug(
+                        "Failed to reload adopted container", extra={"task_id": task_id}
+                    )
+                    continue
+
+                if status == "running":
+                    continue
+
+                self.logger.info(
+                    "ADOPTED_TASK_FINISHED",
+                    extra={
+                        "service_type": sly.ServiceType.TASK,
+                        "event_type": sly.EventType.LOGJ,
+                        "task_id": task_id,
+                        "container_status": status,
+                    },
+                )
+                if status != "not found":
+                    try:
+                        cont.remove(force=True)
+                    except docker.errors.NotFound:
+                        pass
+                    except DockerException:
+                        self.logger.warning(
+                            "Failed to remove adopted container",
+                            exc_info=True,
+                            extra={"task_id": task_id},
+                        )
+                self.adopted_containers.pop(task_id, None)
 
     def submit_log(self):
         while True:
@@ -533,6 +655,11 @@ class Agent:
         self.thread_list.append(
             self.thread_pool.submit(
                 sly.function_wrapper_external_logger, self.tasks_health_check, self.logger
+            )
+        )
+        self.thread_list.append(
+            self.thread_pool.submit(
+                sly.function_wrapper_external_logger, self.reap_adopted_containers, self.logger
             )
         )
         self.thread_list.append(
