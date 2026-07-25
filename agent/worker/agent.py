@@ -538,9 +538,26 @@ class Agent:
                     },
                 )
 
+    def _reclaimed_task_finished(self, cont):
+        # plugin-task containers run the work directly and exit when the task ends
+        if cont.status != "running":
+            return True
+        # app containers run a `while true; sleep` husk and execute the app via `docker exec`;
+        # once every exec has stopped the app has finished, even though the husk keeps running
+        exec_ids = cont.attrs.get("ExecIDs") or []
+        if len(exec_ids) == 0:
+            return False
+        for exec_id in exec_ids:
+            try:
+                if self.docker_api.api.exec_inspect(exec_id).get("Running"):
+                    return False
+            except docker.errors.APIError:
+                return False
+        return True
+
     def reap_reclaimed_containers(self):
         # reclaimed task containers keep running after an agent restart; remove them once
-        # they finish so the task slot is freed (they report their own progress directly).
+        # they finish so the task slot (and its GPU) is freed (they report progress directly).
         while True:
             time.sleep(15)
             if len(self.reclaimed_containers) == 0:
@@ -551,16 +568,16 @@ class Agent:
                     continue
                 try:
                     cont.reload()
-                    status = cont.status
                 except docker.errors.NotFound:
-                    status = "not found"
+                    self.reclaimed_containers.pop(task_id, None)
+                    continue
                 except docker.errors.APIError:
                     self.logger.debug(
                         "Failed to reload reclaimed container", extra={"task_id": task_id}
                     )
                     continue
 
-                if status == "running":
+                if not self._reclaimed_task_finished(cont):
                     continue
 
                 self.logger.info(
@@ -569,24 +586,23 @@ class Agent:
                         "service_type": sly.ServiceType.TASK,
                         "event_type": sly.EventType.LOGJ,
                         "task_id": task_id,
-                        "container_status": status,
+                        "container_status": cont.status,
                     },
                 )
                 removed = True
-                if status != "not found":
-                    try:
-                        cont.remove(force=True)
-                    except docker.errors.NotFound:
-                        pass
-                    except DockerException:
-                        # keep it in the map so the next reaper cycle retries removal
-                        # instead of forgetting a container that is still present
-                        removed = False
-                        self.logger.warning(
-                            "Failed to remove reclaimed container, will retry",
-                            exc_info=True,
-                            extra={"task_id": task_id},
-                        )
+                try:
+                    cont.remove(force=True)
+                except docker.errors.NotFound:
+                    pass
+                except DockerException:
+                    # keep it in the map so the next reaper cycle retries removal
+                    # instead of forgetting a container that is still present
+                    removed = False
+                    self.logger.warning(
+                        "Failed to remove reclaimed container, will retry",
+                        exc_info=True,
+                        extra={"task_id": task_id},
+                    )
                 if removed:
                     self.reclaimed_containers.pop(task_id, None)
 
