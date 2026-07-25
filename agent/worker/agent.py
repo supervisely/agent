@@ -68,8 +68,8 @@ class Agent:
 
         self.task_pool_lock = threading.Lock()
         self.task_pool: Dict[int, TaskSly] = {}  # task_id -> task_manager (process_id)
-        # task_id -> container adopted on restart (task survived, agent process did not)
-        self.adopted_containers: Dict[int, Container] = {}
+        # task_id -> container reclaimed on restart (task survived, agent process did not)
+        self.reclaimed_containers: Dict[int, Container] = {}
 
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
@@ -313,19 +313,19 @@ class Agent:
     def stop_task(self, task_id):
         self.task_pool_lock.acquire()
         try:
-            if task_id in self.adopted_containers:
-                cont = self.adopted_containers.pop(task_id)
+            if task_id in self.reclaimed_containers:
+                cont = self.reclaimed_containers.pop(task_id)
                 try:
                     cont.remove(force=True)
                 except docker.errors.NotFound:
                     pass
                 except Exception:
                     self.logger.error(
-                        "Unable to remove adopted container",
+                        "Unable to remove reclaimed container",
                         exc_info=True,
                         extra={"task_id": task_id},
                     )
-                self.logger.info("TASK_STOPPED", extra={"task_id": task_id, "adopted": True})
+                self.logger.info("TASK_STOPPED", extra={"task_id": task_id, "reclaimed": True})
                 return
 
             if task_id in self.task_pool:
@@ -379,8 +379,8 @@ class Agent:
     def start_task(self, task):
         self.task_pool_lock.acquire()
         try:
-            if task["task_id"] in self.adopted_containers:
-                cont = self.adopted_containers[task["task_id"]]
+            if task["task_id"] in self.reclaimed_containers:
+                cont = self.reclaimed_containers[task["task_id"]]
                 still_running = False
                 try:
                     cont.reload()
@@ -390,12 +390,12 @@ class Agent:
                 if still_running:
                     # task survived the agent restart and is still running: do not re-spawn it
                     self.logger.info(
-                        "TASK_ALREADY_RUNNING_ADOPTED, skip re-dispatch",
+                        "TASK_ALREADY_RUNNING_RECLAIMED, skip re-dispatch",
                         extra={"task_id": task["task_id"]},
                     )
                     return
-                # adopted container is already gone: drop it and start fresh
-                self.adopted_containers.pop(task["task_id"], None)
+                # reclaimed container is already gone: drop it and start fresh
+                self.reclaimed_containers.pop(task["task_id"], None)
 
             if task["task_id"] in self.task_pool:
                 # @TODO: remove - ?? only app will receive its messages (skip app button's messages)
@@ -511,9 +511,9 @@ class Agent:
 
             if reclaim and is_running and task_id is not None:
                 # task survived the agent restart: keep it alive and reap it on exit
-                self.adopted_containers[task_id] = cont
+                self.reclaimed_containers[task_id] = cont
                 self.logger.info(
-                    "TASK_ADOPTED",
+                    "TASK_RECLAIMED",
                     extra={
                         "service_type": sly.ServiceType.TASK,
                         "event_type": sly.EventType.LOGJ,
@@ -538,15 +538,15 @@ class Agent:
                     },
                 )
 
-    def reap_adopted_containers(self):
-        # adopted task containers keep running after an agent restart; remove them once
+    def reap_reclaimed_containers(self):
+        # reclaimed task containers keep running after an agent restart; remove them once
         # they finish so the task slot is freed (they report their own progress directly).
         while True:
             time.sleep(15)
-            if len(self.adopted_containers) == 0:
+            if len(self.reclaimed_containers) == 0:
                 continue
-            for task_id in list(self.adopted_containers.keys()):
-                cont = self.adopted_containers.get(task_id)
+            for task_id in list(self.reclaimed_containers.keys()):
+                cont = self.reclaimed_containers.get(task_id)
                 if cont is None:
                     continue
                 try:
@@ -556,7 +556,7 @@ class Agent:
                     status = "not found"
                 except docker.errors.APIError:
                     self.logger.debug(
-                        "Failed to reload adopted container", extra={"task_id": task_id}
+                        "Failed to reload reclaimed container", extra={"task_id": task_id}
                     )
                     continue
 
@@ -564,7 +564,7 @@ class Agent:
                     continue
 
                 self.logger.info(
-                    "ADOPTED_TASK_FINISHED",
+                    "RECLAIMED_TASK_FINISHED",
                     extra={
                         "service_type": sly.ServiceType.TASK,
                         "event_type": sly.EventType.LOGJ,
@@ -572,18 +572,23 @@ class Agent:
                         "container_status": status,
                     },
                 )
+                removed = True
                 if status != "not found":
                     try:
                         cont.remove(force=True)
                     except docker.errors.NotFound:
                         pass
                     except DockerException:
+                        # keep it in the map so the next reaper cycle retries removal
+                        # instead of forgetting a container that is still present
+                        removed = False
                         self.logger.warning(
-                            "Failed to remove adopted container",
+                            "Failed to remove reclaimed container, will retry",
                             exc_info=True,
                             extra={"task_id": task_id},
                         )
-                self.adopted_containers.pop(task_id, None)
+                if removed:
+                    self.reclaimed_containers.pop(task_id, None)
 
     def submit_log(self):
         while True:
@@ -659,7 +664,7 @@ class Agent:
         )
         self.thread_list.append(
             self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.reap_adopted_containers, self.logger
+                sly.function_wrapper_external_logger, self.reap_reclaimed_containers, self.logger
             )
         )
         self.thread_list.append(
@@ -762,7 +767,8 @@ class Agent:
 
         while True:
             with self.task_pool_lock:
-                all_tasks = set(self.task_pool.keys())
+                # reclaimed tasks are still running: keep their dirs out of the cleaner
+                all_tasks = set(self.task_pool.keys()) | set(self.reclaimed_containers.keys())
 
             try:
                 cleaner.auto_clean(all_tasks)
@@ -968,6 +974,13 @@ class Agent:
                         all=True, filters=label_filter, sparse=False, ignore_removed=True
                     )
                     for container in containers:
+                        try:
+                            reclaimed_id = int(container.labels.get("task_id"))
+                        except (TypeError, ValueError):
+                            reclaimed_id = None
+                        if reclaimed_id is not None and reclaimed_id in self.reclaimed_containers:
+                            # do not touch containers reclaimed on restart
+                            continue
                         with self.task_pool_lock:
                             task_found = False
                             task_ids = list(self.task_pool.keys())
