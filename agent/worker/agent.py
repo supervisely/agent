@@ -53,6 +53,8 @@ from supervisely_lib._utils import (
 # backoff bounds for respawning a crashed follow_daemon subprocess (e.g. TelemetryReporter)
 DAEMON_RESTART_WAIT_SEC = 30
 DAEMON_RESTART_WAIT_MAX_SEC = 300
+# uptime after which a daemon is "healthy" and backoff resets (below reporter's ~200s give-up)
+DAEMON_HEALTHY_UPTIME_SEC = 120
 
 
 class Agent:
@@ -77,6 +79,7 @@ class Agent:
         self.thread_list = []
         self.daemons_list = []
         self.daemons_lock = threading.Lock()
+        self._stop_daemons = threading.Event()
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -505,44 +508,43 @@ class Agent:
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
-        consecutive = 0  # consecutive failed starts, drives the backoff
+        consecutive = 0  # consecutive unhealthy (re)starts, drives the backoff
         proc = None
         started_at = None
         try:
             while True:
-                # (re)start the daemon subprocess when it is missing or has died
                 if proc is None or not proc.is_alive():
+                    if self._stop_daemons.is_set():
+                        if proc is not None:
+                            self._drop_daemon(proc)
+                        return  # shutting down: do not respawn
                     if proc is not None:
+                        healthy = time.monotonic() - started_at >= DAEMON_HEALTHY_UPTIME_SEC
                         self._drop_daemon(proc)
                         proc = None
                         self.logger.error(
                             "{} is dead, respawning.".format(name),
                             extra={"exc_str": "{}_CRASHED".format(name)},
                         )
-                        time.sleep(1)  # an opportunity to send log
+                        time.sleep(1)  # let the log flush
                         last_gpu_message -= 1
-                        if time.monotonic() - started_at > DAEMON_RESTART_WAIT_MAX_SEC:
-                            consecutive = 0  # it had been alive long enough, reset backoff
+                        consecutive = 0 if healthy else consecutive + 1
                     if consecutive > 0:
                         wait = min(
                             DAEMON_RESTART_WAIT_SEC * (2 ** min(consecutive - 1, 8)),
                             DAEMON_RESTART_WAIT_MAX_SEC,
                         )
                         time.sleep(wait)
-                        # account for the restart sleep so GPU-telemetry cadence does not drift
-                        last_gpu_message -= wait
+                        last_gpu_message -= wait  # keep GPU cadence stable across restarts
                     try:
                         proc, started_at = self._start_daemon(process_cls)
                     except Exception:
-                        # a failed start must not kill the agent
                         self.logger.error(
                             "{} failed to start, will retry.".format(name),
                             exc_info=True,
                             extra={"exc_str": "{}_START_FAILED".format(name)},
                         )
                         consecutive += 1
-                        continue
-                    consecutive += 1
                     continue
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
@@ -648,6 +650,7 @@ class Agent:
 
     def wait_all(self):
         def terminate_all_deamons():
+            self._stop_daemons.set()  # stop follow_daemon from respawning during shutdown
             with self.daemons_lock:
                 daemons = list(self.daemons_list)
             for process in daemons:
