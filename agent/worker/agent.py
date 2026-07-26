@@ -53,8 +53,8 @@ from supervisely_lib._utils import (
 # backoff bounds for respawning a crashed follow_daemon subprocess (e.g. TelemetryReporter)
 DAEMON_RESTART_WAIT_SEC = 30
 DAEMON_RESTART_WAIT_MAX_SEC = 300
-# uptime after which a daemon is "healthy" and backoff resets (below reporter's ~200s give-up)
-DAEMON_HEALTHY_UPTIME_SEC = 120
+# backoff scales with the number of daemon crashes within this sliding window
+DAEMON_CRASH_WINDOW_SEC = 600
 
 
 class Agent:
@@ -485,13 +485,17 @@ class Agent:
                     time.sleep(1)
 
     def _start_daemon(self, process_cls):
-        # start a daemon subprocess, then register it; a failed start() never leaves an
-        # unstarted process in daemons_list. Returns (proc, start_monotonic).
+        # start, then register under the lock; returns None (and kills the proc) if the agent
+        # started shutting down, so a respawn racing terminate_all_deamons cannot orphan it.
         proc = process_cls()
         proc.start()
         with self.daemons_lock:
+            if self._stop_daemons.is_set():
+                proc.terminate()
+                proc.join(timeout=2)
+                return None
             self.daemons_list.append(proc)
-        return proc, time.monotonic()
+        return proc
 
     def _drop_daemon(self, proc):
         # deregister and reap a dead daemon subprocess
@@ -508,9 +512,8 @@ class Agent:
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
-        consecutive = 0  # consecutive unhealthy (re)starts, drives the backoff
+        crashes = []  # monotonic times of recent deaths/failed starts (sliding window)
         proc = None
-        started_at = None
         try:
             while True:
                 if proc is None or not proc.is_alive():
@@ -519,7 +522,6 @@ class Agent:
                             self._drop_daemon(proc)
                         return  # shutting down: do not respawn
                     if proc is not None:
-                        healthy = time.monotonic() - started_at >= DAEMON_HEALTHY_UPTIME_SEC
                         self._drop_daemon(proc)
                         proc = None
                         self.logger.error(
@@ -528,23 +530,29 @@ class Agent:
                         )
                         time.sleep(1)  # let the log flush
                         last_gpu_message -= 1
-                        consecutive = 0 if healthy else consecutive + 1
-                    if consecutive > 0:
+                        crashes.append(time.monotonic())
+                    now = time.monotonic()
+                    crashes = [t for t in crashes if now - t <= DAEMON_CRASH_WINDOW_SEC]
+                    if crashes:
                         wait = min(
-                            DAEMON_RESTART_WAIT_SEC * (2 ** min(consecutive - 1, 8)),
+                            DAEMON_RESTART_WAIT_SEC * (2 ** min(len(crashes) - 1, 8)),
                             DAEMON_RESTART_WAIT_MAX_SEC,
                         )
-                        time.sleep(wait)
+                        if self._stop_daemons.wait(wait):
+                            return  # shutdown requested during backoff
                         last_gpu_message -= wait  # keep GPU cadence stable across restarts
                     try:
-                        proc, started_at = self._start_daemon(process_cls)
+                        proc = self._start_daemon(process_cls)
                     except Exception:
                         self.logger.error(
                             "{} failed to start, will retry.".format(name),
                             exc_info=True,
                             extra={"exc_str": "{}_START_FAILED".format(name)},
                         )
-                        consecutive += 1
+                        crashes.append(time.monotonic())
+                        continue
+                    if proc is None:
+                        return  # _start_daemon refused: agent is shutting down
                     continue
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
@@ -568,7 +576,7 @@ class Agent:
         except Exception as e:
             if proc is not None and proc.pid is not None:
                 proc.terminate()
-                proc.join(timeout=2)
+                self._drop_daemon(proc)
             raise e
 
     def inf_loop(self):
@@ -905,7 +913,7 @@ class Agent:
 
                                 task_found = True
                                 break
-                            
+
                             log_extra = {
                                 "container_id": container.id,
                                 "container_name": container.name,
@@ -917,7 +925,7 @@ class Agent:
                                     task_status = "running"
                                 else:
                                     task_status = "terminated"
-                                
+
                                 log_extra["task_id"] = task_id
 
                         try:
@@ -957,9 +965,8 @@ class Agent:
                             self.logger.info("Stopping the task", extra={"task_id": task_id})
                             self.stop_task(task_id)
                             # TODO: handle other statuses like "paused", "restarting"
-                            
+
             except Exception as e:
                 if time.monotonic() - last_error_log > error_log_delay:
                     self.logger.error("Error during monitoring stopped tasks containers", exc_info=True)
                     last_error_log = time.monotonic()
-
