@@ -509,6 +509,34 @@ class Agent:
         except Exception:
             pass
 
+    def _run_daemon(self, target, name, restart=True):
+        # supervise a long-running daemon: catch any exception, log it, and (when restart=True)
+        # relaunch with a sliding-window backoff. Never propagate — a raise here would crash the
+        # whole agent (wait_all -> os._exit). Honors _stop_daemons for clean shutdown.
+        crashes = []
+        while not self._stop_daemons.is_set():
+            try:
+                target()
+            except Exception:
+                self.logger.error(
+                    "{} crashed, will restart.".format(name),
+                    exc_info=True,
+                    extra={"exc_str": "{}_CRASHED".format(name)},
+                )
+            if not restart:
+                return  # run-once daemon: single attempt, never crash the agent
+            if self._stop_daemons.is_set():
+                return
+            now = time.monotonic()
+            crashes.append(now)
+            crashes = [t for t in crashes if now - t <= DAEMON_CRASH_WINDOW_SEC]
+            wait = min(
+                DAEMON_RESTART_WAIT_SEC * (2 ** min(len(crashes) - 1, 8)),
+                DAEMON_RESTART_WAIT_MAX_SEC,
+            )
+            if self._stop_daemons.wait(wait):
+                return
+
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
@@ -557,7 +585,10 @@ class Agent:
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
                 if last_gpu_message <= 0:
-                    gpu_info = get_gpu_info(self.logger)
+                    try:
+                        gpu_info = get_gpu_info(self.logger)
+                    except Exception:
+                        gpu_info = {}
                     self.logger.debug(f"GPU state: {gpu_info}")
                     try:
                         self.api.simple_request(
@@ -580,76 +611,44 @@ class Agent:
             raise e
 
     def inf_loop(self):
+        # every daemon runs under _run_daemon so a crash restarts it instead of killing the agent
+        def submit(target, name, restart=True):
+            self.thread_list.append(
+                self.thread_pool.submit(
+                    sly.function_wrapper_external_logger,
+                    self._run_daemon,
+                    self.logger,
+                    target,
+                    name,
+                    restart,
+                )
+            )
+
+        # submit_log stays as-is: the "Log" retrier swallows errors and wait_all relies on
+        # future_log.done() to flush task logs on shutdown.
         self.future_log = self.executor_log.submit(
             sly.function_wrapper_external_logger, self.submit_log, self.logger
         )
         self.thread_list.append(self.future_log)
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.tasks_health_check, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.get_new_task, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.get_stop_task, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.send_connect_info, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_stream_net_client_logs, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.update_base_layers, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_tasks_dir, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_pip_cache, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
-            )
-        )
+
+        submit(self.tasks_health_check, "tasks_health_check")
+        submit(self.get_new_task, "get_new_task")
+        submit(self.get_stop_task, "get_stop_task")
+        submit(self.send_connect_info, "send_connect_info")
+        submit(self.task_clear_old_data, "task_clear_old_data")
+        submit(self.task_stream_net_client_logs, "task_stream_net_client_logs")
+        # run-once daemons: don't relaunch on clean finish, only guard against a crash
+        submit(self.update_base_layers, "update_base_layers", restart=False)
+        submit(self.task_clear_tasks_dir, "task_clear_tasks_dir", restart=False)
+        submit(self.task_clear_pip_cache, "task_clear_pip_cache", restart=False)
+        submit(self.task_clear_apps_data, "task_clear_apps_data", restart=False)
         # Removed due to bug
-        # self.thread_list.append(
-        #     self.thread_pool.submit(
-        #         sly.function_wrapper_external_logger, self.monitor_stopped_tasks_containers, self.logger
-        #     )
-        # )
+        # submit(self.monitor_stopped_tasks_containers, "monitor_stopped_tasks_containers")
 
         if constants.DISABLE_TELEMETRY() is None:
-            self.thread_list.append(
-                self.thread_pool.submit(
-                    sly.function_wrapper_external_logger,
-                    self.follow_daemon,
-                    self.logger,
-                    TelemetryReporter,
-                    "TELEMETRY_REPORTER",
-                )
+            submit(
+                lambda: self.follow_daemon(TelemetryReporter, "TELEMETRY_REPORTER"),
+                "TELEMETRY_REPORTER",
             )
         else:
             self.logger.warn("Telemetry is disabled in ENV")
