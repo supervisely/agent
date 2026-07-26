@@ -505,29 +505,43 @@ class Agent:
     def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
-        consecutive = 0
+        consecutive = 0  # consecutive failed starts, drives the backoff
         proc = None
+        started_at = None
         try:
-            proc, started_at = self._start_daemon(process_cls)
             while True:
-                if not proc.is_alive():
-                    # reporter subprocess died: respawn with backoff, never kill the agent
-                    self._drop_daemon(proc)
-                    self.logger.error(
-                        "{} is dead, respawning.".format(name),
-                        extra={"exc_str": "{}_CRASHED".format(name)},
-                    )
-                    time.sleep(1)  # an opportunity to send log
-                    if time.monotonic() - started_at > DAEMON_RESTART_WAIT_MAX_SEC:
-                        consecutive = 0  # it had been alive long enough, reset backoff
-                    wait = min(
-                        DAEMON_RESTART_WAIT_SEC * (2 ** min(consecutive, 8)),
-                        DAEMON_RESTART_WAIT_MAX_SEC,
-                    )
-                    time.sleep(wait)
-                    # account for the restart sleep so GPU-telemetry cadence does not drift
-                    last_gpu_message -= 1 + wait
-                    proc, started_at = self._start_daemon(process_cls)
+                # (re)start the daemon subprocess when it is missing or has died
+                if proc is None or not proc.is_alive():
+                    if proc is not None:
+                        self._drop_daemon(proc)
+                        proc = None
+                        self.logger.error(
+                            "{} is dead, respawning.".format(name),
+                            extra={"exc_str": "{}_CRASHED".format(name)},
+                        )
+                        time.sleep(1)  # an opportunity to send log
+                        last_gpu_message -= 1
+                        if time.monotonic() - started_at > DAEMON_RESTART_WAIT_MAX_SEC:
+                            consecutive = 0  # it had been alive long enough, reset backoff
+                    if consecutive > 0:
+                        wait = min(
+                            DAEMON_RESTART_WAIT_SEC * (2 ** min(consecutive - 1, 8)),
+                            DAEMON_RESTART_WAIT_MAX_SEC,
+                        )
+                        time.sleep(wait)
+                        # account for the restart sleep so GPU-telemetry cadence does not drift
+                        last_gpu_message -= wait
+                    try:
+                        proc, started_at = self._start_daemon(process_cls)
+                    except Exception:
+                        # a failed start must not kill the agent
+                        self.logger.error(
+                            "{} failed to start, will retry.".format(name),
+                            exc_info=True,
+                            extra={"exc_str": "{}_START_FAILED".format(name)},
+                        )
+                        consecutive += 1
+                        continue
                     consecutive += 1
                     continue
                 time.sleep(sleep_sec)
@@ -535,7 +549,6 @@ class Agent:
                 if last_gpu_message <= 0:
                     gpu_info = get_gpu_info(self.logger)
                     self.logger.debug(f"GPU state: {gpu_info}")
-                    # telemetry is best-effort: a failed send must never crash the agent
                     try:
                         self.api.simple_request(
                             "UpdateTelemetry",

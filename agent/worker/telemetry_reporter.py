@@ -127,7 +127,6 @@ class TelemetryReporter(TaskLogged):
             for _ in self.api.get_endless_stream(
                 "GetTelemetryTask", sly.api_proto.Task, sly.api_proto.Empty()
             ):
-                # telemetry is best-effort: a failed send must not crash the reporter
                 try:
                     self.api.simple_request(
                         "UpdateTelemetry",
