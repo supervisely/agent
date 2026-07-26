@@ -297,12 +297,16 @@ class Agent:
             server_fail_limit=200,
             wait_server_sec=5,
         ):
-            task_msg = json.loads(task.data)
-            task_msg["agent_info"] = self.agent_info
-            self.logger.info("GET_NEW_TASK", extra={"received_task_id": task_msg["task_id"]})
-            to_log = _remove_sensitive_information(task_msg)
-            self.logger.debug("FULL_TASK_MESSAGE", extra={"task_msg": to_log})
-            self.start_task(task_msg)
+            # a bad message must not tear down the whole stream
+            try:
+                task_msg = json.loads(task.data)
+                task_msg["agent_info"] = self.agent_info
+                self.logger.info("GET_NEW_TASK", extra={"received_task_id": task_msg["task_id"]})
+                to_log = _remove_sensitive_information(task_msg)
+                self.logger.debug("FULL_TASK_MESSAGE", extra={"task_msg": to_log})
+                self.start_task(task_msg)
+            except Exception:
+                self.logger.error("Failed to handle a new-task message", exc_info=True)
 
     def get_stop_task(self):
         for task in self.api.get_endless_stream(
@@ -312,9 +316,13 @@ class Agent:
             server_fail_limit=200,
             wait_server_sec=5,
         ):
-            stop_task_id = task.id
-            self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
-            self.stop_task(stop_task_id)
+            # a bad message must not tear down the whole stream
+            try:
+                stop_task_id = task.id
+                self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
+                self.stop_task(stop_task_id)
+            except Exception:
+                self.logger.error("Failed to handle a stop-task message", exc_info=True)
 
     def stop_task(self, task_id):
         self.task_pool_lock.acquire()
@@ -419,9 +427,17 @@ class Agent:
             try:
                 all_tasks = list(self.task_pool.keys())
                 for task_id in all_tasks:
-                    val = self.task_pool[task_id]
-                    if not val.is_alive():
-                        self._forget_task(task_id)
+                    # one bad task must not tear down the health-check loop
+                    try:
+                        val = self.task_pool[task_id]
+                        if not val.is_alive():
+                            self._forget_task(task_id)
+                    except Exception:
+                        self.logger.error(
+                            "Health check failed for a task",
+                            exc_info=True,
+                            extra={"task_id": task_id},
+                        )
             finally:
                 self.task_pool_lock.release()
 
@@ -698,9 +714,10 @@ class Agent:
                 cleaner.auto_clean(all_tasks)
             except Exception as e:
                 self.logger.exception(e)
-                # raise or not?
-                # raise e
-            image_cleaner.remove_idle_images()
+            try:
+                image_cleaner.remove_idle_images()
+            except Exception:
+                self.logger.error("Failed to remove idle docker images", exc_info=True)
             time.sleep(day)
 
     def task_stream_net_client_logs(self):
