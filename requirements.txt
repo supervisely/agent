@@ -16,7 +16,7 @@ filelock==3.13.1
 pyexiv2==2.15.5 # Upgraded from py3exiv2==0.9.3 to support Python 3.12
 psutil==5.9.8 # Upgraded from psutil==5.9.0 to support Python 3.12
 
-supervisely==6.73.474
-supervisely[agent]==6.73.474
+supervisely==6.74.17
+supervisely[agent]==6.74.17
 # for development
 # git+https://github.com/supervisely/supervisely.git@dev-branch
