@@ -50,6 +50,12 @@ from supervisely_lib._utils import (
     _remove_sensitive_information,
 )
 
+# backoff bounds for respawning a crashed follow_daemon subprocess (e.g. TelemetryReporter)
+DAEMON_RESTART_WAIT_SEC = 30
+DAEMON_RESTART_WAIT_MAX_SEC = 300
+# backoff scales with the number of daemon crashes within this sliding window
+DAEMON_CRASH_WINDOW_SEC = 600
+
 
 class Agent:
     def __init__(self):
@@ -72,6 +78,8 @@ class Agent:
         self.thread_pool = ThreadPoolExecutor(max_workers=10)
         self.thread_list = []
         self.daemons_list = []
+        self.daemons_lock = threading.Lock()
+        self._stop_daemons = threading.Event()
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -289,12 +297,16 @@ class Agent:
             server_fail_limit=200,
             wait_server_sec=5,
         ):
-            task_msg = json.loads(task.data)
-            task_msg["agent_info"] = self.agent_info
-            self.logger.info("GET_NEW_TASK", extra={"received_task_id": task_msg["task_id"]})
-            to_log = _remove_sensitive_information(task_msg)
-            self.logger.debug("FULL_TASK_MESSAGE", extra={"task_msg": to_log})
-            self.start_task(task_msg)
+            # a bad message must not tear down the whole stream
+            try:
+                task_msg = json.loads(task.data)
+                task_msg["agent_info"] = self.agent_info
+                self.logger.info("GET_NEW_TASK", extra={"received_task_id": task_msg["task_id"]})
+                to_log = _remove_sensitive_information(task_msg)
+                self.logger.debug("FULL_TASK_MESSAGE", extra={"task_msg": to_log})
+                self.start_task(task_msg)
+            except Exception:
+                self.logger.error("Failed to handle a new-task message", exc_info=True)
 
     def get_stop_task(self):
         for task in self.api.get_endless_stream(
@@ -304,9 +316,13 @@ class Agent:
             server_fail_limit=200,
             wait_server_sec=5,
         ):
-            stop_task_id = task.id
-            self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
-            self.stop_task(stop_task_id)
+            # a bad message must not tear down the whole stream
+            try:
+                stop_task_id = task.id
+                self.logger.info("GET_STOP_TASK", extra={"task_id": stop_task_id})
+                self.stop_task(stop_task_id)
+            except Exception:
+                self.logger.error("Failed to handle a stop-task message", exc_info=True)
 
     def stop_task(self, task_id):
         self.task_pool_lock.acquire()
@@ -411,9 +427,17 @@ class Agent:
             try:
                 all_tasks = list(self.task_pool.keys())
                 for task_id in all_tasks:
-                    val = self.task_pool[task_id]
-                    if not val.is_alive():
-                        self._forget_task(task_id)
+                    # one bad task must not tear down the health-check loop
+                    try:
+                        val = self.task_pool[task_id]
+                        if not val.is_alive():
+                            self._forget_task(task_id)
+                    except Exception:
+                        self.logger.error(
+                            "Health check failed for a task",
+                            exc_info=True,
+                            extra={"task_id": task_id},
+                        )
             finally:
                 self.task_pool_lock.release()
 
@@ -476,107 +500,171 @@ class Agent:
                 else:
                     time.sleep(1)
 
-    def follow_daemon(self, process_cls, name, sleep_sec=5):
+    def _start_daemon(self, process_cls):
+        # start, then register under the lock; returns None (and kills the proc) if the agent
+        # started shutting down, so a respawn racing terminate_all_deamons cannot orphan it.
         proc = process_cls()
-        self.daemons_list.append(proc)
+        proc.start()
+        with self.daemons_lock:
+            if self._stop_daemons.is_set():
+                proc.terminate()
+                proc.join(timeout=2)
+                return None
+            self.daemons_list.append(proc)
+        return proc
+
+    def _drop_daemon(self, proc):
+        # deregister and reap a dead daemon subprocess
+        with self.daemons_lock:
+            try:
+                self.daemons_list.remove(proc)
+            except ValueError:
+                pass
+        try:
+            proc.join(timeout=2)
+        except Exception:
+            pass
+
+    def _run_daemon(self, target, name, restart=True):
+        # supervise a long-running daemon: catch any exception, log it, and (when restart=True)
+        # relaunch with a sliding-window backoff. Never propagate — a raise here would crash the
+        # whole agent (wait_all -> os._exit). Honors _stop_daemons for clean shutdown.
+        crashes = []
+        while not self._stop_daemons.is_set():
+            try:
+                target()
+            except Exception:
+                self.logger.error(
+                    "{} crashed, will restart.".format(name),
+                    exc_info=True,
+                    extra={"exc_str": "{}_CRASHED".format(name)},
+                )
+            if not restart:
+                return  # run-once daemon: single attempt, never crash the agent
+            if self._stop_daemons.is_set():
+                return
+            now = time.monotonic()
+            crashes.append(now)
+            crashes = [t for t in crashes if now - t <= DAEMON_CRASH_WINDOW_SEC]
+            wait = min(
+                DAEMON_RESTART_WAIT_SEC * (2 ** min(len(crashes) - 1, 8)),
+                DAEMON_RESTART_WAIT_MAX_SEC,
+            )
+            if self._stop_daemons.wait(wait):
+                return
+
+    def follow_daemon(self, process_cls, name, sleep_sec=5):
         GPU_FREQ = 60
         last_gpu_message = 0
+        crashes = []  # monotonic times of recent deaths/failed starts (sliding window)
+        proc = None
         try:
-            proc.start()
             while True:
-                if not proc.is_alive():
-                    err_msg = "{}_CRASHED".format(name)
-                    self.logger.error("Agent process is dead.", extra={"exc_str": err_msg})
-                    time.sleep(1)  # an opportunity to send log
-                    raise RuntimeError(err_msg)
+                if proc is None or not proc.is_alive():
+                    if self._stop_daemons.is_set():
+                        if proc is not None:
+                            self._drop_daemon(proc)
+                        return  # shutting down: do not respawn
+                    if proc is not None:
+                        self._drop_daemon(proc)
+                        proc = None
+                        self.logger.error(
+                            "{} is dead, respawning.".format(name),
+                            extra={"exc_str": "{}_CRASHED".format(name)},
+                        )
+                        time.sleep(1)  # let the log flush
+                        last_gpu_message -= 1
+                        crashes.append(time.monotonic())
+                    now = time.monotonic()
+                    crashes = [t for t in crashes if now - t <= DAEMON_CRASH_WINDOW_SEC]
+                    if crashes:
+                        wait = min(
+                            DAEMON_RESTART_WAIT_SEC * (2 ** min(len(crashes) - 1, 8)),
+                            DAEMON_RESTART_WAIT_MAX_SEC,
+                        )
+                        if self._stop_daemons.wait(wait):
+                            return  # shutdown requested during backoff
+                        last_gpu_message -= wait  # keep GPU cadence stable across restarts
+                    try:
+                        proc = self._start_daemon(process_cls)
+                    except Exception:
+                        self.logger.error(
+                            "{} failed to start, will retry.".format(name),
+                            exc_info=True,
+                            extra={"exc_str": "{}_START_FAILED".format(name)},
+                        )
+                        crashes.append(time.monotonic())
+                        continue
+                    if proc is None:
+                        return  # _start_daemon refused: agent is shutting down
+                    continue
                 time.sleep(sleep_sec)
                 last_gpu_message -= sleep_sec
                 if last_gpu_message <= 0:
-                    gpu_info = get_gpu_info(self.logger)
+                    try:
+                        gpu_info = get_gpu_info(self.logger)
+                    except Exception:
+                        gpu_info = {}
                     self.logger.debug(f"GPU state: {gpu_info}")
-                    self.api.simple_request(
-                        "UpdateTelemetry",
-                        sly.api_proto.Empty,
-                        sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
-                    )
+                    try:
+                        self.api.simple_request(
+                            "UpdateTelemetry",
+                            sly.api_proto.Empty,
+                            sly.api_proto.AgentInfo(info=json.dumps({"gpu_info": gpu_info})),
+                        )
+                    except Exception as telemetry_exc:
+                        self.logger.warning(
+                            "Failed to send telemetry, will retry later.",
+                            exc_info=True,
+                            extra={"exc_str": str(telemetry_exc)},
+                        )
                     last_gpu_message = GPU_FREQ
 
         except Exception as e:
-            proc.terminate()
-            proc.join(timeout=2)
+            if proc is not None and proc.pid is not None:
+                proc.terminate()
+                self._drop_daemon(proc)
             raise e
 
     def inf_loop(self):
+        # every daemon runs under _run_daemon so a crash restarts it instead of killing the agent
+        def submit(target, name, restart=True):
+            self.thread_list.append(
+                self.thread_pool.submit(
+                    sly.function_wrapper_external_logger,
+                    self._run_daemon,
+                    self.logger,
+                    target,
+                    name,
+                    restart,
+                )
+            )
+
+        # submit_log stays as-is: the "Log" retrier swallows errors and wait_all relies on
+        # future_log.done() to flush task logs on shutdown.
         self.future_log = self.executor_log.submit(
             sly.function_wrapper_external_logger, self.submit_log, self.logger
         )
         self.thread_list.append(self.future_log)
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.tasks_health_check, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.get_new_task, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.get_stop_task, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.send_connect_info, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_old_data, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_stream_net_client_logs, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.update_base_layers, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_tasks_dir, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_pip_cache, self.logger
-            )
-        )
-        self.thread_list.append(
-            self.thread_pool.submit(
-                sly.function_wrapper_external_logger, self.task_clear_apps_data, self.logger
-            )
-        )
+
+        submit(self.tasks_health_check, "tasks_health_check")
+        submit(self.get_new_task, "get_new_task")
+        submit(self.get_stop_task, "get_stop_task")
+        submit(self.send_connect_info, "send_connect_info")
+        submit(self.task_clear_old_data, "task_clear_old_data")
+        submit(self.task_stream_net_client_logs, "task_stream_net_client_logs")
+        # run-once daemons: don't relaunch on clean finish, only guard against a crash
+        submit(self.update_base_layers, "update_base_layers", restart=False)
+        submit(self.task_clear_tasks_dir, "task_clear_tasks_dir", restart=False)
+        submit(self.task_clear_pip_cache, "task_clear_pip_cache", restart=False)
+        submit(self.task_clear_apps_data, "task_clear_apps_data", restart=False)
         # Removed due to bug
-        # self.thread_list.append(
-        #     self.thread_pool.submit(
-        #         sly.function_wrapper_external_logger, self.monitor_stopped_tasks_containers, self.logger
-        #     )
-        # )
+        # submit(self.monitor_stopped_tasks_containers, "monitor_stopped_tasks_containers")
 
         if constants.DISABLE_TELEMETRY() is None:
-            self.thread_list.append(
-                self.thread_pool.submit(
-                    sly.function_wrapper_external_logger,
-                    self.follow_daemon,
-                    self.logger,
-                    TelemetryReporter,
-                    "TELEMETRY_REPORTER",
-                )
+            submit(
+                lambda: self.follow_daemon(TelemetryReporter, "TELEMETRY_REPORTER"),
+                "TELEMETRY_REPORTER",
             )
         else:
             self.logger.warn("Telemetry is disabled in ENV")
@@ -585,9 +673,13 @@ class Agent:
 
     def wait_all(self):
         def terminate_all_deamons():
-            for process in self.daemons_list:
-                process.terminate()
-                process.join(timeout=2)
+            self._stop_daemons.set()  # stop follow_daemon from respawning during shutdown
+            with self.daemons_lock:
+                daemons = list(self.daemons_list)
+            for process in daemons:
+                if process.pid is not None:
+                    process.terminate()
+                    process.join(timeout=2)
 
         futures_statuses = wait(self.thread_list, return_when="FIRST_EXCEPTION")
         for future in self.thread_list:
@@ -622,9 +714,10 @@ class Agent:
                 cleaner.auto_clean(all_tasks)
             except Exception as e:
                 self.logger.exception(e)
-                # raise or not?
-                # raise e
-            image_cleaner.remove_idle_images()
+            try:
+                image_cleaner.remove_idle_images()
+            except Exception:
+                self.logger.error("Failed to remove idle docker images", exc_info=True)
             time.sleep(day)
 
     def task_stream_net_client_logs(self):
@@ -836,7 +929,7 @@ class Agent:
 
                                 task_found = True
                                 break
-                            
+
                             log_extra = {
                                 "container_id": container.id,
                                 "container_name": container.name,
@@ -848,7 +941,7 @@ class Agent:
                                     task_status = "running"
                                 else:
                                     task_status = "terminated"
-                                
+
                                 log_extra["task_id"] = task_id
 
                         try:
@@ -888,9 +981,8 @@ class Agent:
                             self.logger.info("Stopping the task", extra={"task_id": task_id})
                             self.stop_task(task_id)
                             # TODO: handle other statuses like "paused", "restarting"
-                            
+
             except Exception as e:
                 if time.monotonic() - last_error_log > error_log_delay:
                     self.logger.error("Error during monitoring stopped tasks containers", exc_info=True)
                     last_error_log = time.monotonic()
-

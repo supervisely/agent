@@ -127,11 +127,18 @@ class TelemetryReporter(TaskLogged):
             for _ in self.api.get_endless_stream(
                 "GetTelemetryTask", sly.api_proto.Task, sly.api_proto.Empty()
             ):
-                self.api.simple_request(
-                    "UpdateTelemetry",
-                    sly.api_proto.Empty,
-                    sly.api_proto.AgentInfo(info=self.get_telemetry_str()),
-                )
+                try:
+                    self.api.simple_request(
+                        "UpdateTelemetry",
+                        sly.api_proto.Empty,
+                        sly.api_proto.AgentInfo(info=self.get_telemetry_str()),
+                    )
+                except Exception as send_exc:
+                    self.logger.warning(
+                        "Failed to send telemetry report, will retry on next tick.",
+                        exc_info=True,
+                        extra={"exc_str": str(send_exc)},
+                    )
 
         except Exception as e:
             self.logger.critical(

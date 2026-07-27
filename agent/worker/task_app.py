@@ -7,7 +7,7 @@ import tarfile
 import shutil
 import json
 import urllib.parse
-import pkg_resources
+from packaging.requirements import Requirement
 import pathlib
 import copy
 
@@ -440,11 +440,18 @@ class TaskApp(TaskDockerized):
     def find_sdk_version(self, requirements_path):
         try:
             with pathlib.Path(requirements_path).open() as requirements_txt:
-                for requirement in pkg_resources.parse_requirements(requirements_txt):
-                    if requirement.project_name == "supervisely":
-                        if len(requirement.specs) > 0 and len(requirement.specs[0]) >= 2:
-                            version = requirement.specs[0][1]
-                            return version
+                for line in requirements_txt:
+                    line = line.split("#", 1)[0].strip()
+                    if not line or line.startswith("-"):
+                        continue
+                    try:
+                        requirement = Requirement(line)
+                    except Exception:
+                        continue
+                    if requirement.name == "supervisely":
+                        for spec in requirement.specifier:
+                            if spec.operator == "==":
+                                return spec.version
         except Exception as e:
             print(repr(e))
         return None

@@ -1,6 +1,6 @@
-docker==6.0.1
-urllib3==1.26.15
-requests==2.28.1
+docker==7.1.0
+urllib3==2.7.0
+requests==2.34.0
 requests-toolbelt>=1.0.0
 hurry.filesize==0.9
 scandir==1.10.0
@@ -16,7 +16,7 @@ filelock==3.13.1
 pyexiv2==2.15.5 # Upgraded from py3exiv2==0.9.3 to support Python 3.12
 psutil==5.9.8 # Upgraded from psutil==5.9.0 to support Python 3.12
 
-supervisely==6.73.474
-supervisely[agent]==6.73.474
+supervisely==6.74.17
+supervisely[agent]==6.74.17
 # for development
 # git+https://github.com/supervisely/supervisely.git@dev-branch
