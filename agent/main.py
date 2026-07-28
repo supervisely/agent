@@ -82,8 +82,20 @@ def _start_net_client(docker_api=None):
         command = [
             constants.TOKEN(),
             urljoin(constants.SERVER_ADDRESS(), "net/"),
-            constants.NET_SERVER_ADDRESS(),
         ]
+
+        # The 3rd argument is an endpoint OVERRIDE for sly-net-client: it only falls back
+        # to the endpoint returned by the server on registration when the argument is empty.
+        # Pass it only when it was explicitly configured, otherwise the server-side endpoint
+        # can never take effect.
+        net_server_address = constants.NET_SERVER_ADDRESS()
+        if net_server_address:
+            command.append(net_server_address)
+        else:
+            sly.logger.info(
+                f"{constants._NET_SERVER_ADDRESS} is not set, "
+                "sly-net-client will use the endpoint provided by the server"
+            )
         envs = [
             f"{constants._SLY_NET_CLIENT_PING_INTERVAL}={constants.SLY_NET_CLIENT_PING_INTERVAL()}",
             f"{constants._TRUST_DOWNSTREAM_PROXY}={constants.TRUST_DOWNSTREAM_PROXY()}",
