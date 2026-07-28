@@ -220,12 +220,17 @@ def SERVER_ADDRESS():
 
 
 def NET_SERVER_ADDRESS():
+    """Explicitly configured WireGuard endpoint for sly-net-client, or None.
+
+    Returns a value only when NET_SERVER_ADDRESS is actually set — either by the
+    server via netClientOptions.netServerAddress, or directly by an operator on
+    the agent container. When it is unset (or empty) the agent must NOT invent an
+    endpoint: it is passed to sly-net-client as an override, and any value there
+    suppresses the endpoint the server returns on registration.
+    """
     str_url = os.environ.get(_NET_SERVER_ADDRESS, None)
     if str_url is None or str_url.strip() == "":
-        server_addr = SERVER_ADDRESS()
-        parsed_uri = urlparse(server_addr)
-        net_server_port = NET_SERVER_PORT()
-        return f"{parsed_uri.hostname}:{net_server_port}"
+        return None
 
     if ("http://" not in str_url) and ("https://" not in str_url):
         str_url = f"http://{str_url}"
