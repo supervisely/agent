@@ -198,6 +198,11 @@ class Agent:
         volumes = sly_net_container.attrs["HostConfig"]["Binds"]
         cap_add = sly_net_container.attrs["HostConfig"]["CapAdd"]
         privileged = sly_net_container.attrs["HostConfig"]["Privileged"]
+        # Carried for the same reason as Privileged: the two are inseparable on a daemon with
+        # userns-remap, where recreating a privileged container without the host namespace is
+        # rejected. Dropping it here would let the container survive its own update only until
+        # the next one. `.get` because a container created before this existed has no such key.
+        userns_mode = sly_net_container.attrs["HostConfig"].get("UsernsMode") or None
         restart_policy = sly_net_container.attrs["HostConfig"]["RestartPolicy"]
         envs = sly_net_container.attrs["Config"]["Env"]
 
@@ -227,6 +232,7 @@ class Agent:
             cap_add=cap_add,
             volumes=volumes,
             privileged=privileged,
+            userns_mode=userns_mode,
             restart_policy=restart_policy,
             environment=envs,
             log_config=log_config,

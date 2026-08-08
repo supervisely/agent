@@ -144,6 +144,16 @@ def _start_net_client(docker_api=None):
             cap_add=["NET_ADMIN"],
             volumes=volumes,
             privileged=True,
+            # Privileged and user namespaces are mutually exclusive: on a daemon started with
+            # `userns-remap`, asking for both is rejected outright with "privileged mode is
+            # incompatible with user namespaces", so the container is never created and the
+            # agent comes up with no VPN at all.
+            #
+            # UsernsMode only controls whether the DAEMON's userns-remap applies to this
+            # container, so on a daemon without one -- which is the default, and what every
+            # normal install runs -- this is a no-op. Rootless Docker has no remap either; its
+            # namespace comes from RootlessKit at daemon level and is untouched by this.
+            userns_mode="host",
             restart_policy={"Name": "always", "MaximumRetryCount": 0},
             environment=envs,
             log_config=log_config,
