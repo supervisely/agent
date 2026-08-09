@@ -23,6 +23,7 @@ from worker.agent_utils import (
 )
 from worker.task_sly import TaskSly
 from docker.models.containers import Container
+from worker.container_runner.container_runner import BaseContainerRunner, BaseContainer
 
 class TaskStep(Enum):
     NOTHING = 0
@@ -60,7 +61,8 @@ class TaskDockerized(TaskSly):
 
         self._docker_api: docker.DockerClient = None  # must be set by someone
 
-        self._container: Container = None
+        self.container_runner: BaseContainerRunner = None
+        self._container: BaseContainer = None
         self._container_lock = Lock()  # to drop container from different threads
 
         self.docker_image_name = None
@@ -214,6 +216,10 @@ class TaskDockerized(TaskSly):
                 constants._HTTPS_PROXY.lower(): constants.HTTPS_PROXY(),
                 constants._NO_PROXY.lower(): constants.NO_PROXY(),
                 "PIP_ROOT_USER_ACTION": "ignore",
+                "TASK_ID": self.info["task_id"],
+                "SERVER_ADDRESS": self.info.get("server_address"),
+                "API_TOKEN": self.info.get("api_token"),
+                "AGENT_TOKEN": constants.TOKEN(),
                 **add_envs,
             }
             if constants.SSL_CERT_FILE() is not None:
@@ -228,12 +234,7 @@ class TaskDockerized(TaskSly):
                 self.info["task_id"], constants.TASKS_DOCKER_LABEL()
             )
 
-            cpu_quota = self.info.get("limits", {}).get("cpu", None)
-            if cpu_quota is None:
-                cpu_quota = constants.CPU_LIMIT()
-            if cpu_quota is not None:
-                cpu_quota = convert_millicores_to_cpu_quota(cpu_quota)
-
+            cpu_limit = self.info.get("limits", {}).get("cpu", None)
             mem_limit = self.info.get("limits", {}).get("memory", None)
             if mem_limit is None:
                 mem_limit = constants.MEM_LIMIT()
@@ -248,7 +249,8 @@ class TaskDockerized(TaskSly):
                 self.logger.warning("Oversized environment variables found. Such envs would be removed!", extra={"envs": oversized_envs})
                 for key in oversized_envs.keys():
                     all_environments[key] = sly.LARGE_ENV_PLACEHOLDER
-            self._container = self._docker_api.containers.run(
+
+            self._container = self.container_runner.spawn_container(
                 self.docker_image_name,
                 runtime=self.docker_runtime,
                 entrypoint=entrypoint_func(),
@@ -266,23 +268,12 @@ class TaskDockerized(TaskSly):
                 shm_size=constants.SHM_SIZE(),
                 stdin_open=False,
                 tty=False,
-                cpu_quota=cpu_quota,
+                cpu_limit=cpu_limit,
                 mem_limit=mem_limit,
                 memswap_limit=mem_limit,
                 network=constants.DOCKER_NET(),
                 ipc_mode=ipc_mode,
                 security_opt=constants.SECURITY_OPT(),
-            )
-            self._container.reload()
-            self.logger.debug(
-                "After spawning. Container status: {}".format(str(self._container.status))
-            )
-            self.logger.info(
-                "Docker container is spawned",
-                extra={
-                    "container_id": self._container.id,
-                    "container_name": self._container.name,
-                },
             )
         finally:
             self._container_lock.release()
@@ -342,9 +333,8 @@ class TaskDockerized(TaskSly):
 
     def process_logs(self):
         logs_found = False
-        for log_line in self._container.logs(stream=True):
+        for log_line in self.container_runner.stream_logs():
             logs_found = True
-            log_line = log_line.decode("utf-8")
             msg, res_log, lvl = self.parse_log_line(log_line)
             output = self.call_event_function(res_log)
             self._process_report(msg)
