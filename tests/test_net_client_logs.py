@@ -103,6 +103,21 @@ def test_lines_sharing_a_timestamp_across_reconnect():
     assert _follow(f, c) == ["x3", "y"]
 
 
+def test_out_of_order_stderr_line_is_delivered_once():
+    # stdout and stderr are stamped by separate goroutines: file order != timestamp order
+    c = FakeContainer()
+    f = ContainerLogFollower(start_ns=T0)
+    c.log(T0 + 200, "registering VPN")
+    c.log(T0 + 100, "curl: (22) 502")
+    c.log(T0 + 300, "retrying")
+    assert _follow(f, c) == ["registering VPN", "curl: (22) 502", "retrying"]
+    # after a reconnect: the replayed prefix is skipped, then out-of-order lines are new again
+    c.log(T0 + 400, "next")
+    c.log(T0 + 350, "late stderr")
+    assert _follow(f, c) == ["next", "late stderr"]
+    assert _follow(f, c) == []
+
+
 def test_multibyte_text_split_across_chunks():
     c = FakeContainer(chunk_size=3)
     c.log(T0 + 1, "подключение к VPN ✓")
