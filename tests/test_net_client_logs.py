@@ -8,10 +8,12 @@ reconnect attached one more handler, multiplying every line sent to events.publi
 
 import json
 import os
+import threading
 import time
 import uuid
 from collections import Counter
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,6 +23,7 @@ os.environ.setdefault("SERVER_ADDRESS", "https://localhost")
 os.environ.setdefault("DOCKER_REGISTRY", "x")
 os.environ.setdefault("AGENT_HOST_DIR", "/tmp/agent")
 
+from worker import agent as agent_module  # noqa: E402
 from worker import agent_utils, constants  # noqa: E402
 from worker.agent import Agent  # noqa: E402
 from worker.agent_utils import ContainerLogFollower, parse_docker_log_timestamp_ns  # noqa: E402
@@ -151,12 +154,27 @@ def _docker_client():
     return client
 
 
-def test_restarting_net_client_lines_reach_log_queue_once(monkeypatch, tmp_path):
-    """Real docker: a net-client that crashes every second, streamed by the agent's daemon body."""
+class RecordingApi:
+    """Stands in for the agent's gRPC client: records each line sent in a `Log` RPC to worker-api."""
+
+    def __init__(self):
+        self.messages = []
+
+    def simple_request(self, method, resp_type, req):
+        assert method == "Log"
+        self.messages.extend(json.loads(line)["message"] for line in req.data)
+
+
+def test_restarting_net_client_lines_reach_worker_api_once(monkeypatch, tmp_path):
+    """Real docker: a net-client that crashes every second, streamed under the agent's own
+    `_run_daemon` supervisor and drained by `submit_log` into the `Log` RPC to worker-api."""
     dc = _docker_client()
     name = "sly-net-client-test-" + uuid.uuid4().hex[:8]
     monkeypatch.setattr(constants, "NET_CLIENT_CONTAINER_NAME", lambda: name)
     monkeypatch.setattr(constants, "AGENT_LOG_DIR", lambda: str(tmp_path))
+    # the supervisor's reconnect backoff is 30s+ in production; the resume logic does not care
+    monkeypatch.setattr(agent_module, "DAEMON_RESTART_WAIT_SEC", 0.05)
+    monkeypatch.setattr(agent_module, "DAEMON_RESTART_WAIT_MAX_SEC", 0.2)
     container = dc.containers.run(
         "busybox:1.36",
         [
@@ -168,38 +186,61 @@ def test_restarting_net_client_lines_reach_log_queue_once(monkeypatch, tmp_path)
         detach=True,
         restart_policy={"Name": "always"},
     )
+    daemon = None
+    agent = Agent.__new__(Agent)  # skip __init__: it connects to the server
     try:
         time.sleep(3)
+        container.reload()
+        restarts_before = container.attrs["RestartCount"]
         history = container.logs().decode().splitlines()
         assert history, "container produced no history to (not) replay"
 
-        agent = Agent.__new__(Agent)  # skip __init__: it connects to the server
         agent.docker_api = dc
         agent.log_queue = agent_utils.LogQueue()
+        agent.logger = MagicMock()
         agent.net_logger = None
         agent._net_client_log_follower = ContainerLogFollower()
+        agent._stop_daemons = threading.Event()
+        daemon = threading.Thread(
+            target=agent._run_daemon,
+            args=(agent.task_stream_net_client_logs, "task_stream_net_client_logs"),
+        )
+        daemon.start()
 
-        # the body _run_daemon re-enters after each stream end, across several container restarts
-        for _ in range(4):
-            deadline = time.monotonic() + 30
-            while container.reload() or container.status != "running":
-                assert time.monotonic() < deadline, "net-client did not come back up"
-                time.sleep(0.1)
-            Agent.task_stream_net_client_logs(agent)
+        # RestartCount ticks when a run exits, and docker's restart delay then keeps growing, so
+        # wait for three reconnects' worth of lines rather than sleeping a fixed time
+        deadline = time.monotonic() + 60
+        while (
+            container.reload()
+            or container.attrs["RestartCount"] < restarts_before + 3
+            or agent.log_queue.q.qsize() < 9
+        ):
+            assert time.monotonic() < deadline, "net-client did not restart and log 3 times"
+            time.sleep(0.2)
 
-        container.stop(timeout=0)
-        container.reload()
-        assert container.attrs["RestartCount"] >= 3
-        delivered = [json.loads(e)["message"] for e in agent.log_queue.q.queue]
+        agent._stop_daemons.set()
+        container.stop(timeout=0)  # ends the follow stream the reader is blocked on
+        daemon.join(timeout=30)
+        assert not daemon.is_alive(), "net-client log reader did not stop"
+        agent.logger.error.assert_not_called()  # the reader never crashed
+
+        api = RecordingApi()
+        agent.api = api
+        agent._stop_log_event = threading.Event()
+        agent._stop_log_event.set()  # drain the queue, then return
+        agent.submit_log()
+
         all_lines = container.logs().decode().splitlines()
         assert len(set(all_lines)) == len(all_lines)  # uuids: every line is distinct
-
-        counts = Counter(delivered)
+        sent = api.messages
+        counts = Counter(sent)
         assert [l for l, n in counts.items() if n > 1] == []
         assert set(history).isdisjoint(counts)
         new_lines = [l for l in all_lines if l not in history]
-        # lines written after the last reader returned were never streamed; everything else was
-        assert new_lines[: len(delivered)] == delivered
-        assert len(delivered) >= 9
+        # in order and without gaps; only lines written after the last stream ended may be missing
+        assert new_lines[: len(sent)] == sent
+        assert len(sent) >= 9
     finally:
+        if daemon is not None and daemon.is_alive():
+            agent._stop_daemons.set()
         container.remove(force=True)
