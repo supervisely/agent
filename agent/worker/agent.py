@@ -14,7 +14,7 @@ from docker.models.containers import Container
 from docker.models.images import ImageCollection
 from docker.types import LogConfig
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pathlib import Path
 from filelock import FileLock
 from datetime import datetime
@@ -58,7 +58,7 @@ DAEMON_CRASH_WINDOW_SEC = 600
 
 
 class Agent:
-    def __init__(self):
+    def __init__(self, net_client_logs_since_ns: Optional[int] = None):
         self.logger = sly.get_task_logger("agent")
         sly.change_formatters_default_values(self.logger, "service_type", sly.ServiceType.AGENT)
         sly.change_formatters_default_values(self.logger, "event_type", sly.EventType.LOGJ)
@@ -80,6 +80,8 @@ class Agent:
         self.daemons_list = []
         self.daemons_lock = threading.Lock()
         self._stop_daemons = threading.Event()
+        self._net_client_log_follower = agent_utils.ContainerLogFollower(net_client_logs_since_ns)
+        self.net_logger = None
 
         self._remove_old_agent()
         self._validate_duplicated_agents()
@@ -738,22 +740,21 @@ class Agent:
         if sly_net_container is None:
             return
 
-        self.net_logger = sly.get_task_logger("net_client")
-        sly.change_formatters_default_values(self.net_logger, "service_type", "NET_CLIENT")
-        sly.change_formatters_default_values(self.net_logger, "event_type", sly.EventType.LOGJ)
+        # _run_daemon re-enters this after every stream end; attach handlers only once or each
+        # reconnect would add another TaskHandler and multiply every line sent to the API.
+        if self.net_logger is None:
+            net_logger = sly.get_task_logger("net_client")
+            sly.change_formatters_default_values(net_logger, "service_type", "NET_CLIENT")
+            sly.change_formatters_default_values(net_logger, "event_type", sly.EventType.LOGJ)
+            add_task_handler(net_logger, self.log_queue)
+            sly.add_default_logging_into_file(net_logger, constants.AGENT_LOG_DIR())
+            self.net_logger = net_logger
 
-        add_task_handler(self.net_logger, self.log_queue)
-        sly.add_default_logging_into_file(self.net_logger, constants.AGENT_LOG_DIR())
-
-        log_buffer = ""
         ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-        for chunk in sly_net_container.logs(stdout=True, stderr=True, follow=True, stream=True):
-            decoded_chunk = chunk.decode("utf-8")
-            log_buffer += decoded_chunk
-            if log_buffer.endswith("\n"):
-                log_buffer = ansi_escape.sub("", log_buffer)
-                self.net_logger.info(log_buffer.strip())
-                log_buffer = ""
+        self._net_client_log_follower.follow(
+            sly_net_container,
+            lambda line: self.net_logger.info(ansi_escape.sub("", line).strip()),
+        )
 
     def update_base_layers(self):
         self.logger.info("Start background task: pulling base images")
