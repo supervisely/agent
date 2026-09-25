@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import docker
 from urllib.parse import urljoin
 from docker.models.containers import Container
@@ -231,8 +232,10 @@ def main(args):
     sly.logger.info("Remove empty directories in agent storage...")
     remove_empty_folders(constants.SUPERVISELY_AGENT_FILES_CONTAINER())
 
+    # net-client lines older than this are history from before this agent and are not forwarded
+    net_client_logs_since_ns = time.time_ns()
     _start_net_client()
-    agent = Agent()
+    agent = Agent(net_client_logs_since_ns=net_client_logs_since_ns)
     agent.inf_loop()
     agent.wait_all()
 
