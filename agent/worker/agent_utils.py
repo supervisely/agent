@@ -104,6 +104,80 @@ class LogQueue:
         return log_lines
 
 
+_DOCKER_LOG_TIMESTAMP = re.compile(
+    r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?(Z|[+-]\d\d:\d\d)"
+)
+
+
+def parse_docker_log_timestamp_ns(value: str) -> Optional[int]:
+    """Parse the RFC 3339 prefix of `docker logs --timestamps` into epoch nanoseconds."""
+    m = _DOCKER_LOG_TIMESTAMP.fullmatch(value)
+    if m is None:
+        return None
+    offset = "+00:00" if m[3] == "Z" else m[3]
+    seconds = int(datetime.strptime(m[1] + offset, "%Y-%m-%dT%H:%M:%S%z").timestamp())
+    return seconds * 10**9 + int((m[2] or "").ljust(9, "0"))
+
+
+class ContainerLogFollower:
+    """Follows a container's docker log so each line is delivered once across reconnects.
+
+    The cursor is the latest docker timestamp delivered; it is time-based, so it also survives
+    the container restarting or being recreated under the same name. Without a delivered line
+    it starts at `start_ns` (default: now), so history is never replayed.
+    """
+
+    def __init__(self, start_ns: Optional[int] = None):
+        self._cursor_ns = time.time_ns() if start_ns is None else start_ns
+        # lines already delivered that carry exactly _cursor_ns
+        self._delivered_at_cursor = 0
+        # per stream: whether the replayed prefix (lines already delivered) is behind us
+        self._live = False
+        self._seen_at_cursor = 0
+
+    def follow(self, container, emit: Callable[[str], None]) -> None:
+        """Stream new lines of `container` into `emit` until docker closes the stream."""
+        # Docker's `since` is inclusive; whole seconds keep it exact, the rest is filtered here.
+        since = max(self._cursor_ns // 10**9, 1)
+        self._live = False
+        self._seen_at_cursor = 0
+        buffer = b""
+        stream = container.logs(
+            stdout=True, stderr=True, follow=True, stream=True, timestamps=True, since=since
+        )
+        for chunk in stream:
+            buffer += chunk
+            *lines, buffer = buffer.split(b"\n")
+            for line in lines:
+                self._deliver(line, emit)
+        if buffer:
+            self._deliver(buffer, emit)
+
+    def _deliver(self, raw: bytes, emit: Callable[[str], None]) -> None:
+        line = raw.decode("utf-8", errors="replace")
+        prefix, _, message = line.partition(" ")
+        ts_ns = parse_docker_log_timestamp_ns(prefix)
+        if ts_ns is None:
+            emit(line)
+            return
+        if not self._live:
+            if ts_ns < self._cursor_ns:
+                return
+            if ts_ns == self._cursor_ns:
+                self._seen_at_cursor += 1
+                if self._seen_at_cursor <= self._delivered_at_cursor:
+                    return
+            self._live = True
+        # Docker stamps stdout and stderr in separate goroutines, so a live line can carry an
+        # earlier timestamp than the one before it; it is still new and must not be dropped.
+        emit(message)
+        if ts_ns > self._cursor_ns:
+            self._cursor_ns = ts_ns
+            self._delivered_at_cursor = 1
+        elif ts_ns == self._cursor_ns:
+            self._delivered_at_cursor += 1
+
+
 class TaskDirCleaner:
     def __init__(self, dir_task):
         self.dir_task = dir_task
